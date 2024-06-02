@@ -145,25 +145,29 @@ def start_http_server():
 
                 logger.info('/detect POST motion: %s', format(event['motion']))
 
-                if event['motion'] is True:
-                    fetch_members()
+                global t3
+                if t3 is None:
+                    if event['motion'] is True:
+                        fetch_members()
 
-                    init_face_app()
+                        init_face_app()
 
-                    params = {}
-                    params['rtsp_src'] = 'rtsp://admin:Cypher2015@192.168.11.206:554/stream2'
-                    params['codec'] = 'h264'
-                    params['framerate'] = '10'
-                    params['active_members'] = active_members
-                    params['face_app'] = face_app
+                        params = {}
+                        params['rtsp_src'] = 'rtsp://admin:Cypher2015@192.168.11.206:554/stream2'
+                        params['codec'] = 'h264'
+                        params['framerate'] = '10'
+                        params['active_members'] = active_members
+                        params['face_app'] = face_app
 
-                    # start_recognition
-                    t3 = threading.Thread(target=recognition, args=(params,), daemon=True)
-                    t3.start()
+                        # start_recognition
+                        t3 = threading.Thread(target=recognition, args=(params,), daemon=True)
+                        t3.start()
                 # else:
                 #     detector.stop_event.set()
+                #     t3 = None
 
                 # Example response
+                
                 response = {'message': event}
 
                 # Send the response
@@ -363,6 +367,8 @@ scheduler = sched.scheduler(time.time, time.sleep)
 
 # Initialize the detector
 detector = None
+
+t3 = None
 
 # http server
 t1 = threading.Thread(target=start_http_server, daemon=True)
