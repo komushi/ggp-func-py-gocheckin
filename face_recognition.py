@@ -1,14 +1,14 @@
-import json
+# import json
 import logging
 import time
-import datetime
+# import datetime
 import sys
-import os
+# import os
 import threading
 import queue
 import traceback
 import numpy as np
-import PIL.Image
+# import PIL.Image
 
 from insightface.app import FaceAnalysis
 
@@ -25,11 +25,11 @@ def compute_sim(feat1, feat2):
     feat2 = feat2.ravel()
     return np.dot(feat1, feat2) / (np.linalg.norm(feat1) * np.linalg.norm(feat2))
 
-class FaceRecognition(object):
+class FaceRecognition():
     def __init__(self, params):
         #Current Cam
         self.running = True
-        self.camProcess = None
+        self.cam_process = None
         self.cam_queue = queue.Queue(maxsize=100)
         self.stop_event = threading.Event()
         self.camlink = params['rtsp_src']
@@ -57,18 +57,16 @@ class FaceRecognition(object):
 
 
     def start_detector(self):
-        if threading.current_thread() == threading.main_thread():
-            import cv2
 
         #get all cams
         time.sleep(1)
 
-        self.camProcess = gst.StreamCapture(self.camlink,
+        self.cam_process = gst.StreamCapture(self.camlink,
                             self.pipeline_str,
                             self.stop_event,
                             self.cam_queue,
                             self.framerate)
-        self.camProcess.start()
+        self.cam_process.start()
 
         try:
             # while self.running:
@@ -80,8 +78,6 @@ class FaceRecognition(object):
 
                     if cmd == gst.StreamCommands.FRAME:
                         if val is not None:
-
-                            img = val
 
                             crt_time = time.time()
 
@@ -95,7 +91,7 @@ class FaceRecognition(object):
                                     logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
                                     for face in faces:
                                         sim = str(compute_sim(face.embedding, np.array(self.active_members[0]['faceEmbedding'])))
-                                        print('compute_sim face: %s similarity: %s' % (self.file_path, sim))
+                                        print('compute_sim face similarity: %s' % (sim))
 
 
         except KeyboardInterrupt:
@@ -107,8 +103,6 @@ class FaceRecognition(object):
             logger.info(e)
 
         self.stop_detector()
-        if threading.current_thread() == threading.main_thread():
-            cv2.destroyAllWindows()
         logger.info('start_detector after destroyAllWindows')
 
 
@@ -119,18 +113,18 @@ class FaceRecognition(object):
                 self.stop_event.set()
                 while not self.cam_queue.empty():
                     try:
-                        _ = self.cam_queue.get(false)
+                        _ = self.cam_queue.get()
                         logger.info('in stop_detector cleanup')
                     except:
                         break
                     self.cam_queue.join()
 
-                self.camProcess.join()
+                self.cam_process.join()
                 # self.camProcess.close()
                 logger.info('After close')
         except queue.Empty as ex:
             logger.info('Caught stop_detctor Queue.Empty Exception')
-            logger.info(e)
+            logger.info(ex)
             traceback.print_exc()
         except Exception as e:
             logger.info('Caught stop_detector Othert Exception')

@@ -151,7 +151,7 @@ def start_http_server():
 
                 init_face_app()
 
-                params = []
+                params = {}
                 params['rtsp_src'] = 'rtsp://admin:Cypher2015@192.168.11.206:554/stream1'
                 params['codec'] = 'h264'
                 params['framerate'] = '10'
@@ -159,7 +159,7 @@ def start_http_server():
                 params['face_app'] = face_app
 
                 # start_recognition
-                t3 = Thread(target=recognition, args=(params,), daemon=True)
+                t3 = threading.Thread(target=recognition, args=(params,), daemon=True)
                 t3.start()
 
                 # Example response
