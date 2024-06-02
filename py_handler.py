@@ -145,8 +145,7 @@ def start_http_server():
 
                 logger.info('/detect POST motion: %s', format(event['motion']))
 
-                global t3
-                if t3 is None:
+                if not detector.stop_event.is_set():
                     if event['motion'] is True:
                         fetch_members()
 
@@ -162,12 +161,12 @@ def start_http_server():
                         # start_recognition
                         t3 = threading.Thread(target=recognition, args=(params,), daemon=True)
                         t3.start()
-                # else:
-                #     detector.stop_event.set()
-                #     t3 = None
+                else:
+                    if event['motion'] is False:
+                        detector.stop_event.set()
 
                 # Example response
-                
+
                 response = {'message': event}
 
                 # Send the response
@@ -262,9 +261,8 @@ def get_active_members():
         # Add the query results to the results list
         results.extend(response['Items'])
 
-    # for item in results:
-    #     item['faceEmbedding'] = np.array(item['faceEmbedding'])
-    #     print(item)
+    for item in results:
+        item['embedding'] = np.array([float(value) for value in item['embedding']])
 
     return results
 

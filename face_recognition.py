@@ -97,7 +97,10 @@ class FaceRecognition():
                                 if len(faces) > 0:
                                     logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
                                     for face in faces:
-                                        sim = str(compute_sim(face.embedding, np.array(self.active_members[0]['faceEmbedding'])))
+
+                                        sim = str(compute_sim(face.embedding, self.active_members[0]['faceEmbedding']))
+
+                                        # sim = str(compute_sim(face.embedding, np.array(self.active_members[0]['faceEmbedding'])))
                                         print('compute_sim face similarity: %s' % (sim))
 
 
