@@ -145,7 +145,7 @@ def start_http_server():
 
                 logger.info('/detect POST motion: %s', format(event['motion']))
 
-                if not detector.stop_event.is_set():
+                if detector is None or not detector.stop_event.is_set():
                     if event['motion'] is True:
                         fetch_members()
 
