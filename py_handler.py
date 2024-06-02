@@ -160,8 +160,8 @@ def start_http_server():
                     # start_recognition
                     t3 = threading.Thread(target=recognition, args=(params,), daemon=True)
                     t3.start()
-                else:
-                    detector.stop_event.set()
+                # else:
+                #     detector.stop_event.set()
 
                 # Example response
                 response = {'message': event}
