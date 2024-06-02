@@ -21,8 +21,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
 def compute_sim(feat1, feat2):
-    logger.info('compute_sim in feat1:' + repr(feat1))
-    logger.info('compute_sim in feat2:' + repr(feat2))
+    # logger.info('compute_sim in feat1:' + repr(feat1))
+    # logger.info('compute_sim in feat2:' + repr(feat2))
     logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
     feat1 = feat1.ravel()
     feat2 = feat2.ravel()
@@ -30,7 +30,7 @@ def compute_sim(feat1, feat2):
     sim = np.dot(feat1, feat2) / (np.linalg.norm(feat1) * np.linalg.norm(feat2))
 
     logger.info('compute_sim out sim: %s', str(sim))
-    return 
+    return sim
 
 class FaceRecognition():
     def __init__(self, params):
@@ -98,10 +98,11 @@ class FaceRecognition():
                                     logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
                                     for face in faces:
 
-                                        sim = str(compute_sim(face.embedding, self.active_members[0]['faceEmbedding']))
+                                        sim = compute_sim(face.embedding, self.active_members[0]['faceEmbedding'])
 
                                         # sim = str(compute_sim(face.embedding, np.array(self.active_members[0]['faceEmbedding'])))
-                                        print('compute_sim face similarity: %s' % (sim))
+                                        # print('compute_sim face similarity: %s', sim)
+                                        logger.info('face sim: %s fullName: %s', str(sim), self.active_members[0]['fullName'])
 
 
         except KeyboardInterrupt:

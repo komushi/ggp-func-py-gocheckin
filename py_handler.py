@@ -145,7 +145,7 @@ def start_http_server():
 
                 logger.info('/detect POST motion: %s', format(event['motion']))
 
-                if detector is None or not detector.stop_event.is_set():
+                if detector is None or detector.stop_event.is_set():
                     if event['motion'] is True:
                         fetch_members()
 
@@ -161,7 +161,8 @@ def start_http_server():
                         # start_recognition
                         t3 = threading.Thread(target=recognition, args=(params,), daemon=True)
                         t3.start()
-                else:
+
+                if detector is not None and not detector.stop_event.is_set():
                     if event['motion'] is False:
                         detector.stop_event.set()
 
@@ -240,7 +241,7 @@ def get_active_members():
     active_reservations = get_active_reservations()
 
     # Define the list of attributes to retrieve
-    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding']
+    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName']
 
     # Initialize an empty list to store the results
     results = []
