@@ -21,9 +21,14 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
 def compute_sim(feat1, feat2):
+    logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
     feat1 = feat1.ravel()
     feat2 = feat2.ravel()
-    return np.dot(feat1, feat2) / (np.linalg.norm(feat1) * np.linalg.norm(feat2))
+
+    sim = np.dot(feat1, feat2) / (np.linalg.norm(feat1) * np.linalg.norm(feat2))
+
+    logger.info('compute_sim out sim: %s', str(sim))
+    return 
 
 class FaceRecognition():
     def __init__(self, params):
