@@ -262,36 +262,9 @@ def get_active_members():
         results.extend(response['Items'])
 
     for item in results:
-        item['embedding'] = np.array([float(value) for value in item['embedding']])
+        item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
 
     return results
-
-def function_handler(event, context):
-
-    context_vars = vars(context)
-    topic = context_vars['client_context'].custom['subject']
-
-    logger.info('function_handler topic: %s', str(topic))
-
-    if topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner":        
-        logger.info('function_handler init_scanner')
-
-        client = greengrasssdk.client("iot-data")
-
-        data = {
-            "equipmentId": os.environ['AWS_IOT_THING_NAME'],
-            "equipmentName": os.environ['AWS_IOT_THING_NAME'],
-            "localIp": get_local_ip()
-        }
-        
-        # print(json.dumps(data))
-        
-        client.publish(
-            topic="gocheckin/scanner_detected",
-            payload=json.dumps(data)
-        )
-        sys.exit(0)
-
 
 def fetch_members():
     logger.info('fetch_members in')
@@ -351,6 +324,18 @@ def recognition(params):
         
     except Exception as e:
         logger.error("FaceRecognition failure: " + repr(e))
+
+
+def function_handler(event, context):
+
+    context_vars = vars(context)
+    topic = context_vars['client_context'].custom['subject']
+
+    logger.info('function_handler topic: %s', str(topic))
+
+    if topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner":        
+        logger.info('function_handler init_scanner')
+
 
 
 # Initialize the active_members and the last_fetch_time
