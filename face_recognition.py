@@ -21,6 +21,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
 def compute_sim(feat1, feat2):
+    logger.info('compute_sim in feat1:' + repr(feat1))
+    logger.info('compute_sim in feat2:' + repr(feat2))
     logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
     feat1 = feat1.ravel()
     feat2 = feat2.ravel()

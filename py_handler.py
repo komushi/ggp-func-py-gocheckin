@@ -258,9 +258,9 @@ def get_active_members():
         # Add the query results to the results list
         results.extend(response['Items'])
 
-    for item in results:
-        item['faceEmbedding'] = np.array(item['faceEmbedding'])
-        print(item)
+    # for item in results:
+    #     item['faceEmbedding'] = np.array(item['faceEmbedding'])
+    #     print(item)
 
     return results
 
