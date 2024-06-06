@@ -152,7 +152,7 @@ def start_http_server():
                         init_face_app()
 
                         params = {}
-                        params['rtsp_src'] = 'rtsp://admin:Cypher2015@192.168.11.206:554/stream2'
+                        params['rtsp_src'] = 'rtsp://admin:Cypher2015@192.168.11.206:554/stream1'
                         params['codec'] = 'h264'
                         params['framerate'] = '10'
                         params['active_members'] = active_members

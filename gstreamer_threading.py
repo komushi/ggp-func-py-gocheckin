@@ -97,15 +97,15 @@ class StreamCapture(threading.Thread):
         if  self.source is not None:
             self.source.set_property('latency', 0)
             self.source.set_property('location', self.streamLink)
-            self.source.set_property('protocols', 'tcp')
+            self.source.set_property('protocols', 'udp')
             self.source.set_property('retry', 50)
-            self.source.set_property('timeout', 50)
-            self.source.set_property('tcp-timeout', 5000000)
+            self.source.set_property('timeout', 500000)
+            self.source.set_property('tcp-timeout', 500000)
             self.source.set_property('drop-on-latency', 'true')
             self.source.set_property('ntp-time-source', 0)
             if GstPbutils.plugins_base_version().major == 1 and GstPbutils.plugins_base_version().minor >= 18:
                 self.source.set_property('is-live', 'true')
-            self.source.set_property('buffer-mode', 3)
+            self.source.set_property('buffer-mode', 0)
             self.source.set_property('ntp-sync', 'true')
 
         # decode params
