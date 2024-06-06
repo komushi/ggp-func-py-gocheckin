@@ -156,7 +156,7 @@ def start_http_server():
 
                         # params['rtsp_src'] = f"rtsp://admin:Cypher2015@192.168.11.206:554/stream1"
 
-                        params['rtsp_src'] = 'rtsp://admin:Cypher2015@192.168.11.206:554/stream1'
+                        params['rtsp_src'] = 'rtsp://test:pa55word@192.168.11.202:554/Streaming/channels/101'
                         params['codec'] = 'h264'
                         params['framerate'] = '10'
                         params['active_members'] = active_members
