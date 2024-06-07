@@ -1,6 +1,6 @@
 import json
 import logging
-import datetime
+from datetime import datetime
 import sys
 import os
 
@@ -11,8 +11,6 @@ import http.server
 import socketserver
 
 import socket
-
-from datetime import datetime
 
 import threading
 import sched
@@ -35,6 +33,25 @@ import greengrasssdk
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
+# Initialize the threads
+server_thread = None
+scheduler_thread = None
+thread_lock = threading.Lock()
+
+# Initialize the scheduler
+scheduler = sched.scheduler(time.time, time.sleep)
+
+# Initialize the active_members and the last_fetch_time
+active_members = []
+last_fetch_time = None
+
+# Initialize the face_app
+face_app = None
+
+# Initialize the detector
+detector = None
+
+
 def get_local_ip():
 
     # Connect to an external host, in this case, Google's DNS server
@@ -49,7 +66,7 @@ def init_face_app():
     global face_app
 
     if face_app is None:
-        face_app = FaceAnalysis(name='buffalo_sc', allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
+        face_app = FaceAnalysis(name='buffalo_l', allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
         face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
     
     return
@@ -98,24 +115,13 @@ def start_http_server():
                 init_face_app()
                 reference_faces = face_app.get(image_bgr)
 
-                print('reference_faces[0].embedding:')
+                # print('reference_faces[0].embedding:')
                 print(type(reference_faces[0].embedding))
 
                 event['faceEmbedding'] = reference_faces[0].embedding.tolist()
 
-                print('event[faceEmbedding]:')
+                # print('event[faceEmbedding]:')
                 print(type(event['faceEmbedding']))
-
-                # data = {
-                #     "reservationCode": event['reservationCode'],
-                #     "memberNo": event['memberNo'],
-                #     "faceEmbedding": reference_faces[0].embedding.tolist()
-                # }
-        
-                # iotClient.publish(
-                #     topic="gocheckin/res_face_embeddings",
-                #     payload=json.dumps(data)
-                # )
 
                 bbox = reference_faces[0].bbox.astype(np.int).flatten()
                 cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
@@ -152,13 +158,9 @@ def start_http_server():
                         init_face_app()
 
                         params = {}
-                        # params['rtsp_src'] = f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner"
-
-                        # params['rtsp_src'] = f"rtsp://admin:Cypher2015@192.168.11.206:554/stream1"
-
-                        params['rtsp_src'] = 'rtsp://test:pa55word@192.168.11.202:554/Streaming/channels/101'
-                        params['codec'] = 'h264'
-                        params['framerate'] = '10'
+                        params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['port']}{event['cameraItem']['path']}"
+                        params['codec'] = event['cameraItem']['codec']
+                        params['framerate'] = event['cameraItem']['framerate']
                         params['active_members'] = active_members
                         params['face_app'] = face_app
 
@@ -169,8 +171,6 @@ def start_http_server():
                 if detector is not None and not detector.stop_event.is_set():
                     if event['motion'] is False:
                         detector.stop_event.set()
-
-                # Example response
 
                 response = {'message': event}
 
@@ -342,29 +342,36 @@ def function_handler(event, context):
         logger.info('function_handler init_scanner')
 
 
-
-# Initialize the active_members and the last_fetch_time
-active_members = []
-last_fetch_time = None
-
-# Initialize the face_app
-face_app = None
-
-# Initialize the scheduler
-scheduler = sched.scheduler(time.time, time.sleep)
-
-# Initialize the detector
-detector = None
-
-t3 = None
-
 # http server
-t1 = threading.Thread(target=start_http_server, daemon=True)
-t1.start()
+def start_server_thread():
+    global server_thread
+    with thread_lock:
+        if server_thread is None or not server_thread.is_alive():
+            server_thread = threading.Thread(target=start_http_server, daemon=True)
+            server_thread.start()
+            logger.info("Server thread started")
+        else:
+            logger.info("Server thread is already running")
 
-# scheduler
-t2 = threading.Thread(target=start_scheduler, daemon=True)
-t2.start()
+# scheduler server
+def start_scheduler_thread():
+    global scheduler_thread
+    with thread_lock:
+        if scheduler_thread is None or not scheduler_thread.is_alive():
+            scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
+            scheduler_thread.start()
+            logger.info("scheduler thread started")
+        else:
+            logger.info("scheduler thread is already running")
+
+
+
+# Start the HTTP server thread
+start_server_thread()
+
+# Start the scheduler thread
+start_scheduler_thread()
+
 
 
 
