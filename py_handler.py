@@ -167,6 +167,10 @@ def start_http_server():
                 if detector is not None and not detector.stop_event.is_set():
                     if event['motion'] is False:
                         detector.stop_event.set()
+
+                        for thread in threading.enumerate(): 
+                            print(thread.name)
+                            
                         stop_detector_thread()
 
                 response = {'message': event}
