@@ -156,6 +156,8 @@ def start_http_server():
 
                     if detector is None or detector.stop_event.is_set():
                         if event['motion'] is True:
+                            fetch_members()
+
                             params = {}
                             params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
                             params['codec'] = event['cameraItem']['rtsp']['codec']
@@ -294,12 +296,16 @@ def fetch_members():
     logger.info('fetch_members current_date: %s', str(current_date))
 
     if active_members is None:
+        logger.info('fetch_members init')
         active_members = get_active_members()
         last_fetch_time = current_date
     else:
         if last_fetch_time is None or last_fetch_time < current_date:
+            logger.info('fetch_members update')
             active_members = get_active_members()
             last_fetch_time = current_date
+        else:
+            logger.info('fetch_members skip')
         
 
 def claim_scanner():
@@ -380,7 +386,6 @@ def start_scheduler_thread():
 
 # detector
 def start_detector_thread(params):
-    fetch_members()
 
     detector_thread = threading.Thread(target=recognition, args=(params,))
     detector_thread.start()
