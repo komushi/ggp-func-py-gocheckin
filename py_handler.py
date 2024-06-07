@@ -403,12 +403,20 @@ def start_detector_thread(params):
             logger.info("detector thread is already running")
 
 def stop_detector_thread():
+    logger.info("trying to stop detector thread ")
+
     global detector_thread
-    with thread_lock:
-        if detector_thread and detector_thread.is_alive():
-            detector_thread.join()
-            detector_thread = None
-            logger.info("detector thread stopped")
+    detector_thread.join()
+    detector_thread = None
+
+    logger.info("detector thread stopped")
+
+    # global detector_thread
+    # with thread_lock:
+    #     if detector_thread and detector_thread.is_alive():
+    #         detector_thread.join()
+    #         detector_thread = None
+    #         logger.info("detector thread stopped")
 
 # Start the HTTP server thread
 start_server_thread()

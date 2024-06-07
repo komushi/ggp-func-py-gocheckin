@@ -132,7 +132,14 @@ class FaceRecognition():
                         break
                     self.cam_queue.join()
 
+                for thread in threading.enumerate(): 
+                    print('afterA:' + thread.name)
+
                 self.cam_process.join()
+
+                for thread in threading.enumerate(): 
+                    print('beforeA:' + thread.name)
+
                 # self.camProcess.close()
                 logger.info('After close')
         except queue.Empty as ex:
