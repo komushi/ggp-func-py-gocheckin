@@ -150,6 +150,7 @@ def start_http_server():
                 event = json.loads(post_data)
 
                 logger.info('/detect POST motion: %s', format(event['motion']))
+                logger.info('/detect POST motion: %s', format(event['cameraItem']))
 
                 if detector is None or detector.stop_event.is_set():
                     if event['motion'] is True:
@@ -158,7 +159,7 @@ def start_http_server():
                         init_face_app()
 
                         params = {}
-                        params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['port']}{event['cameraItem']['path']}"
+                        params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{str(event['cameraItem']['port'])}{event['cameraItem']['path']}"
                         params['codec'] = event['cameraItem']['codec']
                         params['framerate'] = event['cameraItem']['framerate']
                         params['active_members'] = active_members
