@@ -173,9 +173,12 @@ def start_http_server():
                             detector.stop_event.set()
 
                             for thread in threading.enumerate(): 
-                                print(thread.name)
+                                print('before:' + thread.name)
 
-                            # stop_detector_thread()
+                            stop_detector_thread()
+
+                            for thread in threading.enumerate(): 
+                                print('after:' + thread.name)
 
                     response = {'message': event}
 
@@ -387,17 +390,17 @@ def start_scheduler_thread():
 # detector
 def start_detector_thread(params):
 
-    detector_thread = threading.Thread(target=recognition, args=(params,))
-    detector_thread.start()
+    # detector_thread = threading.Thread(target=recognition, args=(params,))
+    # detector_thread.start()
 
-    # global detector_thread
-    # with thread_lock:
-    #     if detector_thread is None or not detector_thread.is_alive():
-    #         detector_thread = threading.Thread(target=recognition, args=(params,))
-    #         detector_thread.start()
-    #         logger.info("detector thread started")
-    #     else:
-    #         logger.info("detector thread is already running")
+    global detector_thread
+    with thread_lock:
+        if detector_thread is None or not detector_thread.is_alive():
+            detector_thread = threading.Thread(target=recognition, args=(params,))
+            detector_thread.start()
+            logger.info("detector thread started")
+        else:
+            logger.info("detector thread is already running")
 
 def stop_detector_thread():
     global detector_thread
