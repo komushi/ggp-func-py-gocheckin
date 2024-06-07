@@ -386,11 +386,11 @@ def stop_detector_thread():
             detector_thread = None
             logger.info("detector thread stopped")
 
-# Init face_app
-init_face_app()
-
 # Start the HTTP server thread
 start_server_thread()
+
+# Init face_app
+init_face_app()
 
 # Start the scheduler thread
 start_scheduler_thread()
