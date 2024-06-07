@@ -113,7 +113,6 @@ def start_http_server():
 
                 image_bgr, org_image = read_picture_from_url(event['faceImgUrl'])
 
-                init_face_app()
                 reference_faces = face_app.get(image_bgr)
 
                 # print('reference_faces[0].embedding:')
@@ -155,10 +154,6 @@ def start_http_server():
 
                 if detector is None or detector.stop_event.is_set():
                     if event['motion'] is True:
-                        fetch_members()
-
-                        init_face_app()
-
                         params = {}
                         params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
                         params['codec'] = event['cameraItem']['rtsp']['codec']
@@ -172,8 +167,7 @@ def start_http_server():
                 if detector is not None and not detector.stop_event.is_set():
                     if event['motion'] is False:
                         detector.stop_event.set()
-                        global detector_thread
-                        detector_thread = None
+                        stop_detector_thread()
 
                 response = {'message': event}
 
@@ -369,6 +363,8 @@ def start_scheduler_thread():
 
 # detector
 def start_detector_thread(params):
+    fetch_members()
+
     global detector_thread
     with thread_lock:
         if detector_thread is None or not detector_thread.is_alive():
@@ -377,6 +373,17 @@ def start_detector_thread(params):
             logger.info("detector thread started")
         else:
             logger.info("detector thread is already running")
+
+def stop_detector_thread():
+    global detector_thread
+    with thread_lock:
+        if detector_thread and detector_thread.is_alive():
+            detector_thread.join()
+            detector_thread = None
+            logger.info("detector thread stopped")
+
+# Init face_app
+init_face_app()
 
 # Start the HTTP server thread
 start_server_thread()
