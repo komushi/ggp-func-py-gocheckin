@@ -356,27 +356,33 @@ def start_server_thread():
 
 # scheduler
 def start_scheduler_thread():
-    global scheduler_thread
-    with thread_lock:
-        if scheduler_thread is None or not scheduler_thread.is_alive():
-            scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
-            scheduler_thread.start()
-            logger.info("scheduler thread started")
-        else:
-            logger.info("scheduler thread is already running")
+    scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
+    scheduler_thread.start()
+
+    # global scheduler_thread
+    # with thread_lock:
+    #     if scheduler_thread is None or not scheduler_thread.is_alive():
+    #         scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
+    #         scheduler_thread.start()
+    #         logger.info("scheduler thread started")
+    #     else:
+    #         logger.info("scheduler thread is already running")
 
 # detector
 def start_detector_thread(params):
     fetch_members()
 
-    global detector_thread
-    with thread_lock:
-        if detector_thread is None or not detector_thread.is_alive():
-            detector_thread = threading.Thread(target=recognition, args=(params,))
-            detector_thread.start()
-            logger.info("detector thread started")
-        else:
-            logger.info("detector thread is already running")
+    detector_thread = threading.Thread(target=recognition, args=(params,))
+    detector_thread.start()
+
+    # global detector_thread
+    # with thread_lock:
+    #     if detector_thread is None or not detector_thread.is_alive():
+    #         detector_thread = threading.Thread(target=recognition, args=(params,))
+    #         detector_thread.start()
+    #         logger.info("detector thread started")
+    #     else:
+    #         logger.info("detector thread is already running")
 
 def stop_detector_thread():
     global detector_thread
