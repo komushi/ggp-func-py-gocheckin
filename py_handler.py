@@ -36,6 +36,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 # Initialize the threads
 server_thread = None
 scheduler_thread = None
+detector_thread = None
 thread_lock = threading.Lock()
 
 # Initialize the scheduler
@@ -166,8 +167,7 @@ def start_http_server():
                         params['face_app'] = face_app
 
                         # start_recognition
-                        t3 = threading.Thread(target=recognition, args=(params,), daemon=True)
-                        t3.start()
+                        start_detector_thread(params)
 
                 if detector is not None and not detector.stop_event.is_set():
                     if event['motion'] is False:
@@ -354,7 +354,7 @@ def start_server_thread():
         else:
             logger.info("Server thread is already running")
 
-# scheduler server
+# scheduler
 def start_scheduler_thread():
     global scheduler_thread
     with thread_lock:
@@ -365,7 +365,16 @@ def start_scheduler_thread():
         else:
             logger.info("scheduler thread is already running")
 
-
+# detector
+def start_detector_thread(params):
+    global detector_thread
+    with thread_lock:
+        if detector_thread is None or not detector_thread.is_alive():
+            detector_thread = threading.Thread(target=recognition, args=(params,), daemon=True)
+            detector_thread.start()
+            logger.info("detector thread started")
+        else:
+            logger.info("detector thread is already running")
 
 # Start the HTTP server thread
 start_server_thread()
