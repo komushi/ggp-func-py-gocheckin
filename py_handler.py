@@ -95,91 +95,101 @@ def start_http_server():
 
     class MyHandler(http.server.SimpleHTTPRequestHandler):
         def do_POST(self):
-            # if self.client_address[0] != '127.0.0.1':
-            #     self.send_error(403, "Forbidden: Only localhost is allowed")
-            #     return
+            try:
 
-            if self.path == '/recognise':
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
+                # if self.client_address[0] != '127.0.0.1':
+                #     self.send_error(403, "Forbidden: Only localhost is allowed")
+                #     return
+
+                if self.path == '/recognise':
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+
+                    # Process the POST data
+                    content_length = int(self.headers['Content-Length'])
+                    post_data = self.rfile.read(content_length)
+                    event = json.loads(post_data)
+
+                    logger.info('/recognise POST %s', json.dumps(event))
+
+                    image_bgr, org_image = read_picture_from_url(event['faceImgUrl'])
+
+                    reference_faces = face_app.get(image_bgr)
+
+                    # print('reference_faces[0].embedding:')
+                    print(type(reference_faces[0].embedding))
+
+                    event['faceEmbedding'] = reference_faces[0].embedding.tolist()
+
+                    # print('event[faceEmbedding]:')
+                    print(type(event['faceEmbedding']))
+
+                    bbox = reference_faces[0].bbox.astype(np.int).flatten()
+                    cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
+
+                    # Convert the image to bytes
+                    buffered = io.BytesIO()
+                    cropped_face.save(buffered, format="JPEG")
+                    cropped_face_bytes = buffered.getvalue()
+
+                    event['faceImgBase64'] = base64.b64encode(cropped_face_bytes).decode('utf-8')
+
+                    # Send the response
+                    self.wfile.write(json.dumps(event).encode())
+
+                    logger.info('/recognise POST finished')
+
+                elif self.path == '/detect':
+
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+
+                    # Process the POST data
+                    content_length = int(self.headers['Content-Length'])
+                    post_data = self.rfile.read(content_length)
+                    event = json.loads(post_data)
+
+                    logger.info('/detect POST motion: %s', format(event['motion']))
+                    logger.info('/detect POST event: %s', format(event['cameraItem']))
+
+                    if detector is None or detector.stop_event.is_set():
+                        if event['motion'] is True:
+                            params = {}
+                            params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
+                            params['codec'] = event['cameraItem']['rtsp']['codec']
+                            params['framerate'] = event['cameraItem']['rtsp']['framerate']
+                            params['active_members'] = active_members
+                            params['face_app'] = face_app
+
+                            # start_recognition
+                            start_detector_thread(params)
+
+                    if detector is not None and not detector.stop_event.is_set():
+                        if event['motion'] is False:
+                            detector.stop_event.set()
+
+                            for thread in threading.enumerate(): 
+                                print(thread.name)
+
+                            # stop_detector_thread()
+
+                    response = {'message': event}
+
+                    # Send the response
+                    self.wfile.write(json.dumps(response).encode())
+
+                else:
+                    self.send_error(404, 'Path Not Found: %s' % self.path)
+
+            except Exception as e:
+                logger.error(f"Error handling POST request: {e}")
+                self.send_response(500)
                 self.end_headers()
+                self.wfile.write(b'Internal Server Error')
 
-                # Process the POST data
-                content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
-                event = json.loads(post_data)
 
-                logger.info('/recognise POST %s', json.dumps(event))
-
-                image_bgr, org_image = read_picture_from_url(event['faceImgUrl'])
-
-                reference_faces = face_app.get(image_bgr)
-
-                # print('reference_faces[0].embedding:')
-                print(type(reference_faces[0].embedding))
-
-                event['faceEmbedding'] = reference_faces[0].embedding.tolist()
-
-                # print('event[faceEmbedding]:')
-                print(type(event['faceEmbedding']))
-
-                bbox = reference_faces[0].bbox.astype(np.int).flatten()
-                cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
-
-                # Convert the image to bytes
-                buffered = io.BytesIO()
-                cropped_face.save(buffered, format="JPEG")
-                cropped_face_bytes = buffered.getvalue()
-
-                event['faceImgBase64'] = base64.b64encode(cropped_face_bytes).decode('utf-8')
-
-                # Send the response
-                self.wfile.write(json.dumps(event).encode())
-
-                logger.info('/recognise POST finished')
-
-            elif self.path == '/detect':
-
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-
-                # Process the POST data
-                content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
-                event = json.loads(post_data)
-
-                logger.info('/detect POST motion: %s', format(event['motion']))
-                logger.info('/detect POST event: %s', format(event['cameraItem']))
-
-                if detector is None or detector.stop_event.is_set():
-                    if event['motion'] is True:
-                        params = {}
-                        params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
-                        params['codec'] = event['cameraItem']['rtsp']['codec']
-                        params['framerate'] = event['cameraItem']['rtsp']['framerate']
-                        params['active_members'] = active_members
-                        params['face_app'] = face_app
-
-                        # start_recognition
-                        start_detector_thread(params)
-
-                if detector is not None and not detector.stop_event.is_set():
-                    if event['motion'] is False:
-                        detector.stop_event.set()
-
-                        for thread in threading.enumerate(): 
-                            print(thread.name)
-
-                        # stop_detector_thread()
-
-                response = {'message': event}
-
-                # Send the response
-                self.wfile.write(json.dumps(response).encode())
-
-            else:
-                self.send_error(404, 'Path Not Found: %s' % self.path)
 
         def address_string(self):  # Limit access to local network requests
             host, _ = self.client_address[:2]
