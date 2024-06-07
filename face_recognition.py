@@ -94,10 +94,8 @@ class FaceRecognition():
 
                                 faces = self.face_app.get(val)
 
-                                logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
-
                                 if len(faces) > 0:
-                                    # logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
+                                    logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
                                     for face in faces:
 
                                         sim = compute_sim(face.embedding, self.active_members[0]['faceEmbedding'])
