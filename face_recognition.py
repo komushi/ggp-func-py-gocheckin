@@ -108,7 +108,7 @@ class FaceRecognition(threading.Thread):
         
             with self.cam_queue.mutex:
                 self.cam_queue.queue.clear()
-            logger.ingo(f"{self.name} stopped and cam_queue cleared")
+            logger.info(f"{self.name} stopped and cam_queue cleared")
 
         except Exception as e:
             logger.info(f"Caught Exception during stopping {self.name}")
