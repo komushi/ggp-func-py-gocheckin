@@ -81,7 +81,7 @@ class FaceRecognition(threading.Thread):
 
                                 faces = self.face_app.get(val)
 
-                                logger.info(f"Trying to get {len(faces)} face(s)")
+                                # logger.info(f"Trying to get {len(faces)} face(s)")
                                 
                                 if len(faces) > 0:
                                     logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
@@ -122,6 +122,6 @@ class FaceRecognition(threading.Thread):
 
         sim = np.dot(feat1, feat2) / (np.linalg.norm(feat1) * np.linalg.norm(feat2))
 
-        logger.info('compute_sim out sim: %s', str(sim))
+        # logger.info('compute_sim out sim: %s', str(sim))
         return sim
 
