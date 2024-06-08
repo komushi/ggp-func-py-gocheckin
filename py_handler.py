@@ -1,3 +1,4 @@
+import signal
 import json
 import logging
 from datetime import datetime
@@ -33,13 +34,14 @@ import greengrasssdk
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-# Initialize the threads
+# Initialize the http server
 server_thread = None
-scheduler_thread = None
-detector_thread = None
+httpd = None
 thread_lock = threading.Lock()
+http_port = 8888
 
 # Initialize the scheduler
+scheduler_thread = None
 scheduler = sched.scheduler(time.time, time.sleep)
 
 # Initialize the active_members and the last_fetch_time
@@ -87,9 +89,17 @@ def read_picture_from_url(url):
     
     return image_bgr, image
 
+def stop_http_server():
+    global httpd
+    if httpd:
+        logger.info("Shutting down HTTP server")
+        httpd.shutdown()
+        httpd.server_close()
+        httpd = None
+
 def start_http_server():
 
-    http_port = 8888
+    global httpd
 
     class MyHandler(http.server.SimpleHTTPRequestHandler):
         def do_POST(self):
@@ -220,9 +230,13 @@ def start_http_server():
             host, _ = self.client_address[:2]
             return host
 
-    with socketserver.TCPServer(("", http_port), MyHandler) as httpd:
-        logger.info('Serving at port: %s', http_port)
+    try:
+        # Define the server address and port
+        server_address = ('', http_port)  # Use appropriate address and port
+        httpd = socketserver.TCPServer(server_address, MyHandler)
         httpd.serve_forever()
+    except Exception as e:
+        logger.error(f"Error starting HTTP server: {e}")
 
 def get_active_reservations():
     logger.info('get_active_reservations in')
@@ -386,6 +400,7 @@ def start_server_thread():
     global server_thread
     with thread_lock:
         if server_thread is None or not server_thread.is_alive():
+            stop_http_server()
             server_thread = threading.Thread(target=start_http_server, name="Thread-HttpServer" ,daemon=True)
             server_thread.start()
             logger.info("Server thread started")
@@ -398,14 +413,16 @@ def start_scheduler_thread():
     scheduler_thread.start()
     logger.info("Scheduler thread started")
 
-    # global scheduler_thread
-    # with thread_lock:
-    #     if scheduler_thread is None or not scheduler_thread.is_alive():
-    #         scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
-    #         scheduler_thread.start()
-    #         logger.info("scheduler thread started")
-    #     else:
-    #         logger.info("scheduler thread is already running")
+# Function to handle termination signals
+def signal_handler(signum, frame):
+    logger.info(f"Signal {signum} received, shutting down server.")
+    stop_http_server()
+    if server_thread:
+        server_thread.join()  # Wait for the server thread to finish
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
 init_face_app()
