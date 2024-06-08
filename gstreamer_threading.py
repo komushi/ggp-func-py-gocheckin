@@ -44,7 +44,8 @@ class StreamCapture(threading.Thread):
         outPipe - this process can send commands outside
         """
 
-        super().__init__()
+        super().__init__(name="Thread-Gst")
+
         self.streamLink = link
         self.stop_event = stop_event
         self.cam_queue = cam_queue
@@ -225,9 +226,10 @@ class StreamCapture(threading.Thread):
                     self.unexpected_cnt = self.unexpected_cnt + 1
                     if self.unexpected_cnt == self.num_unexpected_tot:
                         break
+        self.stop()
 
-
-        print('terminating cam pipe')
+    def stop(self):
         self.stop_event.set()
+        print(f"{self.name} stopped")
         self.pipeline.set_state(Gst.State.NULL)
         print('terminated cam pipe')

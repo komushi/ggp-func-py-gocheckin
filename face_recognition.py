@@ -28,11 +28,11 @@ class FaceRecognition(threading.Thread):
         self.camlink = params['rtsp_src']
 
         if params['codec'] == 'h264':
-            self.pipeline_str = """rtspsrc name=m_rtspsrc ! rtph264depay name=m_rtph264depay ! avdec_h264 name=m_avdec 
-                ! videoconvert name=m_videoconvert ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
+            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec 
+                ! queue ! videoconvert name=m_videoconvert ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
         elif params['codec'] == 'h265':
-            self.pipeline_str = """rtspsrc name=m_rtspsrc ! rtph265depay name=m_rtph265depay ! avdec_h265 name=m_avdec 
-                ! videoconvert name=m_videoconvert ! videorate name=m_videorate ! appsink name=m_appsink"""
+            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay ! queue ! h264parse ! queue ! avdec_h265 name=m_avdec 
+                ! queue ! videoconvert name=m_videoconvert ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
         elif params['codec'] == 'webcam':
             self.pipeline_str = """avfvideosrc device-index=0 ! videoscale
                 ! videoconvert name=m_videoconvert ! video/x-raw,width=1280,height=720
@@ -81,6 +81,8 @@ class FaceRecognition(threading.Thread):
 
                                 faces = self.face_app.get(val)
 
+                                logger.info(f"Trying to get {len(faces)} face(s)")
+                                
                                 if len(faces) > 0:
                                     logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
                                     for face in faces:

@@ -101,6 +101,10 @@ def start_http_server():
                 #     self.send_error(403, "Forbidden: Only localhost is allowed")
                 #     return
 
+                for thread in threading.enumerate(): 
+                    logger.info(f"Available thread on do_POST: {thread.name}")
+
+
                 if self.path == '/recognise':
                     self.send_response(200)
                     self.send_header('Content-type', 'application/json')
@@ -365,7 +369,7 @@ def start_server_thread():
     global server_thread
     with thread_lock:
         if server_thread is None or not server_thread.is_alive():
-            server_thread = threading.Thread(target=start_http_server, daemon=True)
+            server_thread = threading.Thread(target=start_http_server, name="Thread-HttpServer" ,daemon=True)
             server_thread.start()
             logger.info("Server thread started")
         else:
@@ -373,7 +377,7 @@ def start_server_thread():
 
 # scheduler
 def start_scheduler_thread():
-    scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
+    scheduler_thread = threading.Thread(target=start_scheduler, name="Thread-Scheduler")
     scheduler_thread.start()
     logger.info("Scheduler thread started")
 
@@ -386,12 +390,11 @@ def start_scheduler_thread():
     #     else:
     #         logger.info("scheduler thread is already running")
 
+# Init face_app
+init_face_app()
 
 # Start the HTTP server thread
 start_server_thread()
-
-# Init face_app
-init_face_app()
 
 # Start the scheduler thread
 start_scheduler_thread()
