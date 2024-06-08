@@ -7,6 +7,8 @@ import os
 import io
 import base64
 
+import traceback
+
 import http.server
 import socketserver
 
@@ -140,7 +142,7 @@ def start_http_server():
 
                     logger.info('/recognise POST finished')
 
-                    timer = threading.Timer(2.0, fetch_members(forced=True))
+                    timer = threading.Timer(1.0, fetch_members(forced=True))
                     timer.start()
 
                 elif self.path == '/detect':
@@ -206,6 +208,8 @@ def start_http_server():
 
             except Exception as e:
                 logger.error(f"Error handling POST request: {e}")
+                traceback.print_exc()
+
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(b'Internal Server Error')
@@ -257,6 +261,8 @@ def get_active_reservations():
     for item in items:
         print(item)
 
+    logger.info('get_active_reservations out')
+
     return items
 
 def get_active_members():
@@ -301,6 +307,8 @@ def get_active_members():
     for item in results:
         item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
 
+    logger.info('get_active_members out')
+
     return results
 
 def fetch_members(forced=False):
@@ -318,11 +326,13 @@ def fetch_members(forced=False):
         logger.info('fetch_members init')
         active_members = get_active_members()
         last_fetch_time = current_date
+        logger.info('fetch_members done')
     else:
         if active_members is None:
             logger.info('fetch_members init')
             active_members = get_active_members()
             last_fetch_time = current_date
+            logger.info('fetch_members done')
         else:
             if last_fetch_time is None or last_fetch_time < current_date:
                 logger.info('fetch_members update')
