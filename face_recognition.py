@@ -29,7 +29,7 @@ class FaceRecognition(threading.Thread):
 
         if params['codec'] == 'h264':
             self.pipeline_str = """rtspsrc name=m_rtspsrc ! rtph264depay name=m_rtph264depay ! avdec_h264 name=m_avdec 
-                ! videoconvert name=m_videoconvert ! videorate name=m_videorate ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
+                ! videoconvert name=m_videoconvert ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
         elif params['codec'] == 'h265':
             self.pipeline_str = """rtspsrc name=m_rtspsrc ! rtph265depay name=m_rtph265depay ! avdec_h265 name=m_avdec 
                 ! videoconvert name=m_videoconvert ! videorate name=m_videorate ! appsink name=m_appsink"""
