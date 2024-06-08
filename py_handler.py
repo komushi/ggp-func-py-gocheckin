@@ -64,18 +64,9 @@ def init_face_app(model='buffalo_sc'):
 
     global face_app
 
-    if face_app is None:
-        logger.info(f"Initializing with Model Name: {model}")
-        face_app = FaceAnalysis(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
-        face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
-
-    else:
-        logger.info(f"Current Model Name: {face_app.models}")
-        if face_app.models == model:
-            logger.info(f"Specified Model Name: {face_app.models} is the same as the current one/")
-        else:
-            face_app = FaceAnalysis(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
-            face_app.prepare(ctx_id=0, det_size=(640, 640))
+    logger.info(f"Initializing with Model Name: {model}")
+    face_app = FaceAnalysis(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
+    face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
 def read_picture_from_url(url):
 
@@ -148,6 +139,8 @@ def start_http_server():
                     self.wfile.write(json.dumps(event).encode())
 
                     logger.info('/recognise POST finished')
+
+                    fetch_members(forced=True)
 
                 elif self.path == '/detect':
 
@@ -309,7 +302,7 @@ def get_active_members():
 
     return results
 
-def fetch_members():
+def fetch_members(forced=False):
     logger.info('fetch_members in')
 
     current_date = datetime.now().date()
@@ -320,17 +313,22 @@ def fetch_members():
     logger.info('fetch_members last_fetch_time: %s', str(last_fetch_time))
     logger.info('fetch_members current_date: %s', str(current_date))
 
-    if active_members is None:
+    if forced is True:
         logger.info('fetch_members init')
         active_members = get_active_members()
         last_fetch_time = current_date
     else:
-        if last_fetch_time is None or last_fetch_time < current_date:
-            logger.info('fetch_members update')
+        if active_members is None:
+            logger.info('fetch_members init')
             active_members = get_active_members()
             last_fetch_time = current_date
         else:
-            logger.info('fetch_members skip')
+            if last_fetch_time is None or last_fetch_time < current_date:
+                logger.info('fetch_members update')
+                active_members = get_active_members()
+                last_fetch_time = current_date
+            else:
+                logger.info('fetch_members skip')
         
 
 def claim_scanner():
