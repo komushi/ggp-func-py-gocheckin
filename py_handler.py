@@ -16,8 +16,6 @@ import threading
 import sched
 import time
 
-from multiprocessing.connection import Listener, Client
-
 import requests
 
 import PIL.Image
@@ -61,16 +59,23 @@ def get_local_ip():
         local_ip = s.getsockname()[0]
     return local_ip
 
-def init_face_app():
+def init_face_app(model='buffalo_sc'):
     from insightface.app import FaceAnalysis
 
     global face_app
 
     if face_app is None:
-        face_app = FaceAnalysis(name='buffalo_l', allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
+        logger.info(f"Initializing with Model Name: {model}")
+        face_app = FaceAnalysis(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
         face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
-    
-    return
+
+    else:
+        logger.info(f"Current Model Name: {face_app.models}")
+        if face_app.models == model:
+            logger.info(f"Specified Model Name: {face_app.models} is the same as the current one/")
+        else:
+            face_app = FaceAnalysis(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
+            face_app.prepare(ctx_id=0, det_size=(640, 640))
 
 def read_picture_from_url(url):
 
@@ -363,6 +368,9 @@ def function_handler(event, context):
     if topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner":
         logger.info('function_handler init_scanner')
 
+        if 'model' in event:
+            logger.info(f"function_handler init_scanner changing model to {str(topic)}")
+            init_face_app(event['model'])
 
 # http server
 def start_server_thread():

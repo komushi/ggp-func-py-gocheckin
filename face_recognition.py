@@ -31,7 +31,7 @@ class FaceRecognition(threading.Thread):
             self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec 
                 ! queue ! videoconvert name=m_videoconvert ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
         elif params['codec'] == 'h265':
-            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay ! queue ! h264parse ! queue ! avdec_h265 name=m_avdec 
+            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec 
                 ! queue ! videoconvert name=m_videoconvert ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
         elif params['codec'] == 'webcam':
             self.pipeline_str = """avfvideosrc device-index=0 ! videoscale
