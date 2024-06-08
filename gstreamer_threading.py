@@ -36,18 +36,18 @@ class StreamCommands(Enum):
 
 class StreamCapture(threading.Thread):
 
-    def __init__(self, link, pipeline_str, stop, outQueue, framerate):
+    def __init__(self, link, pipeline_str, stop_event, cam_queue, framerate):
         """
         Initialize the stream capturing process
         link - rstp link of stream
-        stop - to send commands to this process
+        stop_event - to send commands to this thread
         outPipe - this process can send commands outside
         """
 
         super().__init__()
         self.streamLink = link
-        self.stop = stop
-        self.outQueue = outQueue
+        self.stop_event = stop_event
+        self.cam_queue = cam_queue
         self.framerate = framerate
         self.currentState = StreamMode.INIT_STREAM
         self.pipeline_str = pipeline_str
@@ -165,7 +165,7 @@ class StreamCapture(threading.Thread):
         # if not self.source or not self.sink or not self.pipeline or not self.decode or not self.convert:
         if not self.sink or not self.pipeline or not self.convert:
             print("Not all elements could be created.")
-            self.stop.set()
+            self.stop_event.set()
 
         self.sink.connect("new-sample", self.new_buffer, self.sink)
 
@@ -173,21 +173,21 @@ class StreamCapture(threading.Thread):
         ret = self.pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
             print("Unable to set the pipeline to the playing state.")
-            self.stop.set()
+            self.stop_event.set()
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
 
-        while not self.stop.is_set():
+        while not self.stop_event.is_set():
 
             message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
             # print "image_arr: ", image_arr
             if self.image_arr is not None and self.newImage is True:
 
-                if not self.outQueue.full():
-                    # print("\r adding to queue of size{}".format(self.outQueue.qsize()), end='\r')
+                if not self.cam_queue.full():
+                    # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
                     # print("adding to queue of size")
-                    self.outQueue.put((StreamCommands.FRAME, self.image_arr), block=False)
+                    self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
 
                 self.image_arr = None
                 self.unexpected_cnt = 0
@@ -214,10 +214,10 @@ class StreamCapture(threading.Thread):
                     print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_begin, message.type))
                     print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_finished, message.type))
                     if (motion_begin and not motion_finished):
-                        self.outQueue.put((StreamCommands.MOTION_BEGIN, None), block=False)
+                        self.cam_queue.put((StreamCommands.MOTION_BEGIN, None), block=False)
 
                     if (not motion_begin and motion_finished):
-                        self.outQueue.put((StreamCommands.MOTION_END, None), block=False)
+                        self.cam_queue.put((StreamCommands.MOTION_END, None), block=False)
                 elif message.type == Gst.MessageType.WARNING:
                     print("%s Warning message %s: %s" % (str(datetime.datetime.now()), message.parse_warning(), message.type))
                 else:
@@ -228,6 +228,6 @@ class StreamCapture(threading.Thread):
 
 
         print('terminating cam pipe')
-        self.stop.set()
+        self.stop_event.set()
         self.pipeline.set_state(Gst.State.NULL)
         print('terminated cam pipe')

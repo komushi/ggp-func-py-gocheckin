@@ -50,7 +50,7 @@ last_fetch_time = None
 face_app = None
 
 # Initialize the detector
-detector = None
+thread_detector = None
 
 
 def get_local_ip():
@@ -142,10 +142,6 @@ def start_http_server():
 
                 elif self.path == '/detect':
 
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-
                     # Process the POST data
                     content_length = int(self.headers['Content-Length'])
                     post_data = self.rfile.read(content_length)
@@ -154,8 +150,13 @@ def start_http_server():
                     logger.info('/detect POST motion: %s', format(event['motion']))
                     logger.info('/detect POST event: %s', format(event['cameraItem']))
 
-                    if detector is None or detector.stop_event.is_set():
-                        if event['motion'] is True:
+                    global thread_detector
+
+                    if event['motion'] is True:
+                        if thread_detector is None or not thread_detector.is_alive():
+
+                            import face_recognition as fdm
+
                             fetch_members()
 
                             params = {}
@@ -165,25 +166,37 @@ def start_http_server():
                             params['active_members'] = active_members
                             params['face_app'] = face_app
 
-                            # start_recognition
-                            start_detector_thread(params)
+                            thread_detector = fdm.FaceRecognition(params)
+                            thread_detector.start()
+                            self.send_response(200)
+                            self.send_header('Content-type', 'application/json')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition"}).encode())
+                        else:
+                            self.send_response(400)
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Thread FaceRecognition is already running"}).encode())
 
-                    if detector is not None and not detector.stop_event.is_set():
-                        if event['motion'] is False:
-                            detector.stop_event.set()
+                    elif event['motion'] is False:
+                        if thread_detector is not None and thread_detector.is_alive():
+                            for thread in threading.enumerate(): 
+                                logger.info(f"Available thread before stopping: {thread.name}")
+
+
+                            thread_detector.stop()
+                            thread_detector.join()
+                            thread_detector = None
+                            self.send_response(200)
+                            self.send_header('Content-type', 'application/json')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Thread FaceRecognition Stopped"}).encode())
 
                             for thread in threading.enumerate(): 
-                                print('before:' + thread.name)
-
-                            stop_detector_thread()
-
-                            for thread in threading.enumerate(): 
-                                print('after:' + thread.name)
-
-                    response = {'message': event}
-
-                    # Send the response
-                    self.wfile.write(json.dumps(response).encode())
+                                logger.info(f"Available thread after stopping: {thread.name}")
+                        else:
+                            self.send_response(400)
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Thread FaceRecognition is not running"}).encode())
 
                 else:
                     self.send_error(404, 'Path Not Found: %s' % self.path)
@@ -335,21 +348,6 @@ def start_scheduler():
     # Start the scheduler
     scheduler.run()
 
-def recognition(params):
-    try:
-        logger.info("recognition start params:" + repr(params))
-
-        import face_recognition as fdm
-
-        global detector
-
-        detector = fdm.FaceRecognition(params)
-
-        detector.start_detector()
-        
-    except Exception as e:
-        logger.error("FaceRecognition failure: " + repr(e))
-
 
 def function_handler(event, context):
 
@@ -377,6 +375,7 @@ def start_server_thread():
 def start_scheduler_thread():
     scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
     scheduler_thread.start()
+    logger.info("Scheduler thread started")
 
     # global scheduler_thread
     # with thread_lock:
@@ -387,36 +386,6 @@ def start_scheduler_thread():
     #     else:
     #         logger.info("scheduler thread is already running")
 
-# detector
-def start_detector_thread(params):
-
-    # detector_thread = threading.Thread(target=recognition, args=(params,))
-    # detector_thread.start()
-
-    global detector_thread
-    with thread_lock:
-        if detector_thread is None or not detector_thread.is_alive():
-            detector_thread = threading.Thread(target=recognition, args=(params,))
-            detector_thread.start()
-            logger.info("detector thread started")
-        else:
-            logger.info("detector thread is already running")
-
-def stop_detector_thread():
-    logger.info("trying to stop detector thread ")
-
-    global detector_thread
-    detector_thread.join()
-    detector_thread = None
-
-    logger.info("detector thread stopped")
-
-    # global detector_thread
-    # with thread_lock:
-    #     if detector_thread and detector_thread.is_alive():
-    #         detector_thread.join()
-    #         detector_thread = None
-    #         logger.info("detector thread stopped")
 
 # Start the HTTP server thread
 start_server_thread()
