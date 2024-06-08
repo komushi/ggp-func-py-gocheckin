@@ -116,7 +116,7 @@ class FaceRecognition(threading.Thread):
             traceback.print_exc()
 
     def compute_sim(self, feat1, feat2):
-        logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
+        # logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
         feat1 = feat1.ravel()
         feat2 = feat2.ravel()
 

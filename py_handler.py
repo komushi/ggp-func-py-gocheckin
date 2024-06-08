@@ -188,7 +188,7 @@ def start_http_server():
                             self.end_headers()
                             self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition"}).encode())
                         else:
-                            self.send_response(400)
+                            self.send_response(202)
                             self.end_headers()
                             self.wfile.write(json.dumps({"message": "Thread FaceRecognition is already running"}).encode())
 
@@ -209,7 +209,7 @@ def start_http_server():
                             for thread in threading.enumerate(): 
                                 logger.info(f"Available thread after stopping: {thread.name}")
                         else:
-                            self.send_response(400)
+                            self.send_response(202)
                             self.end_headers()
                             self.wfile.write(json.dumps({"message": "Thread FaceRecognition is not running"}).encode())
 
