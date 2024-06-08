@@ -140,7 +140,8 @@ def start_http_server():
 
                     logger.info('/recognise POST finished')
 
-                    fetch_members(forced=True)
+                    timer = threading.Timer(2.0, fetch_members(forced=True))
+                    timer.start()
 
                 elif self.path == '/detect':
 
