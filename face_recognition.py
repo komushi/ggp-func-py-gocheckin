@@ -27,8 +27,9 @@ class FaceRecognition(threading.Thread):
         self.stop_event = threading.Event()
         self.camlink = params['rtsp_src']
         self.start_time = time.time()
-        self.running_time_extension = 0
+        self.running_time_extension = params['init_running_time']
         self.max_running_time = params['max_running_time']
+        self.end_time = self.start_time + self.running_time_extension
 
         if params['codec'] == 'h264':
             self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec 
@@ -70,9 +71,8 @@ class FaceRecognition(threading.Thread):
             while not self.stop_event.is_set():
 
                 current_time = time.time()
-                total_runtime = current_time - self.start_time + self.running_time_extension
 
-                if total_runtime >= self.max_running_time:
+                if current_time >= self.end_time:
                     print(f"{self.name} reached maximum seconds limit")
                     self.stop()
                     break
@@ -101,7 +101,7 @@ class FaceRecognition(threading.Thread):
                                     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
 
         except Exception as e:
-            logger.info(f"Caught Exception during running {self.name}")
+            logger.info(f"Caught exception during running {self.name}")
             logger.info(e)
             traceback.print_exc()
 
@@ -126,11 +126,12 @@ class FaceRecognition(threading.Thread):
 
     def extend_runtime(self):
         current_time = time.time()
-        if current_time - self.start_time + self.running_time_extension + 30 <= self.max_running_time:
-            self.running_time_extension += 30
-            logger.info(f"{self.name} runtime extended by 30 seconds")
+        if current_time < self.end_time:
+            additional_time = min(60, self.max_running_time - (self.end_time - self.start_time))
+            self.end_time += additional_time
+            logger.info(f"{self.name} runtime extended by {additional_time} seconds")
         else:
-            logger.info(f"{self.name} cannot be extended beyond {self.max_running_time} seconds")
+            logger.info(f"{self.name} cannot be extended beyond 180 seconds")
 
     def compute_sim(self, feat1, feat2):
         # logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))

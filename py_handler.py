@@ -314,6 +314,7 @@ def start_http_server():
                         params['active_members'] = active_members
                         params['face_app'] = face_app
                         params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
+                        params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
 
                         thread_detector[event['cameraItem']['ip']] = fdm.FaceRecognition(params)
                         thread_detector[event['cameraItem']['ip']].start()
@@ -350,7 +351,7 @@ def start_http_server():
                     self.send_response(404)
                     self.end_headers()
                     self.wfile.write(b'Not Found')
-                    
+
             except Exception as e:
                 logger.error(f"Error handling POST request: {e}")
                 traceback.print_exc()
