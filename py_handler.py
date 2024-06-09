@@ -423,26 +423,24 @@ def signal_handler(signum, frame):
     logger.info(f'Available threads before shutting down server: {", ".join(thread.name for thread in threading.enumerate())}')
 
     global thread_detectors
-    with thread_lock:    
-        for thread_name in thread_detectors:
-            if thread_detectors[thread_name] is not None:
-                thread_detectors[thread_name].stop()
-                thread_detectors[thread_name].join()
-                thread_detectors[thread_name] = None
 
-        thread_detectors = {}
+    for thread_name in thread_detectors:
+        if thread_detectors[thread_name] is not None:
+            thread_detectors[thread_name].stop()
+            thread_detectors[thread_name].join()
+            thread_detectors[thread_name] = None
+    
+    thread_detectors = {}
 
     global server_thread
-    with thread_lock:
-        if server_thread is not None:
-            stop_http_server()
-            server_thread.join()  # Wait for the server thread to finish
-            server_thread = None
+    
+    if server_thread is not None:
+        stop_http_server()
+        server_thread.join()  # Wait for the server thread to finish
+        server_thread = None
 
     logger.info(f"Signal {signum} received, server shutdown.")
     logger.info(f'Available threads after server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
-
-    time.sleep(60)
 
 
 # Register signal handlers
