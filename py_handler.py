@@ -52,7 +52,7 @@ last_fetch_time = None
 face_app = None
 
 # Initialize the detector
-thread_detector = {}
+thread_detectors = {}
 
 
 def get_local_ip():
@@ -96,145 +96,11 @@ def stop_http_server():
         httpd.shutdown()
         httpd.server_close()
         httpd = None
+        logger.info("HTTP server shut down")
 
 def start_http_server():
 
     global httpd
-
-    # class MyHandler(http.server.SimpleHTTPRequestHandler):
-    #     def do_POST(self):
-    #         try:
-
-    #             if self.client_address[0] != '127.0.0.1':
-    #                 self.send_error(403, "Forbidden: Only localhost is allowed")
-    #                 return
-
-    #             if self.path == '/recognise':
-    #                 self.send_response(200)
-    #                 self.send_header('Content-type', 'application/json')
-    #                 self.end_headers()
-
-    #                 # Process the POST data
-    #                 content_length = int(self.headers['Content-Length'])
-    #                 post_data = self.rfile.read(content_length)
-    #                 event = json.loads(post_data)
-
-    #                 logger.info('/recognise POST %s', json.dumps(event))
-
-    #                 image_bgr, org_image = read_picture_from_url(event['faceImgUrl'])
-
-    #                 reference_faces = face_app.get(image_bgr)
-
-    #                 # print('reference_faces[0].embedding:')
-    #                 print(type(reference_faces[0].embedding))
-
-    #                 event['faceEmbedding'] = reference_faces[0].embedding.tolist()
-
-    #                 # print('event[faceEmbedding]:')
-    #                 print(type(event['faceEmbedding']))
-
-    #                 bbox = reference_faces[0].bbox.astype(np.int).flatten()
-    #                 cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
-
-    #                 # Convert the image to bytes
-    #                 buffered = io.BytesIO()
-    #                 cropped_face.save(buffered, format="JPEG")
-    #                 cropped_face_bytes = buffered.getvalue()
-
-    #                 event['faceImgBase64'] = base64.b64encode(cropped_face_bytes).decode('utf-8')
-
-    #                 # Send the response
-    #                 self.wfile.write(json.dumps(event).encode())
-
-    #                 logger.info('/recognise POST finished')
-
-    #                 timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
-    #                 timer.start()
-
-    #             elif self.path == '/detect':
-
-    #                 # Process the POST data
-    #                 content_length = int(self.headers['Content-Length'])
-    #                 post_data = self.rfile.read(content_length)
-    #                 event = json.loads(post_data)
-
-    #                 logger.info(f"/detect POST motion: {format(event['motion'])} host: {format(event['cameraItem']['ip'])}")
-
-    #                 global thread_detector
-
-    #                 if event['motion'] is True:
-    #                     if event['cameraItem']['ip'] not in thread_detector or thread_detector[event['cameraItem']['ip']] is None or not thread_detector[event['cameraItem']['ip']].is_alive():
-
-    #                         logger.info(f"Starting detector thread for : {event['cameraItem']['ip']}")
-
-    #                         logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
-
-    #                         import face_recognition as fdm
-
-    #                         fetch_members()
-
-    #                         params = {}
-    #                         params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
-    #                         params['codec'] = event['cameraItem']['rtsp']['codec']
-    #                         params['framerate'] = event['cameraItem']['rtsp']['framerate']
-    #                         params['active_members'] = active_members
-    #                         params['face_app'] = face_app
-
-    #                         thread_detector[event['cameraItem']['ip']] = fdm.FaceRecognition(params)
-    #                         thread_detector[event['cameraItem']['ip']].start()
-
-    #                         self.send_response(200)
-    #                         self.send_header('Content-type', 'application/json')
-    #                         self.end_headers()
-    #                         self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
-
-    #                         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-    #                     else:                        
-    #                         logger.info(f"Detector thread for : {event['cameraItem']['ip']} is already running")
-
-    #                         self.send_response(202)
-    #                         self.end_headers()
-    #                         self.wfile.write(json.dumps({"message": "Thread" + thread_detector[event['cameraItem']['ip']].name + " is already running"}).encode())
-
-    #                 elif event['motion'] is False:
-    #                     if event['cameraItem']['ip'] in thread_detector and thread_detector[event['cameraItem']['ip']] is not None and thread_detector[event['cameraItem']['ip']].is_alive():
-    #                         logger.info(f"Stopping detector thread for : {event['cameraItem']['ip']}")
-
-    #                         logger.info(f'Available threads before stopping: {", ".join(thread.name for thread in threading.enumerate())}')
-
-    #                         thread_detector[event['cameraItem']['ip']].stop()
-    #                         thread_detector[event['cameraItem']['ip']].join()
-    #                         thread_detector[event['cameraItem']['ip']] = None
-    #                         self.send_response(200)
-    #                         self.send_header('Content-type', 'application/json')
-    #                         self.end_headers()
-    #                         self.wfile.write(json.dumps({"message": "Stopped Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
-
-    #                         logger.info(f'Available threads after stopping: {", ".join(thread.name for thread in threading.enumerate())}')
-
-    #                     else:
-    #                         logger.info(f"Detector thread for : {event['cameraItem']['ip']} is not running")
-
-    #                         self.send_response(202)
-    #                         self.end_headers()
-    #                         self.wfile.write(json.dumps({"message": "Thread FaceRecognition is not running"}).encode())
-
-    #             else:
-    #                 self.send_error(404, 'Path Not Found: %s' % self.path)
-
-    #         except Exception as e:
-    #             logger.error(f"Error handling POST request: {e}")
-    #             traceback.print_exc()
-
-    #             self.send_response(500)
-    #             self.end_headers()
-    #             self.wfile.write(b'Internal Server Error')
-
-
-
-    #     def address_string(self):  # Limit access to local network requests
-    #         host, _ = self.client_address[:2]
-    #         return host
 
     class NewHandler(http.server.SimpleHTTPRequestHandler):
         def do_POST(self):
@@ -295,13 +161,13 @@ def start_http_server():
 
                     logger.info(f"/detect POST host: {format(event['cameraItem']['ip'])}")
 
-                    global thread_detector
+                    global thread_detectors
 
-                    if event['cameraItem']['ip'] not in thread_detector or thread_detector[event['cameraItem']['ip']] is None or not thread_detector[event['cameraItem']['ip']].is_alive():
+                    if event['cameraItem']['ip'] not in thread_detectors or thread_detectors[event['cameraItem']['ip']] is None or not thread_detectors[event['cameraItem']['ip']].is_alive():
 
                         logger.info(f"Starting detector thread for : {event['cameraItem']['ip']}")
 
-                        logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                        # logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                         import face_recognition as fdm
 
@@ -316,8 +182,8 @@ def start_http_server():
                         params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
                         params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
 
-                        thread_detector[event['cameraItem']['ip']] = fdm.FaceRecognition(params)
-                        thread_detector[event['cameraItem']['ip']].start()
+                        thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params)
+                        thread_detectors[event['cameraItem']['ip']].start()
 
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
@@ -325,27 +191,28 @@ def start_http_server():
                         self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
 
                         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                    elif thread_detector[event['cameraItem']['ip']].is_alive():
+
+                    elif thread_detectors[event['cameraItem']['ip']].is_alive():
 
                         logger.info(f"Extending detector thread for : {event['cameraItem']['ip']}")
 
-                        logger.info(f'Available threads before extending: {", ".join(thread.name for thread in threading.enumerate())}')
+                        # logger.info(f'Available threads before extending: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                        thread_detector[event['cameraItem']['ip']].extend_runtime()
+                        thread_detectors[event['cameraItem']['ip']].extend_runtime()
                         self.send_response(200)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detector[event['cameraItem']['ip']].name + " is already running"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['ip']].name + " is already running"}).encode())
 
-                        logger.info(f'Available threads after extending: {", ".join(thread.name for thread in threading.enumerate())}')
+                        # logger.info(f'Available threads after extending: {", ".join(thread.name for thread in threading.enumerate())}')
 
                     else:                        
-                        logger.info(f"Detector thread for : {event['cameraItem']['ip']} is not running properly")  
+                        # logger.info(f"Detector thread for : {event['cameraItem']['ip']} is not running properly")  
 
-                        logger.info(f'Available threads: {", ".join(thread.name for thread in threading.enumerate())}')
+                        # logger.info(f'Available threads: {", ".join(thread.name for thread in threading.enumerate())}')
 
                         self.send_response(400)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detector[event['cameraItem']['ip']].name + " is not running properly"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['ip']].name + " is not running properly"}).encode())
 
                 else:
                     self.send_response(404)
@@ -552,9 +419,17 @@ def start_scheduler_thread():
 # Function to handle termination signals
 def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down server.")
+    
     stop_http_server()
+    
+    for thread_detector in thread_detectors:
+        if thread_detector:
+            thread_detector.stop()
+            thread_detector.join()
+
     if server_thread:
         server_thread.join()  # Wait for the server thread to finish
+    logger.info(f"Signal {signum} received, server shutdown.")
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)
