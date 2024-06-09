@@ -30,6 +30,8 @@ from boto3.dynamodb.conditions import  Attr
 import greengrasssdk
 # iotClient = greengrasssdk.client("iot-data")
 
+from insightface.app import FaceAnalysis
+
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -64,8 +66,6 @@ def get_local_ip():
     return local_ip
 
 def init_face_app(model='buffalo_sc'):
-    from insightface.app import FaceAnalysis
-
     global face_app
 
     logger.info(f"Initializing with Model Name: {model}")
@@ -101,6 +101,9 @@ def stop_http_server():
 def start_http_server():
 
     global httpd
+
+    class ReusableTCPServer(socketserver.TCPServer):
+        allow_reuse_address = True
 
     class NewHandler(http.server.SimpleHTTPRequestHandler):
         def do_POST(self):
@@ -235,9 +238,10 @@ def start_http_server():
 
     try:
         # Define the server address and port
-        server_address = ('', http_port)  # Use appropriate address and port
-        httpd = socketserver.TCPServer(server_address, NewHandler)
-        httpd.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_address = ('', http_port)
+
+        httpd = ReusableTCPServer(server_address, NewHandler)
+        
         httpd.serve_forever()
     except Exception as e:
         logger.error(f"Error starting HTTP server: {e}")
