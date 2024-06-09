@@ -427,13 +427,13 @@ def signal_handler(signum, frame):
                 thread_detectors[thread_name].stop()
                 thread_detectors[thread_name].join()
                 thread_detectors[thread_name] = None
-    
-    stop_http_server()
+
+        thread_detectors = {}
 
     global server_thread
     with thread_lock:
         if server_thread is not None:
-            server_thread.stop()
+            stop_http_server()
             server_thread.join()  # Wait for the server thread to finish
             server_thread = None
 
