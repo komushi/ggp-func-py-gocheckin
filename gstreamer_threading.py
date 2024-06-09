@@ -44,7 +44,7 @@ class StreamCapture(threading.Thread):
         outPipe - this process can send commands outside
         """
 
-        super().__init__(name="Thread-Gst")
+        super().__init__(name=f"Thread-Gst-{link}")
 
         self.streamLink = link
         self.stop_event = stop_event
