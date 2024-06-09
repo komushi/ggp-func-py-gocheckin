@@ -421,14 +421,18 @@ def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down server.")
     
     stop_http_server()
+
+    global thread_detectors
     
-    for thread_detector in thread_detectors:
-        if thread_detector:
-            thread_detector.stop()
-            thread_detector.join()
+    for thread_name in thread_detectors:
+        if thread_detectors[thread_name] is not None:
+            thread_detectors[thread_name].stop()
+            thread_detectors[thread_name].join()
+            thread_detectors[thread_name] = None
 
     if server_thread:
         server_thread.join()  # Wait for the server thread to finish
+
     logger.info(f"Signal {signum} received, server shutdown.")
 
 # Register signal handlers
