@@ -239,7 +239,10 @@ def start_http_server():
         httpd = socketserver.TCPServer(server_address, NewHandler)
         httpd.serve_forever()
     except Exception as e:
-        logger.error(f"Error starting HTTP server: {e}")
+        logger.error(f"Error starting HTTP server: {e}, retry")
+        server_address = ('', http_port)  # Use appropriate address and port
+        httpd = socketserver.TCPServer(server_address, NewHandler)
+        httpd.serve_forever()
 
 def get_active_reservations():
     logger.info('get_active_reservations in')
@@ -420,6 +423,8 @@ def start_scheduler_thread():
 def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down server.")
 
+    logger.info(f'Available threads before shutting down server: {", ".join(thread.name for thread in threading.enumerate())}')
+
     global thread_detectors
     with thread_lock:    
         for thread_name in thread_detectors:
@@ -438,6 +443,7 @@ def signal_handler(signum, frame):
             server_thread = None
 
     logger.info(f"Signal {signum} received, server shutdown.")
+    logger.info(f'Available threads after server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
 
 
 # Register signal handlers
