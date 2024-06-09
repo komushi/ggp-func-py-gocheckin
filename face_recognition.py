@@ -19,13 +19,16 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 class FaceRecognition(threading.Thread):
     def __init__(self, params):
 
-        super().__init__(name="Thread-FaceRecognition")
+        super().__init__(name=f"Thread-FaceRecognition-{params['rtsp_src']}")
 
         #Current Cam
         self.thread_gst = None
         self.cam_queue = queue.Queue(maxsize=100)
         self.stop_event = threading.Event()
         self.camlink = params['rtsp_src']
+        self.start_time = time.time()
+        self.running_time_extension = 0
+        self.max_running_time = params['max_running_time']
 
         if params['codec'] == 'h264':
             self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec 
@@ -65,6 +68,14 @@ class FaceRecognition(threading.Thread):
 
         try:
             while not self.stop_event.is_set():
+
+                current_time = time.time()
+                total_runtime = current_time - self.start_time + self.running_time_extension
+
+                if total_runtime >= self.max_running_time:
+                    print(f"{self.name} reached maximum seconds limit")
+                    self.stop()
+                    break
 
                 if not self.cam_queue.empty():
                     # logger('Got frame')
@@ -112,6 +123,14 @@ class FaceRecognition(threading.Thread):
             logger.info(f"Caught Exception during stopping {self.name}")
             logger.info(e)
             traceback.print_exc()
+
+    def extend_runtime(self):
+        current_time = time.time()
+        if current_time - self.start_time + self.running_time_extension + 30 <= self.max_running_time:
+            self.running_time_extension += 30
+            logger.info(f"{self.name} runtime extended by 30 seconds")
+        else:
+            logger.info(f"{self.name} cannot be extended beyond {self.max_running_time} seconds")
 
     def compute_sim(self, feat1, feat2):
         # logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
