@@ -419,8 +419,6 @@ def start_scheduler_thread():
 # Function to handle termination signals
 def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down server.")
-    
-    stop_http_server()
 
     global thread_detectors
     
@@ -429,6 +427,8 @@ def signal_handler(signum, frame):
             thread_detectors[thread_name].stop()
             thread_detectors[thread_name].join()
             thread_detectors[thread_name] = None
+    
+    stop_http_server()
 
     if server_thread:
         server_thread.join()  # Wait for the server thread to finish
