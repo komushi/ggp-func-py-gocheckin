@@ -27,9 +27,9 @@ class FaceRecognition(threading.Thread):
         self.stop_event = threading.Event()
         self.camlink = params['rtsp_src']
         self.start_time = time.time()
-        self.running_time_extension = params['init_running_time']
+        self.init_running_time = params['init_running_time']
         self.max_running_time = params['max_running_time']
-        self.end_time = self.start_time + self.running_time_extension
+        self.end_time = self.start_time + self.init_running_time
 
         if params['codec'] == 'h264':
             self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec 
@@ -127,11 +127,11 @@ class FaceRecognition(threading.Thread):
     def extend_runtime(self):
         current_time = time.time()
         if current_time < self.end_time:
-            additional_time = min(60, self.max_running_time - (self.end_time - self.start_time))
+            additional_time = min(self.init_running_time, self.max_running_time - (self.end_time - self.start_time))
             self.end_time += additional_time
             logger.info(f"{self.name} runtime extended by {additional_time} seconds")
         else:
-            logger.info(f"{self.name} cannot be extended beyond 180 seconds")
+            logger.info(f"{self.name} cannot be extended beyond {self.max_running_time} seconds")
 
     def compute_sim(self, feat1, feat2):
         # logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
