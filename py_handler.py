@@ -167,7 +167,7 @@ def start_http_server():
                     global thread_detector
 
                     if event['motion'] is True:
-                        if event['cameraItem']['ip'] not in thread_detector or not thread_detector[event['cameraItem']['ip']].is_alive():
+                        if event['cameraItem']['ip'] not in thread_detector or thread_detector[event['cameraItem']['ip']] is None or not thread_detector[event['cameraItem']['ip']].is_alive():
 
                             logger.info(f"Starting detector thread for : {event['cameraItem']['ip']}")
 
@@ -201,7 +201,7 @@ def start_http_server():
                             self.wfile.write(json.dumps({"message": "Thread" + thread_detector[event['cameraItem']['ip']].name + " is already running"}).encode())
 
                     elif event['motion'] is False:
-                        if event['cameraItem']['ip'] in thread_detector and thread_detector[event['cameraItem']['ip']].is_alive():
+                        if event['cameraItem']['ip'] in thread_detector and thread_detector[event['cameraItem']['ip']] is not None and thread_detector[event['cameraItem']['ip']].is_alive():
                             logger.info(f"Stopping detector thread for : {event['cameraItem']['ip']}")
 
                             logger.info(f'Available threads before stopping: {", ".join(thread.name for thread in threading.enumerate())}')
