@@ -237,6 +237,7 @@ def start_http_server():
         # Define the server address and port
         server_address = ('', http_port)  # Use appropriate address and port
         httpd = socketserver.TCPServer(server_address, NewHandler)
+        httpd.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         httpd.serve_forever()
     except Exception as e:
         logger.error(f"Error starting HTTP server: {e}")
@@ -419,21 +420,17 @@ def start_scheduler_thread():
 # Function to handle termination signals
 def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down server.")
-
     logger.info(f'Available threads before shutting down server: {", ".join(thread.name for thread in threading.enumerate())}')
 
     global thread_detectors
-
     for thread_name in thread_detectors:
         if thread_detectors[thread_name] is not None:
             thread_detectors[thread_name].stop()
             thread_detectors[thread_name].join()
             thread_detectors[thread_name] = None
-    
     thread_detectors = {}
 
-    global server_thread
-    
+    global server_thread    
     if server_thread is not None:
         stop_http_server()
         server_thread.join()  # Wait for the server thread to finish
