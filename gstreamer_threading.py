@@ -226,7 +226,6 @@ class StreamCapture(threading.Thread):
                     self.unexpected_cnt = self.unexpected_cnt + 1
                     if self.unexpected_cnt == self.num_unexpected_tot:
                         break
-        self.stop()
 
     def stop(self):
         self.stop_event.set()
