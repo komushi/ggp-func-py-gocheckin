@@ -73,7 +73,7 @@ class FaceRecognition(threading.Thread):
                 current_time = time.time()
 
                 if current_time >= self.end_time:
-                    print(f"{self.name} reached maximum seconds limit")
+                    logger.info(f"{self.name} reached maximum seconds limit")
                     self.stop()
                     break
 

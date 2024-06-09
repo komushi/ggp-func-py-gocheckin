@@ -106,9 +106,9 @@ def start_http_server():
         def do_POST(self):
             try:
 
-                if self.client_address[0] != '127.0.0.1':
-                    self.send_error(403, "Forbidden: Only localhost is allowed")
-                    return
+                # if self.client_address[0] != '127.0.0.1':
+                #     self.send_error(403, "Forbidden: Only localhost is allowed")
+                #     return
 
                 if self.path == '/recognise':
                     self.send_response(200)
@@ -127,12 +127,12 @@ def start_http_server():
                     reference_faces = face_app.get(image_bgr)
 
                     # print('reference_faces[0].embedding:')
-                    print(type(reference_faces[0].embedding))
+                    # print(type(reference_faces[0].embedding))
 
                     event['faceEmbedding'] = reference_faces[0].embedding.tolist()
 
                     # print('event[faceEmbedding]:')
-                    print(type(event['faceEmbedding']))
+                    # print(type(event['faceEmbedding']))
 
                     bbox = reference_faces[0].bbox.astype(np.int).flatten()
                     cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
@@ -239,10 +239,7 @@ def start_http_server():
         httpd = socketserver.TCPServer(server_address, NewHandler)
         httpd.serve_forever()
     except Exception as e:
-        logger.error(f"Error starting HTTP server: {e}, retry")
-        server_address = ('', http_port)  # Use appropriate address and port
-        httpd = socketserver.TCPServer(server_address, NewHandler)
-        httpd.serve_forever()
+        logger.error(f"Error starting HTTP server: {e}")
 
 def get_active_reservations():
     logger.info('get_active_reservations in')
@@ -279,7 +276,7 @@ def get_active_reservations():
     items = response.get('Items', [])
 
     for item in items:
-        print(item)
+        logger.info(item)
 
     logger.info('get_active_reservations out')
 
@@ -444,6 +441,8 @@ def signal_handler(signum, frame):
 
     logger.info(f"Signal {signum} received, server shutdown.")
     logger.info(f'Available threads after server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
+
+    time.sleep(60)
 
 
 # Register signal handlers
