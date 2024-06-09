@@ -228,6 +228,9 @@ class StreamCapture(threading.Thread):
                         break
 
     def stop(self):
+        print(f"Stopping {self.name}")
+
         self.stop_event.set()
-        print(f"{self.name} for {self.streamLink} stopped. ")
         self.pipeline.set_state(Gst.State.NULL)
+
+        print(f"{self.name} stopped")

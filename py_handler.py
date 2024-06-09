@@ -52,7 +52,7 @@ last_fetch_time = None
 face_app = None
 
 # Initialize the detector
-thread_detector = None
+thread_detector = {}
 
 
 def get_local_ip():
@@ -162,12 +162,14 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
-                    logger.info(f"/detect POST motion: {format(event['motion'])} event: {format(event['cameraItem'])}")
+                    logger.info(f"/detect POST motion: {format(event['motion'])} host: {format(event['cameraItem']['ip'])}")
 
                     global thread_detector
 
                     if event['motion'] is True:
-                        if thread_detector is None or not thread_detector.is_alive():
+                        if event['cameraItem']['ip'] not in thread_detector or not thread_detector[event['cameraItem']['ip']].is_alive():
+
+                            logger.info(f"Starting detector thread for : {event['cameraItem']['ip']}")
 
                             logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
@@ -182,35 +184,41 @@ def start_http_server():
                             params['active_members'] = active_members
                             params['face_app'] = face_app
 
-                            thread_detector = fdm.FaceRecognition(params)
-                            thread_detector.start()
+                            thread_detector[event['cameraItem']['ip']] = fdm.FaceRecognition(params)
+                            thread_detector[event['cameraItem']['ip']].start()
+
                             self.send_response(200)
                             self.send_header('Content-type', 'application/json')
                             self.end_headers()
-                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition"}).encode())
+                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
 
                             logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                        else:
+                        else:                        
+                            logger.info(f"Detector thread for : {event['cameraItem']['ip']} is already running")
+
                             self.send_response(202)
                             self.end_headers()
-                            self.wfile.write(json.dumps({"message": "Thread FaceRecognition is already running"}).encode())
+                            self.wfile.write(json.dumps({"message": "Thread" + thread_detector[event['cameraItem']['ip']].name + " is already running"}).encode())
 
                     elif event['motion'] is False:
-                        if thread_detector is not None and thread_detector.is_alive():
+                        if event['cameraItem']['ip'] in thread_detector and thread_detector[event['cameraItem']['ip']].is_alive():
+                            logger.info(f"Stopping detector thread for : {event['cameraItem']['ip']}")
 
                             logger.info(f'Available threads before stopping: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                            thread_detector.stop()
-                            thread_detector.join()
-                            thread_detector = None
+                            thread_detector[event['cameraItem']['ip']].stop()
+                            thread_detector[event['cameraItem']['ip']].join()
+                            thread_detector[event['cameraItem']['ip']] = None
                             self.send_response(200)
                             self.send_header('Content-type', 'application/json')
                             self.end_headers()
-                            self.wfile.write(json.dumps({"message": "Thread FaceRecognition Stopped"}).encode())
+                            self.wfile.write(json.dumps({"message": "Stopped Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
 
                             logger.info(f'Available threads after stopping: {", ".join(thread.name for thread in threading.enumerate())}')
 
                         else:
+                            logger.info(f"Detector thread for : {event['cameraItem']['ip']} is not running")
+
                             self.send_response(202)
                             self.end_headers()
                             self.wfile.write(json.dumps({"message": "Thread FaceRecognition is not running"}).encode())
