@@ -109,8 +109,8 @@ def start_http_server():
                 #     self.send_error(403, "Forbidden: Only localhost is allowed")
                 #     return
 
-                for thread in threading.enumerate(): 
-                    logger.info(f"Available thread on do_POST: {thread.name}")
+                # for thread in threading.enumerate(): 
+                #     logger.info(f"Available thread on do_POST: {thread.name}")
 
 
                 if self.path == '/recognise':
@@ -162,13 +162,14 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
-                    logger.info('/detect POST motion: %s', format(event['motion']))
-                    logger.info('/detect POST event: %s', format(event['cameraItem']))
+                    logger.info(f"/detect POST motion: {format(event['motion'])} event: {format(event['cameraItem'])}")
 
                     global thread_detector
 
                     if event['motion'] is True:
                         if thread_detector is None or not thread_detector.is_alive():
+
+                            logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                             import face_recognition as fdm
 
@@ -187,6 +188,8 @@ def start_http_server():
                             self.send_header('Content-type', 'application/json')
                             self.end_headers()
                             self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition"}).encode())
+
+                            logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
                         else:
                             self.send_response(202)
                             self.end_headers()
@@ -194,9 +197,8 @@ def start_http_server():
 
                     elif event['motion'] is False:
                         if thread_detector is not None and thread_detector.is_alive():
-                            for thread in threading.enumerate(): 
-                                logger.info(f"Available thread before stopping: {thread.name}")
 
+                            logger.info(f'Available threads before stopping: {", ".join(thread.name for thread in threading.enumerate())}')
 
                             thread_detector.stop()
                             thread_detector.join()
@@ -206,8 +208,8 @@ def start_http_server():
                             self.end_headers()
                             self.wfile.write(json.dumps({"message": "Thread FaceRecognition Stopped"}).encode())
 
-                            for thread in threading.enumerate(): 
-                                logger.info(f"Available thread after stopping: {thread.name}")
+                            logger.info(f'Available threads after stopping: {", ".join(thread.name for thread in threading.enumerate())}')
+
                         else:
                             self.send_response(202)
                             self.end_headers()
@@ -333,8 +335,8 @@ def fetch_members(forced=False):
     global active_members
     global last_fetch_time
 
-    logger.info('fetch_members last_fetch_time: %s', str(last_fetch_time))
-    logger.info('fetch_members current_date: %s', str(current_date))
+    # logger.info('fetch_members last_fetch_time: %s', str(last_fetch_time))
+    # logger.info('fetch_members current_date: %s', str(current_date))
 
     if forced is True:
         logger.info('fetch_members init')

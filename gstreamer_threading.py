@@ -230,6 +230,5 @@ class StreamCapture(threading.Thread):
 
     def stop(self):
         self.stop_event.set()
-        print(f"{self.name} stopped")
+        print(f"{self.name} for {self.streamLink} stopped. ")
         self.pipeline.set_state(Gst.State.NULL)
-        print('terminated cam pipe')

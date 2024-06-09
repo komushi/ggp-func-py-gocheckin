@@ -80,16 +80,14 @@ class FaceRecognition(threading.Thread):
                                 self.inference_begins_at = crt_time
 
                                 faces = self.face_app.get(val)
-
-                                # logger.info(f"Trying to get {len(faces)} face(s)")
                                 
                                 if len(faces) > 0:
-                                    logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
                                     for face in faces:
                                         for active_member in self.active_members:
                                             sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
-                                            logger.info('face sim: %s fullName: %s', str(sim), active_member['fullName'])
-
+                                            logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at}")
+                                else:
+                                    logger.info('after getting %s face(s) at %s with duration of %s' % (len(faces), self.inference_begins_at, time.time() - self.inference_begins_at))
 
         except Exception as e:
             logger.info(f"Caught Exception during running {self.name}")
