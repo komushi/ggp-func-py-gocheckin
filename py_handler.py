@@ -434,6 +434,7 @@ def signal_handler(signum, frame):
         server_thread.join()  # Wait for the server thread to finish
 
     logger.info(f"Signal {signum} received, server shutdown.")
+    time.sleep(10)
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)
