@@ -1,9 +1,9 @@
 # import json
 import logging
 import time
-# import datetime
+from datetime import datetime, timezone
 import sys
-# import os
+import os
 import threading
 import queue
 import traceback
@@ -110,13 +110,16 @@ class FaceRecognition(threading.Thread):
                                                     # logger.info(f"Captured members: {repr(self.captured_members)}")
 
                                                     self.captured_members[memberKey] = {
+                                                        "equipmentId": os.environ['AWS_IOT_THING_NAME'],
+                                                        "cameraLink": self.camlink,
                                                         "reservationCode": active_member['reservationCode'],
                                                         "listingId": active_member['listingId'],
-                                                        "fullName": active_member['fullName'],
                                                         "memberNo": int(str(active_member['memberNo'])),
+                                                        "fullName": active_member['fullName'],
                                                         "keyInfo": active_member['memberKeyItem']['keyInfo'],
                                                         "roomCode": active_member['memberKeyItem']['roomCode'],
-                                                        "similarity": sim
+                                                        "similarity": sim,
+                                                        "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
                                                     }
                                                     if not self.face_queue.full():
                                                         self.face_queue.put(self.captured_members[memberKey], block=False)
