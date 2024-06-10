@@ -106,8 +106,12 @@ class FaceRecognition(threading.Thread):
                                             if sim >= self.face_threshold:
                                                 memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                                 if memberKey not in self.captured_members:
+                                                    logger.info(f"New member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
+                                                    logger.info(f"Captured members: {repr(self.captured_members)}")
+
                                                     self.captured_members[memberKey] = {
                                                         "reservationCode": active_member['reservationCode'],
+                                                        "fullName": active_member['fullName'],
                                                         "memberNo": active_member['memberNo'],
                                                         "keyInfo": active_member['memberKeyItem']['keyInfo'],
                                                         "roomCode": active_member['memberKeyItem']['roomCode'],
@@ -116,10 +120,10 @@ class FaceRecognition(threading.Thread):
                                                     if not self.face_queue.full():
                                                         self.face_queue.put(self.captured_members[memberKey], block=False)
                                                 else:
+                                                    logger.info(f"Existing member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
+                                                    logger.info(f"Captured members: {repr(self.captured_members)}")
                                                     if self.captured_members[memberKey]["similarity"] < sim:
                                                         self.captured_members[memberKey]["similarity"] = sim
-
-
                                             
                                 else:
                                     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
