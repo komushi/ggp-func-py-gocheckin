@@ -27,10 +27,10 @@ import numpy as np
 import boto3
 from boto3.dynamodb.conditions import  Attr
 
-import greengrasssdk
-# iotClient = greengrasssdk.client("iot-data")
-
 from insightface.app import FaceAnalysis
+
+import greengrasssdk
+iotClient = greengrasssdk.client("iot-data")
 
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
@@ -56,6 +56,22 @@ face_app = None
 # Initialize the detector
 thread_detectors = {}
 
+# Initialize the face_queue
+face_queue = Queue(maxsize=10)
+
+def function_handler(event, context):
+
+    context_vars = vars(context)
+    topic = context_vars['client_context'].custom['subject']
+
+    logger.info('function_handler topic: %s', str(topic))
+
+    if topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner":
+        logger.info('function_handler init_scanner')
+
+        if 'model' in event:
+            logger.info(f"function_handler init_scanner changing model to {str(topic)}")
+            init_face_app(event['model'])
 
 def get_local_ip():
 
@@ -184,8 +200,9 @@ def start_http_server():
                         params['face_app'] = face_app
                         params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
                         params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
+                        params['face_threshold'] = int(os.environ['FACE_THRESHOLD'])
 
-                        thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params)
+                        thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, face_queue)
                         thread_detectors[event['cameraItem']['ip']].start()
 
                         self.send_response(200)
@@ -322,6 +339,8 @@ def get_active_members():
                 ':code': active_reservation['reservationCode']
             }
         )
+
+        response['Items']['listingId'] = active_reservation['reservationCode']['listingId']
         
         # Add the query results to the results list
         results.extend(response['Items'])
@@ -365,15 +384,13 @@ def fetch_members(forced=False):
         
 
 def claim_scanner():
-    client = greengrasssdk.client("iot-data")
-
     data = {
         "equipmentId": os.environ['AWS_IOT_THING_NAME'],
         "equipmentName": os.environ['AWS_IOT_THING_NAME'],
         "localIp": get_local_ip()
     }
     
-    client.publish(
+    iotClient.publish(
         topic="gocheckin/scanner_detected",
         payload=json.dumps(data)
     )
@@ -388,20 +405,19 @@ def start_scheduler():
     # Start the scheduler
     scheduler.run()
 
+def fetch_face_queue():
+    while True:
+        try:
+            item = face_queue.get_nowait()
+            logger.info(f"Fetched from face_queue: {item}")
 
-def function_handler(event, context):
-
-    context_vars = vars(context)
-    topic = context_vars['client_context'].custom['subject']
-
-    logger.info('function_handler topic: %s', str(topic))
-
-    if topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner":
-        logger.info('function_handler init_scanner')
-
-        if 'model' in event:
-            logger.info(f"function_handler init_scanner changing model to {str(topic)}")
-            init_face_app(event['model'])
+            iotClient.publish(
+                topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
+                payload=json.dumps(data)
+            )
+        except Empty:
+            pass
+        time.sleep(1)
 
 # http server
 def start_server_thread():
@@ -416,6 +432,12 @@ def start_server_thread():
             logger.info("Server thread is already running")
 
 # scheduler
+def start_face_queue_thread():
+    scheduler_thread = threading.Thread(target=fetch_face_queue, name="Thread-FaceQueue")
+    scheduler_thread.start()
+    logger.info("Face Queue thread started")
+
+# face_queue
 def start_scheduler_thread():
     scheduler_thread = threading.Thread(target=start_scheduler, name="Thread-Scheduler")
     scheduler_thread.start()
@@ -423,8 +445,8 @@ def start_scheduler_thread():
 
 # Function to handle termination signals
 def signal_handler(signum, frame):
-    logger.info(f"Signal {signum} received, shutting down server.")
-    logger.info(f'Available threads before shutting down server: {", ".join(thread.name for thread in threading.enumerate())}')
+    logger.info(f"Signal {signum} received, shutting down http server.")
+    # logger.info(f'Available threads before shutting down server: {", ".join(thread.name for thread in threading.enumerate())}')
 
     global thread_detectors
     for thread_name in thread_detectors:
@@ -434,14 +456,18 @@ def signal_handler(signum, frame):
             thread_detectors[thread_name] = None
     thread_detectors = {}
 
+    global face_queue
+    with face_queue.mutex:
+        face_queue.queue.clear()
+    logger.info("Stopped and face_queue cleared")
+
+
     global server_thread    
     if server_thread is not None:
         stop_http_server()
         server_thread.join()  # Wait for the server thread to finish
         server_thread = None
-
-    logger.info(f"Signal {signum} received, server shutdown.")
-    logger.info(f'Available threads after server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
+    logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
 
 
 # Register signal handlers
@@ -457,7 +483,8 @@ start_server_thread()
 # Start the scheduler thread
 start_scheduler_thread()
 
-
+# Start the face queue thread
+start_face_queue_thread()
 
 
 

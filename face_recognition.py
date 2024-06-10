@@ -17,18 +17,21 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 class FaceRecognition(threading.Thread):
-    def __init__(self, params):
+    def __init__(self, params, face_queue):
 
         super().__init__(name=f"Thread-FaceRecognition-{params['rtsp_src']}")
 
         #Current Cam
         self.thread_gst = None
         self.cam_queue = queue.Queue(maxsize=100)
+        self.face_queue = face_queue
         self.stop_event = threading.Event()
         self.camlink = params['rtsp_src']
         self.start_time = time.time()
         self.init_running_time = params['init_running_time']
         self.max_running_time = params['max_running_time']
+        self.face_threshold = params['face_threshold']
+        
         self.end_time = self.start_time + self.init_running_time
 
         if params['codec'] == 'h264':
@@ -51,6 +54,8 @@ class FaceRecognition(threading.Thread):
         self.face_app = params['face_app']
 
         self.active_members = params['active_members']
+
+        self.captured_members = {}
 
 
     def run(self):
@@ -97,6 +102,25 @@ class FaceRecognition(threading.Thread):
                                         for active_member in self.active_members:
                                             sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
                                             logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {self.camlink}")
+
+                                            if sim >= self.face_threshold:
+                                                memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
+                                                if memberKey not in self.captured_members:
+                                                    self.captured_members[memberKey] = {
+                                                        "reservationCode": active_member['reservationCode'],
+                                                        "memberNo": active_member['memberNo'],
+                                                        "keyInfo": active_member['memberKeyItem']['keyInfo'],
+                                                        "roomCode": active_member['memberKeyItem']['roomCode'],
+                                                        "similarity": sim
+                                                    }
+                                                    if not self.face_queue.full():
+                                                        self.face_queue.put(self.captured_members[memberKey], block=False)
+                                                else:
+                                                    if self.captured_members[memberKey]["similarity"] < sim:
+                                                        self.captured_members[memberKey]["similarity"] = sim
+
+
+                                            
                                 else:
                                     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
 
