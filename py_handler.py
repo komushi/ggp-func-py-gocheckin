@@ -290,10 +290,13 @@ def get_active_reservations():
     filter_expression = Attr('checkInDate').lte(current_date) \
         & Attr('checkOutDate').gte(current_date)
 
+    # Define the list of attributes to retrieve
+    attributes_to_get = ['reservationCode', 'listingId']
+
     # Scan the table with the filter expression
     response = table.scan(
         # FilterExpression=filter_expression,
-        ProjectionExpression='reservationCode'
+        ProjectionExpression=', '.join(attributes_to_get)
     )
 
     # Get the items from the response
@@ -324,7 +327,7 @@ def get_active_members():
     active_reservations = get_active_reservations()
 
     # Define the list of attributes to retrieve
-    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName']
+    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName', 'memberKeyItem']
 
     # Initialize an empty list to store the results
     results = []
