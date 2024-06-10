@@ -202,7 +202,7 @@ def start_http_server():
                         params['face_app'] = face_app
                         params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
                         params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
-                        params['face_threshold'] = int(os.environ['FACE_THRESHOLD'])
+                        params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
 
                         thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, face_queue)
                         thread_detectors[event['cameraItem']['ip']].start()
