@@ -113,7 +113,7 @@ class FaceRecognition(threading.Thread):
                                                         "reservationCode": active_member['reservationCode'],
                                                         "listingId": active_member['listingId'],
                                                         "fullName": active_member['fullName'],
-                                                        "memberNo": str(active_member['memberNo']),
+                                                        "memberNo": int(str(active_member['memberNo'])),
                                                         "keyInfo": active_member['memberKeyItem']['keyInfo'],
                                                         "roomCode": active_member['memberKeyItem']['roomCode'],
                                                         "similarity": sim
