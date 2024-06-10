@@ -106,11 +106,12 @@ class FaceRecognition(threading.Thread):
                                             if sim >= self.face_threshold:
                                                 memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                                 if memberKey not in self.captured_members:
-                                                    logger.info(f"New member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
-                                                    logger.info(f"Captured members: {repr(self.captured_members)}")
+                                                    # logger.info(f"New member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
+                                                    # logger.info(f"Captured members: {repr(self.captured_members)}")
 
                                                     self.captured_members[memberKey] = {
                                                         "reservationCode": active_member['reservationCode'],
+                                                        "listingId": active_member['listingId'],
                                                         "fullName": active_member['fullName'],
                                                         "memberNo": str(active_member['memberNo']),
                                                         "keyInfo": active_member['memberKeyItem']['keyInfo'],
@@ -120,8 +121,8 @@ class FaceRecognition(threading.Thread):
                                                     if not self.face_queue.full():
                                                         self.face_queue.put(self.captured_members[memberKey], block=False)
                                                 else:
-                                                    logger.info(f"Existing member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
-                                                    logger.info(f"Captured members: {repr(self.captured_members)}")
+                                                    # logger.info(f"Existing member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
+                                                    # logger.info(f"Captured members: {repr(self.captured_members)}")
                                                     if self.captured_members[memberKey]["similarity"] < sim:
                                                         self.captured_members[memberKey]["similarity"] = sim
                                             
