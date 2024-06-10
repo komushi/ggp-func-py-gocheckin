@@ -8,6 +8,8 @@ import os
 import io
 import base64
 
+from queue import Queue, Empty
+
 import traceback
 
 import http.server
@@ -413,7 +415,7 @@ def fetch_face_queue():
 
             iotClient.publish(
                 topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
-                payload=json.dumps(data)
+                payload=json.dumps(item)
             )
         except Empty:
             pass
