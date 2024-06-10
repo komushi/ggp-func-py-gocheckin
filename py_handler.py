@@ -343,7 +343,7 @@ def get_active_members():
         )
 
         for active_member in response['Items']:
-            active_member['listingId'] = active_reservation['reservationCode']['listingId']
+            active_member['listingId'] = active_reservation['listingId']
         
         # Add the query results to the results list
         results.extend(response['Items'])
