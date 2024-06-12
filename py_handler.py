@@ -61,6 +61,18 @@ thread_detectors = {}
 # Initialize the face_queue
 face_queue = Queue(maxsize=10)
 
+
+class FaceAnalysisChild(FaceAnalysis):
+    # NOTE: allows setting det_size for each detection call.
+    # the model allows it but the wrapping code from insightface
+    # doesn't show it, and people end up loading duplicate models
+    # for different sizes where there is absolutely no need to
+    def get(self, img, max_num=0, det_size=(640, 640)):
+        if det_size is not None:
+            self.det_model.input_size = det_size
+
+        return super().get(img, max_num)
+
 def function_handler(event, context):
 
     context_vars = vars(context)
@@ -87,7 +99,7 @@ def init_face_app(model='buffalo_sc'):
     global face_app
 
     logger.info(f"Initializing with Model Name: {model}")
-    face_app = FaceAnalysis(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
+    face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
 def read_picture_from_url(url):
@@ -145,7 +157,9 @@ def start_http_server():
 
                     image_bgr, org_image = read_picture_from_url(event['faceImgUrl'])
 
-                    reference_faces = face_app.get(image_bgr)
+                    # reference_faces = face_app.get(image_bgr)
+                    reference_faces = self.analyze_faces(image_bgr)
+                    
 
                     # print('reference_faces[0].embedding:')
                     # print(type(reference_faces[0].embedding))
@@ -194,25 +208,30 @@ def start_http_server():
 
                         fetch_members()
 
-                        params = {}
-                        params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
-                        params['codec'] = event['cameraItem']['rtsp']['codec']
-                        params['framerate'] = event['cameraItem']['rtsp']['framerate']
-                        params['active_members'] = active_members
-                        params['face_app'] = face_app
-                        params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
-                        params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
-                        params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
+                        if not active_members:
+                            params = {}
+                            params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
+                            params['codec'] = event['cameraItem']['rtsp']['codec']
+                            params['framerate'] = event['cameraItem']['rtsp']['framerate']
+                            params['active_members'] = active_members
+                            params['face_app'] = face_app
+                            params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
+                            params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
+                            params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
 
-                        thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, face_queue)
-                        thread_detectors[event['cameraItem']['ip']].start()
+                            thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, face_queue)
+                            thread_detectors[event['cameraItem']['ip']].start()
 
-                        self.send_response(200)
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
+                            self.send_response(200)
+                            self.send_header('Content-type', 'application/json')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
 
-                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                            logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                        else:
+                            logger.info(f'No active_members: {repr(active_members)} to start Thread FaceRecognition')
+
+                        
 
                     elif thread_detectors[event['cameraItem']['ip']].is_alive():
 
@@ -254,6 +273,18 @@ def start_http_server():
         def address_string(self):  # Limit access to local network requests
             host, _ = self.client_address[:2]
             return host
+
+
+        def analyze_faces(self, img_data: np.ndarray, det_size=(640, 640)):
+            # NOTE: try detect faces, if no faces detected, lower det_size until it does
+            detection_sizes = [None] + [(size, size) for size in range(640, 256, -64)] + [(256, 256)]
+
+            for size in detection_sizes:
+                faces = face_app.get(img_data, det_size=size)
+                if len(faces) > 0:
+                    return faces
+
+            return []
 
     try:
         # Define the server address and port
@@ -375,7 +406,7 @@ def fetch_members(forced=False):
         last_fetch_time = current_date
         logger.info('fetch_members done')
     else:
-        if active_members is None:
+        if not active_members:
             logger.info('fetch_members init')
             active_members = get_active_members()
             last_fetch_time = current_date
