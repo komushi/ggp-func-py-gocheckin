@@ -208,7 +208,7 @@ def start_http_server():
 
                         fetch_members()
 
-                        if not active_members:
+                        if active_members:
                             params = {}
                             params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
                             params['codec'] = event['cameraItem']['rtsp']['codec']
@@ -229,6 +229,10 @@ def start_http_server():
 
                             logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
                         else:
+                            self.send_response(400)
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": f'No active_members: {repr(active_members)} to start Thread FaceRecognition'}).encode())
+
                             logger.info(f'No active_members: {repr(active_members)} to start Thread FaceRecognition')
 
                         
@@ -381,6 +385,8 @@ def get_active_members():
         
         # Add the query results to the results list
         results.extend(response['Items'])
+
+    logger.info(f'active_member: {results}')
 
     for item in results:
         item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
