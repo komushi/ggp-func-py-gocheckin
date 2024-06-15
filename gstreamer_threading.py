@@ -1,14 +1,18 @@
-#cython: language_level=3, boundscheck=False
-import datetime
+# import datetime
+import logging
 import threading
 from enum import Enum
 import numpy as np
+
 import gi
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
-
 from gi.repository import Gst
 from gi.repository import GstPbutils
+
+# Setup logging to stdout
+logger = logging.getLogger(__name__)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 Gst.init(None)
 
@@ -30,7 +34,8 @@ class StreamCommands(Enum):
     RESOLUTION = 4
     MOTION_BEGIN = 5
     MOTION_END = 6
-    STOP = 7
+    VIDEO_CLIPPED = 7
+    STOP = 8
 
 
 
@@ -59,11 +64,11 @@ class StreamCapture(threading.Thread):
         self.sink = None
         self.image_arr = None
         self.newImage = False
-        self.motioncells = None
+        self.record_valve = None
+        self.splitmuxsink = None
+        # self.motioncells = None
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
-
-
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
@@ -170,6 +175,12 @@ class StreamCapture(threading.Thread):
 
         self.sink.connect("new-sample", self.new_buffer, self.sink)
 
+        # record_valve params
+        self.record_valve = self.pipeline.get_by_name('m_record_valve')
+
+        # record_valve params
+        self.splitmuxsink = self.pipeline.get_by_name('m_splitmuxsink')
+
         # Start playing
         ret = self.pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
@@ -178,6 +189,8 @@ class StreamCapture(threading.Thread):
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
+        bus.add_signal_watch()
+        bus.connect("message", self.on_message)
 
         while not self.stop_event.is_set():
 
@@ -194,43 +207,82 @@ class StreamCapture(threading.Thread):
                 self.unexpected_cnt = 0
 
 
-            if message:
-                if message.type == Gst.MessageType.ERROR:
-                    err, debug = message.parse_error()
-                    print("Error received from element %s: %s" % (
-                        message.src.get_name(), err))
-                    print("Debugging information: %s" % debug)
-                    break
-                elif message.type == Gst.MessageType.EOS:
-                    print("End-Of-Stream reached.")
-                    break
-                elif message.type == Gst.MessageType.STATE_CHANGED:
-                    if isinstance(message.src, Gst.Pipeline):
-                        old_state, new_state, pending_state = message.parse_state_changed()
-                        print("%s Pipeline state changed from %s to %s." %
-                              (str(datetime.datetime.now()), old_state.value_nick, new_state.value_nick))
-                elif message.type == Gst.MessageType.ELEMENT:
-                    motion_begin = message.get_structure().has_field("motion_begin")
-                    motion_finished = message.get_structure().has_field("motion_finished")
-                    print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_begin, message.type))
-                    print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_finished, message.type))
-                    if (motion_begin and not motion_finished):
-                        self.cam_queue.put((StreamCommands.MOTION_BEGIN, None), block=False)
+            # if message:
+            #     if message.type == Gst.MessageType.ERROR:
+            #         err, debug = message.parse_error()
+            #         print("Error received from element %s: %s" % (
+            #             message.src.get_name(), err))
+            #         print("Debugging information: %s" % debug)
+            #         break
+            #     elif message.type == Gst.MessageType.EOS:
+            #         print("End-Of-Stream reached.")
+            #         break
+            #     elif message.type == Gst.MessageType.STATE_CHANGED:
+            #         if isinstance(message.src, Gst.Pipeline):
+            #             old_state, new_state, pending_state = message.parse_state_changed()
+            #             print("%s Pipeline state changed from %s to %s." %
+            #                   (str(datetime.datetime.now()), old_state.value_nick, new_state.value_nick))
+            #     elif message.type == Gst.MessageType.ELEMENT:
+            #         motion_begin = message.get_structure().has_field("motion_begin")
+            #         motion_finished = message.get_structure().has_field("motion_finished")
+            #         print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_begin, message.type))
+            #         print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_finished, message.type))
+            #         if (motion_begin and not motion_finished):
+            #             self.cam_queue.put((StreamCommands.MOTION_BEGIN, None), block=False)
 
-                    if (not motion_begin and motion_finished):
-                        self.cam_queue.put((StreamCommands.MOTION_END, None), block=False)
-                elif message.type == Gst.MessageType.WARNING:
-                    print("%s Warning message %s: %s" % (str(datetime.datetime.now()), message.parse_warning(), message.type))
-                else:
-                    # print("%s Unexpected message  received. %s: %s" % (str(datetime.datetime.now()), message, message.type))
-                    self.unexpected_cnt = self.unexpected_cnt + 1
-                    if self.unexpected_cnt == self.num_unexpected_tot:
-                        break
+            #         if (not motion_begin and motion_finished):
+            #             self.cam_queue.put((StreamCommands.MOTION_END, None), block=False)
+            #     elif message.type == Gst.MessageType.WARNING:
+            #         print("%s Warning message %s: %s" % (str(datetime.datetime.now()), message.parse_warning(), message.type))
+            #     else:
+            #         # print("%s Unexpected message  received. %s: %s" % (str(datetime.datetime.now()), message, message.type))
+            #         self.unexpected_cnt = self.unexpected_cnt + 1
+            #         if self.unexpected_cnt == self.num_unexpected_tot:
+            #             break
 
     def stop(self):
         print(f"Stopping {self.name}")
 
+        stop_recording()
+
         self.stop_event.set()
+
+        print(f"{self.name} stopping...")
+
         self.pipeline.set_state(Gst.State.NULL)
 
         print(f"{self.name} stopped")
+
+    def stop_recording(self):
+        logger.info("Stopping recording...")
+        self.record_valve.set_property('drop', True)
+
+        # Send EOS to the recording branch
+        self.splitmuxsink.send_event(Gst.Event.new_eos())
+
+    def on_message(self, bus, message):
+        if message.type == Gst.MessageType.EOS:
+            logger.info("End-Of-Stream reached.")
+            self.stop()
+        elif message.type == Gst.MessageType.ERROR:
+            err, debug = message.parse_error()
+            logger.info(f"Error: {err}, {debug}")
+            self.stop()
+        elif message.type == Gst.MessageType.STATE_CHANGED:
+            if isinstance(message.src, Gst.Pipeline):
+                old_state, new_state, pending_state = message.parse_state_changed()
+                logger.info(f"Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
+        elif message.type == Gst.MessageType.WARNING:
+            logger.info(f"Warning message {message.parse_warning()}： {message.type}.")
+        elif message.type == Gst.MessageType.ELEMENT:
+            structure = message.get_structure()
+            if structure and structure.get_name().startswith("splitmuxsink-"):
+                action = structure.get_name()
+                # logger.info(f"New action detected: {action}")
+                # if action == "splitmuxsink-fragment-opened":
+                #     location = structure.get_string("location")
+                #     logger.info(f"New file being created: {location}")
+                if action == "splitmuxsink-fragment-closed":
+                    location = structure.get_string("location")
+                    logger.info(f"New file created: {location}")
+                    self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, location), block=False)

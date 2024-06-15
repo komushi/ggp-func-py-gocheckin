@@ -35,11 +35,19 @@ class FaceRecognition(threading.Thread):
         self.end_time = self.start_time + self.init_running_time
 
         if params['codec'] == 'h264':
-            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec 
-                ! queue ! videoconvert name=m_videoconvert ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
+            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay 
+                ! queue ! h264parse ! tee name=t t. ! queue ! avdec_h264 name=m_avdec 
+                ! queue ! videoconvert name=m_videoconvert 
+                ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
+                t. ! queue ! valve name=m_record_valve drop=false　! h264parse 
+                ! splitmuxsink name=m_splitmuxsink location=video%02d.mp4 max-size-time=5000000000"""
         elif params['codec'] == 'h265':
-            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec 
-                ! queue ! videoconvert name=m_videoconvert ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
+            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
+                ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
+                ! queue ! videoconvert name=m_videoconvert 
+                ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
+                t. ! queue ! valve name=m_record_valve drop=false　! h265parse 
+                ! splitmuxsink name=m_splitmuxsink location=video%02d.mp4 max-size-time=5000000000"""
         elif params['codec'] == 'webcam':
             self.pipeline_str = """avfvideosrc device-index=0 ! videoscale
                 ! videoconvert name=m_videoconvert ! video/x-raw,width=1280,height=720
