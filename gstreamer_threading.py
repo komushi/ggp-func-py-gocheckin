@@ -194,7 +194,7 @@ class StreamCapture(threading.Thread):
 
         while not self.stop_event.is_set():
 
-            # message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
+            message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
             # print "image_arr: ", image_arr
             if self.image_arr is not None and self.newImage is True:
 
