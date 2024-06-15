@@ -281,10 +281,10 @@ class StreamCapture(threading.Thread):
             if structure and structure.get_name().startswith("splitmuxsink-"):
                 action = structure.get_name()
                 # logger.info(f"New action detected: {action}")
-                # if action == "splitmuxsink-fragment-opened":
-                #     location = structure.get_string("location")
-                #     logger.info(f"New file being created: {location}")
-                if action == "splitmuxsink-fragment-closed":
+                if action == "splitmuxsink-fragment-opened":
+                    location = structure.get_string("location")
+                    logger.info(f"New file being created: {location}")
+                elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
                     logger.info(f"New file created: {location}")
                     self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, location), block=False)
