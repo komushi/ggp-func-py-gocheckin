@@ -189,8 +189,8 @@ class StreamCapture(threading.Thread):
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
-        bus.add_signal_watch()
-        bus.connect("message", self.on_message)
+        # bus.add_signal_watch()
+        # bus.connect("message", self.on_message)
 
         while not self.stop_event.is_set():
 
@@ -205,7 +205,9 @@ class StreamCapture(threading.Thread):
 
                 self.image_arr = None
                 self.unexpected_cnt = 0
-
+            
+            if message:
+                self.on_message(bus, message)
 
             # if message:
             #     if message.type == Gst.MessageType.ERROR:
