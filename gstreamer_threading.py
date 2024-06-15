@@ -243,7 +243,7 @@ class StreamCapture(threading.Thread):
     def stop(self):
         print(f"Stopping {self.name}")
 
-        stop_recording()
+        self.stop_recording()
 
         self.stop_event.set()
 
