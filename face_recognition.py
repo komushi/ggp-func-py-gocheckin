@@ -29,8 +29,8 @@ class FaceRecognition(threading.Thread):
         self.camlink = params['rtsp_src']
         self.cam_ip = params['cam_ip']
         self.start_time = time.time()
-        self.init_running_time = int(os.environ['MAX_RUNNING_TIME'])
-        self.max_running_time = int(os.environ['INIT_RUNNING_TIME'])
+        self.init_running_time = int(os.environ['INIT_RUNNING_TIME'])
+        self.max_running_time = int(os.environ['MAX_RUNNING_TIME'])
         self.face_threshold = float(os.environ['FACE_THRESHOLD'])
         
         self.end_time = self.start_time + self.init_running_time
