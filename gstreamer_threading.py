@@ -1,3 +1,4 @@
+import os
 import sys
 import logging
 import threading
@@ -41,7 +42,7 @@ class StreamCommands(Enum):
 
 class StreamCapture(threading.Thread):
 
-    def __init__(self, link, pipeline_str, stop_event, cam_queue, framerate):
+    def __init__(self, cam_ip, link, pipeline_str, stop_event, cam_queue, framerate):
         """
         Initialize the stream capturing process
         link - rstp link of stream
@@ -69,6 +70,14 @@ class StreamCapture(threading.Thread):
         # self.motioncells = None
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
+
+        self.video_clipping_location = f"{os.environ['VIDEO_CLIPPING_LOCATION']}/{self.cam_ip}"
+
+        try:
+            os.makedirs(self.video_clipping_location)
+        except FileExistsError:
+            # directory already exists
+            pass
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
@@ -180,6 +189,7 @@ class StreamCapture(threading.Thread):
 
         # record_valve params
         self.splitmuxsink = self.pipeline.get_by_name('m_splitmuxsink')
+        self.splitmuxsink.set_property('location', f"{self.video_clipping_location}/video%02d.mp4")
 
         # Start playing
         ret = self.pipeline.set_state(Gst.State.PLAYING)

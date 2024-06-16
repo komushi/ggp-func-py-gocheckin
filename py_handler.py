@@ -99,7 +99,7 @@ def init_face_app(model='buffalo_sc'):
     global face_app
 
     logger.info(f"Initializing with Model Name: {model}")
-    face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root='/etc/insightface')
+    face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root=os.environ['VIDEO_CLIPPING_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
 def read_picture_from_url(url):
@@ -216,9 +216,9 @@ def start_http_server():
                             params['cam_ip'] = event['cameraItem']['ip']
                             params['active_members'] = active_members
                             params['face_app'] = face_app
-                            params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
-                            params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
-                            params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
+                            # params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
+                            # params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
+                            # params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
 
                             thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, face_queue)
                             thread_detectors[event['cameraItem']['ip']].start()

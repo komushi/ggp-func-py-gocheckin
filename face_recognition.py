@@ -19,7 +19,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 class FaceRecognition(threading.Thread):
     def __init__(self, params, face_queue):
 
-        super().__init__(name=f"Thread-FaceRecognition-{params['rtsp_src']}")
+        super().__init__(name=f"Thread-FaceRecognition-{params['cam_ip']}")
 
         #Current Cam
         self.thread_gst = None
@@ -29,9 +29,9 @@ class FaceRecognition(threading.Thread):
         self.camlink = params['rtsp_src']
         self.cam_ip = params['cam_ip']
         self.start_time = time.time()
-        self.init_running_time = params['init_running_time']
-        self.max_running_time = params['max_running_time']
-        self.face_threshold = params['face_threshold']
+        self.init_running_time = int(os.environ['MAX_RUNNING_TIME'])
+        self.max_running_time = int(os.environ['INIT_RUNNING_TIME'])
+        self.face_threshold = float(os.environ['FACE_THRESHOLD'])
         
         self.end_time = self.start_time + self.init_running_time
 
@@ -41,14 +41,14 @@ class FaceRecognition(threading.Thread):
                 ! queue ! videoconvert name=m_videoconvert 
                 ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
                 t. ! queue ! valve name=m_record_valve ! h264parse 
-                ! splitmuxsink name=m_splitmuxsink location=/etc/insightface/{self.cam_ip}/video%02d.mp4 max-size-time={self.init_running_time * 1000000000}"""    
+                ! splitmuxsink name=m_splitmuxsink max-size-time={self.init_running_time * 1000000000}"""    
         elif params['codec'] == 'h265':
             self.pipeline_str = f"""rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
                 ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
                 ! queue ! videoconvert name=m_videoconvert 
                 ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
                 t. ! queue ! valve name=m_record_valve　! h265parse 
-                ! splitmuxsink name=m_splitmuxsink location=/etc/insightface/{self.cam_ip}/video%02d.mp4 max-size-time={self.init_running_time * 1000000000}"""
+                ! splitmuxsink name=m_splitmuxsink max-size-time={self.init_running_time * 1000000000}"""
         elif params['codec'] == 'webcam':
             self.pipeline_str = """avfvideosrc device-index=0 ! videoscale
                 ! videoconvert name=m_videoconvert ! video/x-raw,width=1280,height=720
@@ -74,7 +74,8 @@ class FaceRecognition(threading.Thread):
         #get all cams
         time.sleep(1)
 
-        self.thread_gst = gst.StreamCapture(self.camlink,
+        self.thread_gst = gst.StreamCapture(self.cam_ip,
+                            self.camlink,
                             self.pipeline_str,
                             self.stop_event,
                             self.cam_queue,
