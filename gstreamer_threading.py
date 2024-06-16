@@ -71,7 +71,7 @@ class StreamCapture(threading.Thread):
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
 
-        self.video_clipping_location = f"{os.environ['VIDEO_CLIPPING_LOCATION']}/{self.cam_ip}"
+        self.video_clipping_location = f"{os.environ['VIDEO_CLIPPING_LOCATION']}/{cam_ip}"
 
         try:
             os.makedirs(self.video_clipping_location)
