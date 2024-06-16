@@ -3,7 +3,7 @@ import sys
 import logging
 import threading
 from enum import Enum
-import numpy as np
+import time
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -256,6 +256,8 @@ class StreamCapture(threading.Thread):
         print(f"Stopping {self.name}")
 
         self.stop_recording()
+
+        time.sleep(0.1)
 
         self.stop_event.set()
 
