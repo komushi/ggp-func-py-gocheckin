@@ -3,6 +3,7 @@ import sys
 import logging
 import threading
 from enum import Enum
+import numpy as np
 import time
 
 import gi
