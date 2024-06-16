@@ -258,7 +258,7 @@ class StreamCapture(threading.Thread):
 
         self.stop_recording()
 
-        time.sleep(0.1)
+        time.sleep(1)
 
         self.stop_event.set()
 
