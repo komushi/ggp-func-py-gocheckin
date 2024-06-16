@@ -27,6 +27,7 @@ class FaceRecognition(threading.Thread):
         self.face_queue = face_queue
         self.stop_event = threading.Event()
         self.camlink = params['rtsp_src']
+        self.cam_ip = params['cam_ip']
         self.start_time = time.time()
         self.init_running_time = params['init_running_time']
         self.max_running_time = params['max_running_time']
@@ -35,19 +36,19 @@ class FaceRecognition(threading.Thread):
         self.end_time = self.start_time + self.init_running_time
 
         if params['codec'] == 'h264':
-            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay 
+            self.pipeline_str = f"""rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay 
                 ! queue ! h264parse ! tee name=t t. ! queue ! avdec_h264 name=m_avdec 
                 ! queue ! videoconvert name=m_videoconvert 
                 ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
                 t. ! queue ! valve name=m_record_valve ! h264parse 
-                ! splitmuxsink name=m_splitmuxsink location=/etc/insightface/video%02d.mp4 max-size-time=5000000000"""
+                ! splitmuxsink name=m_splitmuxsink location=/etc/insightface/{self.cam_ip}/video%02d.mp4 max-size-time={self.init_running_time * 1000000000}"""    
         elif params['codec'] == 'h265':
-            self.pipeline_str = """rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
+            self.pipeline_str = f"""rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
                 ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
                 ! queue ! videoconvert name=m_videoconvert 
                 ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
                 t. ! queue ! valve name=m_record_valve　! h265parse 
-                ! splitmuxsink name=m_splitmuxsink location=/etc/insightface/video%02d.mp4 max-size-time=5000000000"""
+                ! splitmuxsink name=m_splitmuxsink location=/etc/insightface/{self.cam_ip}/video%02d.mp4 max-size-time={self.init_running_time * 1000000000}"""
         elif params['codec'] == 'webcam':
             self.pipeline_str = """avfvideosrc device-index=0 ! videoscale
                 ! videoconvert name=m_videoconvert ! video/x-raw,width=1280,height=720

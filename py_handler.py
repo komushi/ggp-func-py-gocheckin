@@ -213,6 +213,7 @@ def start_http_server():
                             params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
                             params['codec'] = event['cameraItem']['rtsp']['codec']
                             params['framerate'] = event['cameraItem']['rtsp']['framerate']
+                            params['cam_ip'] = event['cameraItem']['ip']
                             params['active_members'] = active_members
                             params['face_app'] = face_app
                             params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
