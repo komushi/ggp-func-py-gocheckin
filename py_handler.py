@@ -100,8 +100,11 @@ def init_uploader_app():
     import s3_uploader as uploader
 
     global uploader_app
-
-    uploader_app = uploader.S3Uploader(role_alias=os.environ['AWS_ROLE_ALIAS'], expires_in=3600, bucket_name=os.environ['VIDEO_BUCKET'])
+    uploader_app = uploader.S3Uploader(
+        cred_provider_host=os.environ['CRED_PROVIDER_HOST'],
+        cred_provider_path=f"/role-aliases/{os.environ['AWS_ROLE_ALIAS']}/credentials",
+        bucket_name=os.environ['VIDEO_BUCKET']
+    )
 
 def init_face_app(model='buffalo_sc'):
     global face_app
@@ -130,7 +133,8 @@ def read_picture_from_url(url):
 def set_host_info_to_env(host_info):
     os.environ['HOST_ID'] = host_info['hostId']
     os.environ['IDENTITY_ID'] = host_info['identityId']
-    os.environ['IDENTITY_ID'] = host_info['propertyCode']
+    os.environ['PROPERTY_CODE'] = host_info['propertyCode']
+    os.environ['CRED_PROVIDER_HOST'] = host_info['credProviderHost']
     
 
 def stop_http_server():

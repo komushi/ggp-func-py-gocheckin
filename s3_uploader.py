@@ -4,24 +4,45 @@ import urllib.parse
 import os
 import datetime
 import requests
+import http.client
+import ssl
+import json
 
 class S3Uploader():
-    def __init__(self, role_alias, expires_in, bucket_name):
-        self.role_alias = role_alias
+    def __init__(self, cred_provider_host, cred_provider_path, bucket_name, expires_in=3600):
+        self.cred_provider_host = cred_provider_host
+        self.cred_provider_path = cred_provider_path
         self.expires_in = expires_in
         self.bucket_name = bucket_name
         self.credentials = self.get_temporary_credentials()
 
     def get_temporary_credentials(self):
-        iot_credentials_url = f"http://localhost:8888/role-aliases/{self.role_alias}/credentials"
-        response = requests.get(iot_credentials_url)
+        certificate_file = os.path.join("/greengrass/certs", "core.crt")
+        key_file = os.path.join("/greengrass/certs", "core.key")
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+        context.load_cert_chain(certfile=certificate_file, keyfile=key_file)
+        connection = http.client.HTTPSConnection(self.cred_provider_host, port=443, context=context)
+        headers = {'x-amzn-iot-thingname': os.environ["AWS_IOT_THING_NAME"]}
+        connection.request(method="GET", url=self.cred_provider_host, headers=headers)
 
-        if response.status_code == 200:
-            credentials = response.json()['credentials']
-            print(f"credentials credentials: {repr(response.json())}")
+        response = connection.getresponse()
+        if response.status == 200:
+            credentials = json.loads(response.read().decode())['credentials']
+            print(f"credentials: {repr(credentials)}")
             return credentials
         else:
-            raise Exception(f"Failed to get credentials: {response.status_code}, {response.text}")
+            raise Exception(f"Failed to get credentials: {response.status}, {response.text}")
+
+
+    # def get_temporary_credentials(self):
+    #     response = requests.get(self.iot_credentials_url)
+
+    #     if response.status_code == 200:
+    #         credentials = response.json()['credentials']
+    #         print(f"credentials credentials: {repr(response.json())}")
+    #         return credentials
+    #     else:
+    #         raise Exception(f"Failed to get credentials: {response.status_code}, {response.text}")
 
     def sign(self, key, msg):
         return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
