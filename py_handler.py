@@ -490,7 +490,7 @@ def fetch_scanner_output_queue():
                     local_file_path = message['payload']['local_file_path']
                     object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}
                         /properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}
-                        /{message['cam_ip']}/{message['date_folder']}/{message['time_filename']}"""
+                        /{message['payload']['cam_ip']}/{message['payload']['date_folder']}/{message['payload']['time_filename']}"""
                     uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 
         except Empty:
