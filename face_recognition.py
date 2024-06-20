@@ -41,7 +41,7 @@ class FaceRecognition(threading.Thread):
                 ! queue ! videoconvert name=m_videoconvert 
                 ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
                 t. ! queue ! valve name=m_record_valve ! h264parse 
-                ! splitmuxsink name=m_splitmuxsink max-size-time={8000000000}"""    
+                ! splitmuxsink name=m_splitmuxsink max-size-time={5000000000}"""    
         elif params['codec'] == 'h265':
             self.pipeline_str = f"""rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
                 ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
