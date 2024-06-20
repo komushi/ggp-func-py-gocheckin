@@ -23,7 +23,7 @@ class S3Uploader():
         context.load_cert_chain(certfile=certificate_file, keyfile=key_file)
         connection = http.client.HTTPSConnection(self.cred_provider_host, port=443, context=context)
         headers = {'x-amzn-iot-thingname': os.environ["AWS_IOT_THING_NAME"]}
-        connection.request(method="GET", url=self.cred_provider_host, headers=headers)
+        connection.request(method="GET", url=self.cred_provider_path, headers=headers)
 
         response = connection.getresponse()
         if response.status == 200:
