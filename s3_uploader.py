@@ -31,7 +31,7 @@ class S3Uploader():
             print(f"credentials: {repr(credentials)}")
             return credentials
         else:
-            raise Exception(f"Failed to get credentials: {response.status}, {response.text}")
+            raise Exception(f"Failed to get credentials: {response.status}, {repr(response)}")
 
 
     # def get_temporary_credentials(self):
