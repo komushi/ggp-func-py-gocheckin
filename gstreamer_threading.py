@@ -198,7 +198,7 @@ class StreamCapture(threading.Thread):
 
         now = datetime.now()
         self.date_folder = now.strftime("%Y-%m-%d")
-        self.time_filename = now.strftime("%H-%M-%S-%02d.mp4")
+        self.time_filename = now.strftime("%H-%M-%S") + "-%02d.mp4"
 
         self.splitmuxsink.set_property('location', os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename))
         if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
@@ -270,7 +270,7 @@ class StreamCapture(threading.Thread):
 
         self.stop_recording()
 
-        time.sleep(1)
+        time.sleep(20)
 
         self.stop_event.set()
 

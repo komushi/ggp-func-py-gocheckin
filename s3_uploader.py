@@ -28,7 +28,7 @@ class S3Uploader():
         response = connection.getresponse()
         if response.status == 200:
             credentials = json.loads(response.read().decode())['credentials']
-            print(f"credentials: {repr(credentials)}")
+            # print(f"credentials: {repr(credentials)}")
             return credentials
         else:
             raise Exception(f"Failed to get credentials: {response.status}, {repr(response)}")
