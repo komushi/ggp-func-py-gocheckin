@@ -5,6 +5,7 @@ import threading
 from enum import Enum
 import numpy as np
 import time
+import datetime
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -72,13 +73,13 @@ class StreamCapture(threading.Thread):
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
 
-        self.video_clipping_location = f"{os.environ['VIDEO_CLIPPING_LOCATION']}/{cam_ip}"
+        self.date_folder = None
+        self.time_filename = None
+        self.cam_ip = cam_ip
+        # self.video_clipping_location = f"{os.environ['VIDEO_CLIPPING_LOCATION']}/{cam_ip}"
 
-        try:
-            os.makedirs(self.video_clipping_location)
-        except FileExistsError:
-            # directory already exists
-            pass
+        # if not os.path.exists(self.video_clipping_location):
+        #     os.makedirs(self.video_clipping_location)
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
@@ -190,7 +191,18 @@ class StreamCapture(threading.Thread):
 
         # record_valve params
         self.splitmuxsink = self.pipeline.get_by_name('m_splitmuxsink')
-        self.splitmuxsink.set_property('location', f"{self.video_clipping_location}/video%02d.mp4")
+
+        # self.date_folder = None
+        # self.time_filename = None
+        # self.cam_ip = cam_ip
+
+        now = datetime.now()
+        self.date_folder = now.strftime("%Y-%m-%d")
+        self.time_filename = now.strftime("%H-%M-%S-%02d.mp4")
+
+        self.splitmuxsink.set_property('location', os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename))
+        if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
+            os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
 
         # Start playing
         ret = self.pipeline.set_state(Gst.State.PLAYING)
@@ -301,4 +313,9 @@ class StreamCapture(threading.Thread):
                 elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
                     logger.info(f"New file created: {location}")
-                    self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, location), block=False)
+                    self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, {
+                        "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                        "cam_ip": self.cam_ip,
+                        "date_folder": self.date_folder,
+                        "time_filename": self.time_filename
+                    }), block=False)

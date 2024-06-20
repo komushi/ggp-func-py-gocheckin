@@ -31,6 +31,8 @@ from boto3.dynamodb.conditions import  Attr
 
 from insightface.app import FaceAnalysis
 
+import s3_uploader as uploader
+
 import greengrasssdk
 iotClient = greengrasssdk.client("iot-data")
 
@@ -52,14 +54,15 @@ scheduler = sched.scheduler(time.time, time.sleep)
 active_members = []
 last_fetch_time = None
 
-# Initialize the face_app
+# Initialize the face_app, uploader_app
 face_app = None
+uploader_app = None
 
 # Initialize the detector
 thread_detectors = {}
 
-# Initialize the face_queue
-face_queue = Queue(maxsize=10)
+# Initialize the scanner_output_queue
+scanner_output_queue = Queue(maxsize=50)
 
 
 class FaceAnalysisChild(FaceAnalysis):
@@ -95,6 +98,11 @@ def get_local_ip():
         local_ip = s.getsockname()[0]
     return local_ip
 
+def init_uploader_app():
+    global uploader_app
+
+    uploader_app = uploader.S3Uploader(role_alias=os.environ['AWS_ROLE_ALIAS'], expires_in=3600, bucket_name=os.environ['VIDEO_BUCKET'])
+
 def init_face_app(model='buffalo_sc'):
     global face_app
 
@@ -118,6 +126,12 @@ def read_picture_from_url(url):
     image_bgr = image_array[:, :, [2, 1, 0]]
     
     return image_bgr, image
+
+def set_host_info_to_env(host_info):
+    os.environ['HOST_ID'] = host_info['hostId']
+    os.environ['IDENTITY_ID'] = host_info['identityId']
+    os.environ['IDENTITY_ID'] = host_info['propertyCode']
+    
 
 def stop_http_server():
     global httpd
@@ -194,6 +208,9 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
+                    if event['hostInfo'] in event:
+                        set_host_info_to_env(['hostInfo'])
+
                     logger.info(f"/detect POST host: {format(event['cameraItem']['ip'])}")
 
                     global thread_detectors
@@ -220,7 +237,7 @@ def start_http_server():
                             # params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
                             # params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
 
-                            thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, face_queue)
+                            thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, scanner_output_queue)
                             thread_detectors[event['cameraItem']['ip']].start()
 
                             self.send_response(200)
@@ -236,8 +253,7 @@ def start_http_server():
 
                             logger.info(f'No active_members: {repr(active_members)} to start Thread FaceRecognition')
 
-                        
-
+                
                     elif thread_detectors[event['cameraItem']['ip']].is_alive():
 
                         logger.info(f"Extending detector thread for : {event['cameraItem']['ip']}")
@@ -449,16 +465,24 @@ def start_scheduler():
     # Start the scheduler
     scheduler.run()
 
-def fetch_face_queue():
+def fetch_scanner_output_queue():
     while True:
         try:
-            item = face_queue.get_nowait()
-            logger.info(f"Fetched from face_queue: {item}")
+            message = scanner_output_queue.get_nowait()
+            logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
+            
+            if 'type' in message:
+                if message['type'] == 'guest_detected':
+                    iotClient.publish(
+                        topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
+                        payload=json.dumps(message['payload'])
+                    )
+                elif message['type'] == 'video_clipped':
+                    local_file_path = os.path.join(message['payload']['video_clipping_location'], message['payload']['cam_ip'], message['payload']['date_folder'], message['payload']['time_filename'])
+                    object_key = f"private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}"
 
-            iotClient.publish(
-                topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
-                payload=json.dumps(item)
-            )
+                    uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
+
         except Empty:
             pass
         time.sleep(1)
@@ -477,11 +501,11 @@ def start_server_thread():
 
 # scheduler
 def start_face_queue_thread():
-    scheduler_thread = threading.Thread(target=fetch_face_queue, name="Thread-FaceQueue")
+    scheduler_thread = threading.Thread(target=fetch_scanner_output_queue, name="Thread-FaceQueue")
     scheduler_thread.start()
     logger.info("Face Queue thread started")
 
-# face_queue
+# scanner_output_queue
 def start_scheduler_thread():
     scheduler_thread = threading.Thread(target=start_scheduler, name="Thread-Scheduler")
     scheduler_thread.start()
@@ -500,10 +524,10 @@ def signal_handler(signum, frame):
             thread_detectors[thread_name] = None
     thread_detectors = {}
 
-    global face_queue
-    with face_queue.mutex:
-        face_queue.queue.clear()
-    logger.info("Stopped and face_queue cleared")
+    global scanner_output_queue
+    with scanner_output_queue.mutex:
+        scanner_output_queue.queue.clear()
+    logger.info("Stopped and scanner_output_queue cleared")
 
 
     global server_thread    
@@ -520,6 +544,9 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
 init_face_app()
+
+# init_uploader_app
+init_uploader_app()
 
 # Start the HTTP server thread
 start_server_thread()

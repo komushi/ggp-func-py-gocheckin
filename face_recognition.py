@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 class FaceRecognition(threading.Thread):
-    def __init__(self, params, face_queue):
+    def __init__(self, params, scanner_output_queue):
 
         super().__init__(name=f"Thread-FaceRecognition-{params['cam_ip']}")
 
         #Current Cam
         self.thread_gst = None
         self.cam_queue = queue.Queue(maxsize=100)
-        self.face_queue = face_queue
+        self.scanner_output_queue = scanner_output_queue
         self.stop_event = threading.Event()
         self.camlink = params['rtsp_src']
         self.cam_ip = params['cam_ip']
@@ -131,8 +131,11 @@ class FaceRecognition(threading.Thread):
                                                         "similarity": sim,
                                                         "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
                                                     }
-                                                    if not self.face_queue.full():
-                                                        self.face_queue.put(self.captured_members[memberKey], block=False)
+                                                    if not self.scanner_output_queue.full():
+                                                        self.scanner_output_queue.put({
+                                                            "type": "guest_detected",
+                                                            "payload": self.captured_members[memberKey]
+                                                        }, block=False)
                                                 else:
                                                     # logger.info(f"Existing member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
                                                     # logger.info(f"Captured members: {repr(self.captured_members)}")
@@ -141,6 +144,14 @@ class FaceRecognition(threading.Thread):
                                             
                                 else:
                                     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
+                    elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
+                        if val is not None:
+                            if not self.scanner_output_queue.full():
+                                self.scanner_output_queue.put({
+                                    "type": "video_clipped",
+                                    "payload": val
+                                }, block=False)
+
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
