@@ -127,7 +127,7 @@ class S3Uploader():
         # Add the authentication information to the query string
         canonicalQueryParams['X-Amz-Signature'] = signatureStr
 
-        print(f"canonicalQueryParams: {canonicalQueryParams}")
+        # print(f"canonicalQueryParams: {canonicalQueryParams}")
 
         presignedRequestURL = f'{endpoint}{canonicalURI}?'
         presignedRequestURL += urllib.parse.urlencode(canonicalQueryParams)
@@ -135,17 +135,12 @@ class S3Uploader():
         return presignedRequestURL
 
     def put_object(self, object_key, local_file_path):
-                        # VIDEO_BUCKET
-                        # self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, {
-                        #     "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                        #     "cam_ip": self.cam_ip,
-                        #     "date_folder": self.date_folder,
-                        #     "time_filename": self.time_filename
-                        # }), block=False)
-
         try:
+            print(f"put_object object_key: {object_key}")
             # self.credentials = self.get_temporary_credentials()
             presigned_url = self.generate_presigned_url(object_key)
+
+            print(f"put_object presigned_url: {presigned_url}")
             
             with open(local_file_path, 'rb') as file:
                 response = requests.put(presigned_url, data=file)
