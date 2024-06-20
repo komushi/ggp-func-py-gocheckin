@@ -317,5 +317,6 @@ class StreamCapture(threading.Thread):
                         "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
                         "cam_ip": self.cam_ip,
                         "date_folder": self.date_folder,
-                        "time_filename": self.time_filename
+                        "time_filename": os.path.basename(location),
+                        "local_file_path": location
                     }), block=False)
