@@ -31,8 +31,6 @@ from boto3.dynamodb.conditions import  Attr
 
 from insightface.app import FaceAnalysis
 
-import s3_uploader as uploader
-
 import greengrasssdk
 iotClient = greengrasssdk.client("iot-data")
 
@@ -99,6 +97,8 @@ def get_local_ip():
     return local_ip
 
 def init_uploader_app():
+    import s3_uploader as uploader
+
     global uploader_app
 
     uploader_app = uploader.S3Uploader(role_alias=os.environ['AWS_ROLE_ALIAS'], expires_in=3600, bucket_name=os.environ['VIDEO_BUCKET'])

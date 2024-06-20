@@ -6,10 +6,10 @@ import datetime
 import requests
 
 class S3Uploader():
-    def __init__(self, params):
-        self.role_alias = params['role_alias']
-        self.expires_in = params['expires_in']
-        self.bucket_name = params['bucket_name']
+    def __init__(self, role_alias, expires_in, bucket_name):
+        self.role_alias = role_alias
+        self.expires_in = expires_in
+        self.bucket_name = bucket_name
         self.credentials = self.get_temporary_credentials()
 
     def get_temporary_credentials(self):
@@ -23,9 +23,7 @@ class S3Uploader():
         else:
             raise Exception(f"Failed to get credentials: {response.status_code}, {response.text}")
 
-    def sign(key, msg):
-        import hashlib
-        import hmac
+    def sign(self, key, msg):
         return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
 
@@ -52,8 +50,8 @@ class S3Uploader():
         # Service streaming endpoint
         endpoint = "https://" + self.bucket_name + "." + host
         
-        # timestamp = datetime.datetime.utcnow()
-        timestamp = datetime.now(datetime.UTC)
+        timestamp = datetime.datetime.utcnow()
+        # timestamp = datetime.now(datetime.UTC)
         # Date and time of request
         amzDatetime = timestamp.strftime("%Y%m%dT%H%M%SZ")
         # Date without time for credential scope
