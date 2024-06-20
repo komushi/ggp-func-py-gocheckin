@@ -100,11 +100,13 @@ def init_uploader_app():
     import s3_uploader as uploader
 
     global uploader_app
-    uploader_app = uploader.S3Uploader(
-        cred_provider_host=os.environ['CRED_PROVIDER_HOST'],
-        cred_provider_path=f"/role-aliases/{os.environ['AWS_ROLE_ALIAS']}/credentials",
-        bucket_name=os.environ['VIDEO_BUCKET']
-    )
+    if uploader_app is None:
+        if 'CRED_PROVIDER_HOST' in os.environ:
+            uploader_app = uploader.S3Uploader(
+                cred_provider_host=os.environ['CRED_PROVIDER_HOST'],
+                cred_provider_path=f"/role-aliases/{os.environ['AWS_ROLE_ALIAS']}/credentials",
+                bucket_name=os.environ['VIDEO_BUCKET']
+            )
 
 def init_face_app(model='buffalo_sc'):
     global face_app
@@ -214,6 +216,9 @@ def start_http_server():
 
                     if event['hostInfo'] in event:
                         set_host_info_to_env(['hostInfo'])
+
+                    # init_uploader_app
+                    init_uploader_app()
 
                     logger.info(f"/detect POST host: {format(event['cameraItem']['ip'])}")
 
@@ -548,9 +553,6 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
 init_face_app()
-
-# init_uploader_app
-init_uploader_app()
 
 # Start the HTTP server thread
 start_server_thread()
