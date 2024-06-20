@@ -127,6 +127,8 @@ class S3Uploader():
         # Add the authentication information to the query string
         canonicalQueryParams['X-Amz-Signature'] = signatureStr
 
+        print(f"canonicalQueryParams: {canonicalQueryParams}")
+
         presignedRequestURL = f'{endpoint}{canonicalURI}?'
         presignedRequestURL += urllib.parse.urlencode(canonicalQueryParams)
 

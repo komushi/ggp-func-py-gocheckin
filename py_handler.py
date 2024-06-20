@@ -503,13 +503,13 @@ def start_server_thread():
         else:
             logger.info("Server thread is already running")
 
-# scheduler
-def start_face_queue_thread():
+# scanner_output_queue
+def start_scanner_output_queue_thread():
     scheduler_thread = threading.Thread(target=fetch_scanner_output_queue, name="Thread-FaceQueue")
     scheduler_thread.start()
-    logger.info("Face Queue thread started")
+    logger.info("Scanner Output Queue thread started")
 
-# scanner_output_queue
+# scheduler
 def start_scheduler_thread():
     scheduler_thread = threading.Thread(target=start_scheduler, name="Thread-Scheduler")
     scheduler_thread.start()
@@ -558,8 +558,8 @@ start_server_thread()
 # Start the scheduler thread
 start_scheduler_thread()
 
-# Start the face queue thread
-start_face_queue_thread()
+# Start scanner_output_queue thread
+start_scanner_output_queue_thread()
 
 
 
