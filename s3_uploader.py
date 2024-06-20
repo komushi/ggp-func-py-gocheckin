@@ -17,8 +17,8 @@ class S3Uploader():
         self.credentials = self.get_temporary_credentials()
 
     def get_temporary_credentials(self):
-        certificate_file = os.path.join("/greengrass/certs", "core.crt")
-        key_file = os.path.join("/greengrass/certs", "core.key")
+        certificate_file = os.path.join("/greengrass_certs", "core.crt")
+        key_file = os.path.join("/greengrass_certs", "core.key")
         context = ssl.SSLContext(ssl.PROTOCOL_TLS)
         context.load_cert_chain(certfile=certificate_file, keyfile=key_file)
         connection = http.client.HTTPSConnection(self.cred_provider_host, port=443, context=context)
