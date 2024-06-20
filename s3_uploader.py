@@ -134,26 +134,26 @@ class S3Uploader():
 
         return presignedRequestURL
 
-def put_object(self, object_key, local_file_path):
-                    # VIDEO_BUCKET
-                    # self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, {
-                    #     "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                    #     "cam_ip": self.cam_ip,
-                    #     "date_folder": self.date_folder,
-                    #     "time_filename": self.time_filename
-                    # }), block=False)
+    def put_object(self, object_key, local_file_path):
+                        # VIDEO_BUCKET
+                        # self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, {
+                        #     "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                        #     "cam_ip": self.cam_ip,
+                        #     "date_folder": self.date_folder,
+                        #     "time_filename": self.time_filename
+                        # }), block=False)
 
-    try:
-        # self.credentials = self.get_temporary_credentials()
-        presigned_url = self.generate_presigned_url(object_key)
-        
-        with open(local_file_path, 'rb') as file:
-            response = requests.put(presigned_url, data=file)
-        
-        if response.status_code == 200:
-            print(f"File {local_file_path} uploaded successfully")
-        else:
-            print(f"Failed to upload file: {response.status_code}")
-    except Exception as e:
-        print(f"Error: {e}")
+        try:
+            # self.credentials = self.get_temporary_credentials()
+            presigned_url = self.generate_presigned_url(object_key)
+            
+            with open(local_file_path, 'rb') as file:
+                response = requests.put(presigned_url, data=file)
+            
+            if response.status_code == 200:
+                print(f"File {local_file_path} uploaded successfully")
+            else:
+                print(f"Failed to upload file: {response.status_code}")
+        except Exception as e:
+            print(f"Error: {e}")
     
