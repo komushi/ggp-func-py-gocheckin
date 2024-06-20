@@ -214,8 +214,8 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
-                    if event['hostInfo'] in event:
-                        set_host_info_to_env(['hostInfo'])
+                    if 'hostInfo' in event:
+                        set_host_info_to_env(event['hostInfo'])
 
                     # init_uploader_app
                     init_uploader_app()
