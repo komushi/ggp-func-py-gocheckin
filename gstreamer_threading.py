@@ -5,7 +5,7 @@ import threading
 from enum import Enum
 import numpy as np
 import time
-import datetime
+from datetime import datetime
 
 import gi
 gi.require_version('Gst', '1.0')
