@@ -489,10 +489,7 @@ def fetch_scanner_output_queue():
                 elif message['type'] == 'video_clipped':
                     local_file_path = message['payload']['local_file_path']
 
-                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}
-                        /properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}
-                        /{message['payload']['cam_ip']}/{message['payload']['date_folder']}
-                        /{message['payload']['time_filename']}"""
+                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['payload']['cam_ip']}/{message['payload']['date_folder']}/{message['payload']['time_filename']}"""
 
                     # object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}
                     #     /properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}
