@@ -42,7 +42,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 server_thread = None
 httpd = None
 thread_lock = threading.Lock()
-http_port = 8888
+http_port = 7777
 
 # Initialize the scheduler
 scheduler_thread = None
