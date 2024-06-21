@@ -15,7 +15,7 @@ class S3Uploader():
         self.cred_provider_path = cred_provider_path
         self.expires_in = expires_in
         self.bucket_name = bucket_name
-        self.credentials
+        self.credentials = None
         self.get_temporary_credentials()
 
     def get_temporary_credentials(self):
