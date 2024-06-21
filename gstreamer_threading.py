@@ -282,10 +282,12 @@ class StreamCapture(threading.Thread):
 
     def stop_recording(self):
         logger.info("Stopping recording...")
+        self.record_valve.set_property('drop', True)
+        
         # Send EOS to the recording branch
         self.splitmuxsink.send_event(Gst.Event.new_eos())
 
-        self.record_valve.set_property('drop', True)
+        
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
