@@ -81,7 +81,8 @@ class S3Uploader():
         # Service streaming endpoint
         endpoint = "https://" + self.bucket_name + "." + host
         
-        timestamp = datetime.datetime.utcnow()
+        timestamp = datetime.now(timezone.utc)
+        # timestamp = datetime.utcnow()
         # timestamp = datetime.now(datetime.UTC)
         # Date and time of request
         amzDatetime = timestamp.strftime("%Y%m%dT%H%M%SZ")
