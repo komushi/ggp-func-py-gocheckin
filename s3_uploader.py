@@ -40,7 +40,7 @@ class S3Uploader():
 
             print(f"Credentials will expire at {expiration}, Time remaining: {time_remaining}")
 
-            if time_remaining < 60:
+            if time_remaining.total_seconds() < 60:
                 self.get_temporary_credentials()
 
 
