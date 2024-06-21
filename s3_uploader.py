@@ -103,6 +103,8 @@ class S3Uploader():
             'X-Amz-Security-Token': securityToken,
             'X-Amz-SignedHeaders': signedHeaders
         }
+        print(f"canonicalQueryParams: {canonicalQueryParams}")
+
         canonicalHeaders = f'host:{self.bucket_name}.{host}\n'
 
         # Create a hash of the payload. For a GET request, the payload is an empty string.
@@ -115,6 +117,7 @@ class S3Uploader():
         # 2. Create the string to sign
         # algorithmStr:OK, amzDatetime:OK, credentialScope:OK
         stringToSign = f'{algorithmStr}\n{amzDatetime}\n{credentialScope}\n{hashlib.sha256(canonicalRequest.encode("utf-8")).hexdigest()}'
+        print(f"stringToSign: {stringToSign}")
 
         # 3. Calculate the signature
         # calculate the signature by using a signing key that"s obtained
@@ -126,8 +129,6 @@ class S3Uploader():
         # 4. Add signing information to request and create request URL
         # Add the authentication information to the query string
         canonicalQueryParams['X-Amz-Signature'] = signatureStr
-
-        # print(f"canonicalQueryParams: {canonicalQueryParams}")
 
         presignedRequestURL = f'{endpoint}{canonicalURI}?'
         presignedRequestURL += urllib.parse.urlencode(canonicalQueryParams)
