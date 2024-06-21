@@ -8,6 +8,7 @@ import requests
 import http.client
 import ssl
 import json
+import boto3
 
 class S3Uploader():
     def __init__(self, cred_provider_host, cred_provider_path, bucket_name, expires_in=3600):
@@ -65,7 +66,7 @@ class S3Uploader():
         kSigning = self.sign(kService, "aws4_request")
         return kSigning
 
-    def generate_presigned_url(self, object_key, httpMethod='PUT'):        
+    def generate_presigned_url(self, object_key, httpMethod='PUT'):
         # Define variables
         # HTTP verb "PUT"
         
@@ -145,7 +146,28 @@ class S3Uploader():
         presignedRequestURL += urllib.parse.urlencode(canonicalQueryParams)
 
         return presignedRequestURL
+    
+    def boto3_gen_presigned_url(self, object_key, method='put_object'):
+        aws_access_key_id = self.credentials["accessKeyId"]
+        aws_secret_access_key = self.credentials["secretAccessKey"]
+        aws_session_token = self.credentials["sessionToken"]
 
+        session = boto3.session.Session(
+            aws_access_key_id = aws_access_key_id,
+            aws_secret_access_key = aws_secret_access_key,
+            aws_session_token = aws_session_token
+        )
+
+        # get s3 presign
+        url = session.client('s3').generate_presigned_url(
+            ClientMethod=method,
+            Params={'Bucket': self.bucket_name, 'Key': object_key },
+            ExpiresIn=self.expires_in)
+            
+        print(url)
+
+        return url
+    
     def put_object(self, object_key, local_file_path):
         try:
             print(f"put_object object_key: {object_key}")
@@ -154,10 +176,14 @@ class S3Uploader():
 
             presigned_url = self.generate_presigned_url(object_key)
 
-            print(f"put_object presigned_url: {presigned_url}")
+            print(f"generate_presigned_url presigned_url: {presigned_url}")
+
+            boto3_presigned_url = self.boto3_gen_presigned_url(object_key)
+
+            print(f"boto3_presigned_url presigned_url: {boto3_presigned_url}")
             
             with open(local_file_path, 'rb') as file:
-                response = requests.put(presigned_url, data=file)
+                response = requests.put(boto3_presigned_url, data=file)
             
             if response.status_code == 200:
                 print(f"File {local_file_path} uploaded successfully")
