@@ -2,7 +2,8 @@ import hashlib
 import hmac
 import urllib.parse
 import os
-import datetime
+from datetime import datetime, timezone
+import dateutil.parser
 import requests
 import http.client
 import ssl
@@ -14,24 +15,33 @@ class S3Uploader():
         self.cred_provider_path = cred_provider_path
         self.expires_in = expires_in
         self.bucket_name = bucket_name
-        self.credentials = self.get_temporary_credentials()
+        self.credentials
+        self.get_temporary_credentials()
 
     def get_temporary_credentials(self):
-        certificate_file = os.path.join("/greengrass_certs", "core.crt")
-        key_file = os.path.join("/greengrass_certs", "core.key")
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS)
-        context.load_cert_chain(certfile=certificate_file, keyfile=key_file)
-        connection = http.client.HTTPSConnection(self.cred_provider_host, port=443, context=context)
-        headers = {'x-amzn-iot-thingname': os.environ["AWS_IOT_THING_NAME"]}
-        connection.request(method="GET", url=self.cred_provider_path, headers=headers)
+        if not self.credentials:
+            certificate_file = os.path.join("/greengrass_certs", "core.crt")
+            key_file = os.path.join("/greengrass_certs", "core.key")
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+            context.load_cert_chain(certfile=certificate_file, keyfile=key_file)
+            connection = http.client.HTTPSConnection(self.cred_provider_host, port=443, context=context)
+            headers = {'x-amzn-iot-thingname': os.environ["AWS_IOT_THING_NAME"]}
+            connection.request(method="GET", url=self.cred_provider_path, headers=headers)
 
-        response = connection.getresponse()
-        if response.status == 200:
-            credentials = json.loads(response.read().decode())['credentials']
-            # print(f"credentials: {repr(credentials)}")
-            return credentials
+            response = connection.getresponse()
+            if response.status == 200:
+                self.credentials = json.loads(response.read().decode())['credentials']
+                print(f"Credentials retrieved")
+            else:
+                raise Exception(f"Failed to get credentials: {response.status}, {repr(response)}")
         else:
-            raise Exception(f"Failed to get credentials: {response.status}, {repr(response)}")
+            expiration = dateutil.parser.isoparse(self.credentials['expiration'])
+            time_remaining = expiration - datetime.now(timezone.utc)
+
+            print(f"Credentials will expire at {expiration}, Time remaining: {time_remaining}")
+
+            if time_remaining < 60:
+                self.get_temporary_credentials()
 
 
     # def get_temporary_credentials(self):
@@ -71,8 +81,8 @@ class S3Uploader():
         # Service streaming endpoint
         endpoint = "https://" + self.bucket_name + "." + host
         
-        timestamp = datetime.datetime.utcnow()
-        # timestamp = datetime.now(datetime.UTC)
+        # timestamp = datetime.datetime.utcnow()
+        timestamp = datetime.now(datetime.UTC)
         # Date and time of request
         amzDatetime = timestamp.strftime("%Y%m%dT%H%M%SZ")
         # Date without time for credential scope
@@ -138,7 +148,9 @@ class S3Uploader():
     def put_object(self, object_key, local_file_path):
         try:
             print(f"put_object object_key: {object_key}")
-            # self.credentials = self.get_temporary_credentials()
+            
+            self.get_temporary_credentials()
+
             presigned_url = self.generate_presigned_url(object_key)
 
             print(f"put_object presigned_url: {presigned_url}")
