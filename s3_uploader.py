@@ -96,7 +96,8 @@ class S3Uploader():
 
         # 1. Combine all of the elements to create the canonical request
         # Create a canonical URI (uniform resource identifier). The encoded URI in the following example, /example/photo.jpg, is the absolute path and you don't encode the "/" in the absolute path.
-        canonicalURI = urllib.parse.quote("/" + object_key, safe='/:')
+        # canonicalURI = urllib.parse.quote("/" + object_key, safe='/:')
+        canonicalURI = urllib.parse.quote("/" + object_key)
 
         # Create the canonical query string. Query string values must be URI-encoded and sorted by name.
         # Match the algorithm to the hashing algorithm. You must use SHA-256.
@@ -163,8 +164,6 @@ class S3Uploader():
             ClientMethod=method,
             Params={'Bucket': self.bucket_name, 'Key': object_key },
             ExpiresIn=self.expires_in)
-            
-        print(url)
 
         return url
     
