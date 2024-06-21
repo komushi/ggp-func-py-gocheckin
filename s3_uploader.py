@@ -65,7 +65,7 @@ class S3Uploader():
         kSigning = self.sign(kService, "aws4_request")
         return kSigning
 
-    def generate_presigned_url(self, object_key, httpMethod='put_object'):        
+    def generate_presigned_url(self, object_key, httpMethod='PUT'):        
         # Define variables
         # HTTP verb "PUT"
         
