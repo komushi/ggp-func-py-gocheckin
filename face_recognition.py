@@ -41,7 +41,7 @@ class FaceRecognition(threading.Thread):
                 ! queue ! videoconvert name=m_videoconvert 
                 ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
                 t. ! queue ! valve name=m_record_valve ! h264parse 
-                ! splitmuxsink name=m_splitmuxsink max-size-time={(self.init_running_time - 5)* 1000000000}"""    
+                ! splitmuxsink name=m_splitmuxsink max-size-time={(self.init_running_time - 2)* 1000000000}"""    
         elif params['codec'] == 'h265':
             self.pipeline_str = f"""rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
                 ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
@@ -88,7 +88,7 @@ class FaceRecognition(threading.Thread):
                 current_time = time.time()
 
                 if current_time >= self.end_time:
-                    logger.info(f"{self.name} reached maximum seconds limit of ${self.end_time - self.start_time}")
+                    logger.info(f"{self.name} reached maximum seconds limit of {self.end_time - self.start_time}")
                     self.stop()
                     break
 
@@ -142,8 +142,8 @@ class FaceRecognition(threading.Thread):
                                                     if self.captured_members[memberKey]["similarity"] < sim:
                                                         self.captured_members[memberKey]["similarity"] = sim
                                             
-                                else:
-                                    logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
+                                # else:
+                                #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
                     elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
                         if val is not None:
                             if not self.scanner_output_queue.full():
