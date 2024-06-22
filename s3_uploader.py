@@ -42,6 +42,7 @@ class S3Uploader():
             print(f"Credentials will expire at {expiration}, Time remaining: {time_remaining}")
 
             if time_remaining.total_seconds() < 60:
+                self.credentials = None
                 self.get_temporary_credentials()
 
 
@@ -116,7 +117,7 @@ class S3Uploader():
             'X-Amz-Security-Token': securityToken,
             'X-Amz-SignedHeaders': signedHeaders
         }
-        print(f"canonicalQueryParams: {canonicalQueryParams}")
+        # print(f"canonicalQueryParams: {canonicalQueryParams}")
 
         canonicalHeaders = f'host:{self.bucket_name}.{host}\n'
 
@@ -130,7 +131,7 @@ class S3Uploader():
         # 2. Create the string to sign
         # algorithmStr:OK, amzDatetime:OK, credentialScope:OK
         stringToSign = f'{algorithmStr}\n{amzDatetime}\n{credentialScope}\n{hashlib.sha256(canonicalRequest.encode("utf-8")).hexdigest()}'
-        print(f"stringToSign: {stringToSign}")
+        # print(f"stringToSign: {stringToSign}")
 
         # 3. Calculate the signature
         # calculate the signature by using a signing key that"s obtained
@@ -177,7 +178,7 @@ class S3Uploader():
 
             # print(f"generate_presigned_url presigned_url: {presigned_url}")
 
-            boto3_presigned_url = self.boto3_gen_presigned_url(object_key)
+            # boto3_presigned_url = self.boto3_gen_presigned_url(object_key)
 
             # print(f"boto3_presigned_url presigned_url: {boto3_presigned_url}")
             
