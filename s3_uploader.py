@@ -182,7 +182,7 @@ class S3Uploader():
             print(f"boto3_presigned_url presigned_url: {boto3_presigned_url}")
             
             with open(local_file_path, 'rb') as file:
-                response = requests.put(boto3_presigned_url, data=file)
+                response = requests.put(presigned_url, data=file)
             
             if response.status_code == 200:
                 print(f"File {local_file_path} uploaded successfully")
