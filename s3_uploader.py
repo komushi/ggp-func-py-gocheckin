@@ -167,9 +167,8 @@ class S3Uploader():
                 response = requests.put(presigned_url, data=file)
             
             if response.status_code == 200:
-                print(f"File {local_file_path} uploaded successfully")
-
                 os.remove(local_file_path)
+                print(f"File {local_file_path} uploaded and removed successfully")
             else:
                 print(f"Failed to upload file: {response.status_code}")
         except Exception as e:
