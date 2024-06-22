@@ -305,7 +305,7 @@ class StreamCapture(threading.Thread):
             logger.info(f"Warning message {message.parse_warning()}： {message.type}.")
         elif message.type == Gst.MessageType.ELEMENT:
             structure = message.get_structure()
-            logger.info(f"New ELEMENT detected: {structure.get_name()}")
+            # logger.info(f"New ELEMENT detected: {structure.get_name()}")
             if structure and structure.get_name().startswith("splitmuxsink-"):
                 action = structure.get_name()
                 # logger.info(f"New action detected: {action}")

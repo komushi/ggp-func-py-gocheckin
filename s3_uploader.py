@@ -8,7 +8,6 @@ import requests
 import http.client
 import ssl
 import json
-import boto3
 
 class S3Uploader():
     def __init__(self, cred_provider_host, cred_provider_path, bucket_name, expires_in=3600):
@@ -45,17 +44,6 @@ class S3Uploader():
                 self.credentials = None
                 self.get_temporary_credentials()
 
-
-    # def get_temporary_credentials(self):
-    #     response = requests.get(self.iot_credentials_url)
-
-    #     if response.status_code == 200:
-    #         credentials = response.json()['credentials']
-    #         print(f"credentials credentials: {repr(response.json())}")
-    #         return credentials
-    #     else:
-    #         raise Exception(f"Failed to get credentials: {response.status_code}, {response.text}")
-
     def sign(self, key, msg):
         return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
@@ -70,9 +58,6 @@ class S3Uploader():
     def generate_presigned_url(self, object_key, httpMethod='PUT'):
         # Define variables
         # HTTP verb "PUT"
-        
-        # bucket_name
-        # object_key
         
         # Region ap-northeast-1
         region = os.environ['REGION']
@@ -149,44 +134,42 @@ class S3Uploader():
 
         return presignedRequestURL
     
-    def boto3_gen_presigned_url(self, object_key, method='put_object'):
-        aws_access_key_id = self.credentials["accessKeyId"]
-        aws_secret_access_key = self.credentials["secretAccessKey"]
-        aws_session_token = self.credentials["sessionToken"]
+    # def boto3_gen_presigned_url(self, object_key, method='put_object'):
+    #     import boto3
 
-        session = boto3.session.Session(
-            aws_access_key_id = aws_access_key_id,
-            aws_secret_access_key = aws_secret_access_key,
-            aws_session_token = aws_session_token
-        )
+    #     aws_access_key_id = self.credentials["accessKeyId"]
+    #     aws_secret_access_key = self.credentials["secretAccessKey"]
+    #     aws_session_token = self.credentials["sessionToken"]
 
-        # get s3 presign
-        url = session.client('s3').generate_presigned_url(
-            ClientMethod=method,
-            Params={'Bucket': self.bucket_name, 'Key': object_key },
-            ExpiresIn=self.expires_in)
+    #     session = boto3.session.Session(
+    #         aws_access_key_id = aws_access_key_id,
+    #         aws_secret_access_key = aws_secret_access_key,
+    #         aws_session_token = aws_session_token
+    #     )
 
-        return url
+    #     # get s3 presign
+    #     url = session.client('s3').generate_presigned_url(
+    #         ClientMethod=method,
+    #         Params={'Bucket': self.bucket_name, 'Key': object_key },
+    #         ExpiresIn=self.expires_in)
+
+    #     return url
     
     def put_object(self, object_key, local_file_path):
         try:
-            print(f"put_object object_key: {object_key}")
+            # print(f"put_object object_key: {object_key}")
             
             self.get_temporary_credentials()
 
             presigned_url = self.generate_presigned_url(object_key)
 
-            # print(f"generate_presigned_url presigned_url: {presigned_url}")
-
-            # boto3_presigned_url = self.boto3_gen_presigned_url(object_key)
-
-            # print(f"boto3_presigned_url presigned_url: {boto3_presigned_url}")
-            
             with open(local_file_path, 'rb') as file:
                 response = requests.put(presigned_url, data=file)
             
             if response.status_code == 200:
                 print(f"File {local_file_path} uploaded successfully")
+
+                os.remove(local_file_path)
             else:
                 print(f"Failed to upload file: {response.status_code}")
         except Exception as e:
