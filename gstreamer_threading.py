@@ -12,6 +12,7 @@ gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
 from gi.repository import Gst
 from gi.repository import GstPbutils
+import traceback
 
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
@@ -72,40 +73,12 @@ class StreamCapture(threading.Thread):
         # self.motioncells = None
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
+        self.eos_received = False
 
         self.date_folder = None
         self.time_filename = None
         self.cam_ip = cam_ip
-        # self.video_clipping_location = f"{os.environ['VIDEO_CLIPPING_LOCATION']}/{cam_ip}"
 
-        # if not os.path.exists(self.video_clipping_location):
-        #     os.makedirs(self.video_clipping_location)
-
-    def gst_to_opencv(self, sample):
-        buf = sample.get_buffer()
-        caps = sample.get_caps()
-
-        # Print Height, Width and Format
-        # print(caps.get_structure(0).get_value('format'))
-        # print(caps.get_structure(0).get_value('height'))
-        # print(caps.get_structure(0).get_value('width'))
-
-        arr = np.ndarray(
-            (caps.get_structure(0).get_value('height'),
-             caps.get_structure(0).get_value('width'),
-             3),
-            buffer=buf.extract_dup(0, buf.get_size()),
-            dtype=np.uint8)
-        return arr
-
-    def new_buffer(self, sink, _):
-        sample = sink.emit("pull-sample")
-        arr = self.gst_to_opencv(sample)
-        self.image_arr = arr
-        self.newImage = True
-        return Gst.FlowReturn.OK
-
-    def run(self):
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
 
@@ -174,7 +147,6 @@ class StreamCapture(threading.Thread):
 
         # The allowed caps for the sink pad
         # flags: readable, writable
-        # Caps (NULL)
         caps = Gst.caps_from_string(
             'video/x-raw, format=(string){BGR, GRAY8}; video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
         self.sink.set_property('caps', caps)
@@ -204,6 +176,32 @@ class StreamCapture(threading.Thread):
         if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
             os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
 
+
+    def gst_to_opencv(self, sample):
+        buf = sample.get_buffer()
+        caps = sample.get_caps()
+
+        # Print Height, Width and Format
+        # print(caps.get_structure(0).get_value('format'))
+        # print(caps.get_structure(0).get_value('height'))
+        # print(caps.get_structure(0).get_value('width'))
+
+        arr = np.ndarray(
+            (caps.get_structure(0).get_value('height'),
+             caps.get_structure(0).get_value('width'),
+             3),
+            buffer=buf.extract_dup(0, buf.get_size()),
+            dtype=np.uint8)
+        return arr
+
+    def new_buffer(self, sink, _):
+        sample = sink.emit("pull-sample")
+        arr = self.gst_to_opencv(sample)
+        self.image_arr = arr
+        self.newImage = True
+        return Gst.FlowReturn.OK
+
+    def run(self):
         # Start playing
         ret = self.pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
@@ -215,88 +213,71 @@ class StreamCapture(threading.Thread):
         # bus.add_signal_watch()
         # bus.connect("message", self.on_message)
 
-        while not self.stop_event.is_set():
+        try:
+            while not self.stop_event.is_set():
 
-            message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
-            # print "image_arr: ", image_arr
-            if self.image_arr is not None and self.newImage is True:
+                message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
+                # print "image_arr: ", image_arr
+                if self.image_arr is not None and self.newImage is True:
 
-                if not self.cam_queue.full():
-                    # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
-                    # print("adding to queue of size")
-                    self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
+                    if not self.cam_queue.full():
+                        # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
+                        # print("adding to queue of size")
+                        self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
 
-                self.image_arr = None
-                self.unexpected_cnt = 0
-            
-            if message:
-                self.on_message(bus, message)
-
-            # if message:
-            #     if message.type == Gst.MessageType.ERROR:
-            #         err, debug = message.parse_error()
-            #         print("Error received from element %s: %s" % (
-            #             message.src.get_name(), err))
-            #         print("Debugging information: %s" % debug)
-            #         break
-            #     elif message.type == Gst.MessageType.EOS:
-            #         print("End-Of-Stream reached.")
-            #         break
-            #     elif message.type == Gst.MessageType.STATE_CHANGED:
-            #         if isinstance(message.src, Gst.Pipeline):
-            #             old_state, new_state, pending_state = message.parse_state_changed()
-            #             print("%s Pipeline state changed from %s to %s." %
-            #                   (str(datetime.datetime.now()), old_state.value_nick, new_state.value_nick))
-            #     elif message.type == Gst.MessageType.ELEMENT:
-            #         motion_begin = message.get_structure().has_field("motion_begin")
-            #         motion_finished = message.get_structure().has_field("motion_finished")
-            #         print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_begin, message.type))
-            #         print("%s New message received with ELEMENT. %s: %s" % (str(datetime.datetime.now()), motion_finished, message.type))
-            #         if (motion_begin and not motion_finished):
-            #             self.cam_queue.put((StreamCommands.MOTION_BEGIN, None), block=False)
-
-            #         if (not motion_begin and motion_finished):
-            #             self.cam_queue.put((StreamCommands.MOTION_END, None), block=False)
-            #     elif message.type == Gst.MessageType.WARNING:
-            #         print("%s Warning message %s: %s" % (str(datetime.datetime.now()), message.parse_warning(), message.type))
-            #     else:
-            #         # print("%s Unexpected message  received. %s: %s" % (str(datetime.datetime.now()), message, message.type))
-            #         self.unexpected_cnt = self.unexpected_cnt + 1
-            #         if self.unexpected_cnt == self.num_unexpected_tot:
-            #             break
+                    self.image_arr = None
+                    self.unexpected_cnt = 0
+                
+                if message:
+                    self.on_message(bus, message)
+        except Exception as e:
+            logger.error(e)
+            traceback.print_exc()
+        finally:
+            self.pipeline.set_state(Gst.State.NULL)
+            logger.info("Pipeline stopped and cleaned up.")
+          
 
     def stop(self):
         print(f"Stopping {self.name}")
 
         self.stop_recording()
 
-        time.sleep(1)
+        # time.sleep(1)
 
         self.stop_event.set()
 
-        print(f"{self.name} stopping...")
+        # print(f"{self.name} stopping...")
 
-        self.pipeline.set_state(Gst.State.NULL)
+        # self.pipeline.set_state(Gst.State.NULL)
 
-        print(f"{self.name} stopped")
+        # print(f"{self.name} stopped")
 
     def stop_recording(self):
         logger.info("Stopping recording...")
+        self.eos_received = False
+
         self.record_valve.set_property('drop', True)
         
         # Send EOS to the recording branch
         self.splitmuxsink.send_event(Gst.Event.new_eos())
+        self.pipeline.send_event(Gst.Event.new_eos())
 
-        
+        # Wait for the EOS event to be processed
+        while not self.eos_received:
+            time.sleep(0.1)        
+
+        logger.info("Recording stopped")
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
             logger.info("End-Of-Stream reached.")
-            self.stop()
+            self.eos_received = True
+            self.stop_event.set()
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             logger.info(f"Error: {err}, {debug}")
-            self.stop()
+            self.stop_event.set()
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
