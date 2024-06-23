@@ -478,7 +478,7 @@ def fetch_scanner_output_queue():
     while True:
         try:
             message = scanner_output_queue.get_nowait()
-            # logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
+            logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
             
             if 'type' in message:
                 if message['type'] == 'guest_detected':

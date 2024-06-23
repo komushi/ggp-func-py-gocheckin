@@ -272,7 +272,7 @@ class StreamCapture(threading.Thread):
 
         # Wait for the EOS event to be processed
         while not self.eos_received:
-            time.sleep(10)
+            time.sleep(0.1)
             logger.info("waiting for eos_received")
 
         logger.info("Recording stopped")
