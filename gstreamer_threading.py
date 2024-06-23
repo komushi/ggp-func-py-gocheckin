@@ -293,9 +293,9 @@ class StreamCapture(threading.Thread):
                     
                     logger.info(f"New file created: {location}")
 
-                    duration_timedelta = timedelta(nanoseconds=structure.get_value("running-time"))
-                    start_datetime = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y-%m-%d %H:%M:%S")
-                    end_datetime = start_datetime + duration_timedelta
+                    duration_timedelta = timedelta(microseconds=int(structure.get_value("running-time")) / 1000)
+                    start_datetime_utc = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y-%m-%d %H:%M:%S")
+                    end_datetime_utc = start_datetime_utc + duration_timedelta
 
                     if not self.scanner_output_queue.full():
                         self.scanner_output_queue.put({
@@ -307,8 +307,8 @@ class StreamCapture(threading.Thread):
                                 "time_filename": self.time_filename,
                                 "ext": self.ext,
                                 "local_file_path": location,
-                                "start_datetime": start_datetime.isoformat(),
-                                "end_datetime": end_datetime.isoformat(),
+                                "start_datetime": start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                "end_datetime": end_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                             }
                         }, block=False)
                     
