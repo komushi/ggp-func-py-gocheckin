@@ -74,7 +74,7 @@ class StreamCapture(threading.Thread):
         # self.motioncells = None
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
-        self.eos_received = False
+        # self.eos_received = False
 
         self.date_folder = None
         self.time_filename = None
@@ -258,7 +258,7 @@ class StreamCapture(threading.Thread):
 
     def stop_recording(self):
         logger.info("Stopping recording...")
-        self.eos_received = False
+        # self.eos_received = False
 
         self.record_valve.set_property('drop', True)
         
@@ -272,16 +272,16 @@ class StreamCapture(threading.Thread):
         logger.info("EOS sent")
 
         # Wait for the EOS event to be processed
-        while not self.eos_received:
-            time.sleep(0.1)
-            logger.info("waiting for eos_received")
+        # while not self.eos_received:
+        #     time.sleep(0.1)
+        #     logger.info("waiting for eos_received")
 
         logger.info("Recording stopped")
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
             logger.info("End-Of-Stream reached.")
-            self.eos_received = True
+            # self.eos_received = True
             self.stop_event.set()
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
