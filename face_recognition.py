@@ -145,9 +145,10 @@ class FaceRecognition(threading.Thread):
                                 #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
 
                     elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
+                        logger.info(f"put scanner_output_queue video_clipped cmd: {cmd}")
                         if val is not None:
                             if not self.scanner_output_queue.full():
-                                logger.info(f"put scanner_output_queue video_clipped {val}")
+                                logger.info(f"put scanner_output_queue video_clipped val: {val}")
                                 self.scanner_output_queue.put({
                                     "type": "video_clipped",
                                     "payload": val
@@ -167,6 +168,8 @@ class FaceRecognition(threading.Thread):
             if self.thread_gst:
                 self.thread_gst.stop()
                 self.thread_gst.join()
+
+            time.sleep(2)
 
             self.stop_event.set()
 
