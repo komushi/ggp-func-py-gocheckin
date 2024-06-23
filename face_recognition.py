@@ -79,6 +79,7 @@ class FaceRecognition(threading.Thread):
                             self.pipeline_str,
                             # self.stop_event,
                             self.cam_queue,
+                            self.scanner_output_queue,
                             self.framerate)
         self.thread_gst.start()
 
@@ -144,15 +145,15 @@ class FaceRecognition(threading.Thread):
                                 # else:
                                 #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
 
-                    elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
-                        logger.info(f"put scanner_output_queue video_clipped cmd: {cmd}")
-                        if val is not None:
-                            if not self.scanner_output_queue.full():
-                                logger.info(f"put scanner_output_queue video_clipped val: {val}")
-                                self.scanner_output_queue.put({
-                                    "type": "video_clipped",
-                                    "payload": val
-                                }, block=False)
+                    # elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
+                    #     logger.info(f"put scanner_output_queue video_clipped cmd: {cmd}")
+                    #     if val is not None:
+                    #         if not self.scanner_output_queue.full():
+                    #             logger.info(f"put scanner_output_queue video_clipped val: {val}")
+                    #             self.scanner_output_queue.put({
+                    #                 "type": "video_clipped",
+                    #                 "payload": val
+                    #             }, block=False)
 
 
         except Exception as e:

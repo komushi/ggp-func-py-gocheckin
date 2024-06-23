@@ -45,7 +45,7 @@ class StreamCommands(Enum):
 
 class StreamCapture(threading.Thread):
 
-    def __init__(self, cam_ip, link, pipeline_str, cam_queue, framerate):
+    def __init__(self, cam_ip, link, pipeline_str, cam_queue, scanner_output_queue, framerate):
         """
         Initialize the stream capturing process
         link - rstp link of stream
@@ -58,6 +58,7 @@ class StreamCapture(threading.Thread):
         self.streamLink = link
         self.stop_event = threading.Event()
         self.cam_queue = cam_queue
+        self.scanner_output_queue = scanner_output_queue
         self.framerate = framerate
         self.currentState = StreamMode.INIT_STREAM
         self.pipeline_str = pipeline_str
@@ -304,11 +305,22 @@ class StreamCapture(threading.Thread):
                 elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
                     logger.info(f"New file created: {location}")
-                    self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, {
-                        "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                        "cam_ip": self.cam_ip,
-                        "date_folder": self.date_folder,
-                        "time_filename": os.path.basename(location),
-                        "local_file_path": location
-                    }), block=False)
+                    # self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, {
+                    #     "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                    #     "cam_ip": self.cam_ip,
+                    #     "date_folder": self.date_folder,
+                    #     "time_filename": os.path.basename(location),
+                    #     "local_file_path": location
+                    # }), block=False)
+                    if not self.scanner_output_queue.full():
+                        self.scanner_output_queue.put({
+                            "type": "video_clipped",
+                            "payload": {
+                                "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                                "cam_ip": self.cam_ip,
+                                "date_folder": self.date_folder,
+                                "time_filename": os.path.basename(location),
+                                "local_file_path": location
+                            }
+                        }, block=False)
                     
