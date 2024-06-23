@@ -5,7 +5,7 @@ import threading
 from enum import Enum
 import numpy as np
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -75,9 +75,6 @@ class StreamCapture(threading.Thread):
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
         # self.eos_received = False
-
-        self.date_folder = None
-        self.time_filename = None
         self.cam_ip = cam_ip
 
         # Create the empty pipeline
@@ -94,7 +91,7 @@ class StreamCapture(threading.Thread):
             self.source.set_property('tcp-timeout', 2000000)
             self.source.set_property('drop-on-latency', 'true')
             self.source.set_property('ntp-time-source', 0)
-            if GstPbutils.plugins_base_version().major == 1 and GstPbutils.plugins_base_version().minor >= 18:
+            if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
                 self.source.set_property('is-live', 'true')
             self.source.set_property('buffer-mode', 0)
             self.source.set_property('ntp-sync', 'true')
@@ -165,15 +162,12 @@ class StreamCapture(threading.Thread):
         # record_valve params
         self.splitmuxsink = self.pipeline.get_by_name('m_splitmuxsink')
 
-        # self.date_folder = None
-        # self.time_filename = None
-        # self.cam_ip = cam_ip
-
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         self.date_folder = now.strftime("%Y-%m-%d")
-        self.time_filename = now.strftime("%H-%M-%S") + "-%02d.mp4"
+        self.time_filename = now.strftime("%H:%M:%S")
+        self.ext = ".mp4"
 
-        self.splitmuxsink.set_property('location', os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename))
+        self.splitmuxsink.set_property('location', os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
         if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
             os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
 
@@ -258,8 +252,8 @@ class StreamCapture(threading.Thread):
         logger.info("Before sending sink eos")
         self.splitmuxsink.send_event(Gst.Event.new_eos())
 
-        logger.info("Before sending pipeline eos")
-        self.pipeline.send_event(Gst.Event.new_eos())
+        # logger.info("Before sending pipeline eos")
+        # self.pipeline.send_event(Gst.Event.new_eos())
 
         logger.info("End-Of-Stream sending...")
 
@@ -296,14 +290,13 @@ class StreamCapture(threading.Thread):
                     logger.info(f"New file being created: {location}")
                 elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
+                    
                     logger.info(f"New file created: {location}")
-                    # self.cam_queue.put((StreamCommands.VIDEO_CLIPPED, {
-                    #     "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                    #     "cam_ip": self.cam_ip,
-                    #     "date_folder": self.date_folder,
-                    #     "time_filename": os.path.basename(location),
-                    #     "local_file_path": location
-                    # }), block=False)
+
+                    duration_timedelta = timedelta(microseconds=structure.get_int64("running-time"))
+                    start_datetime = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y/%m/%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    end_datetime = start_datetime + duration_timedelta
+
                     if not self.scanner_output_queue.full():
                         self.scanner_output_queue.put({
                             "type": "video_clipped",
@@ -311,8 +304,11 @@ class StreamCapture(threading.Thread):
                                 "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
                                 "cam_ip": self.cam_ip,
                                 "date_folder": self.date_folder,
-                                "time_filename": os.path.basename(location),
-                                "local_file_path": location
+                                "time_filename": self.time_filename,
+                                "ext": self.ext,
+                                "local_file_path": location,
+                                "start_datetime": start_datetime.isoformat(),
+                                "end_datetime": end_datetime.isoformat(),
                             }
                         }, block=False)
                     
