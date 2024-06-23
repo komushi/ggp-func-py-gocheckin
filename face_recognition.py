@@ -147,6 +147,7 @@ class FaceRecognition(threading.Thread):
                     elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
                         if val is not None:
                             if not self.scanner_output_queue.full():
+                                logger.info(f"put scanner_output_queue video_clipped {val}")
                                 self.scanner_output_queue.put({
                                     "type": "video_clipped",
                                     "payload": val
@@ -162,11 +163,12 @@ class FaceRecognition(threading.Thread):
     def stop(self):
         logger.info(f"{self.name} stop in")
         try:
-
-            self.stop_event.set()
+            
             if self.thread_gst:
                 self.thread_gst.stop()
                 self.thread_gst.join()
+
+            self.stop_event.set()
 
             logger.info(f"{self.thread_gst.name} stopped")
         
