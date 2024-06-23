@@ -214,7 +214,7 @@ class StreamCapture(threading.Thread):
         # bus.connect("message", self.on_message)
 
         try:
-            while not self.stop_event.is_set():
+            while (not self.stop_event.is_set()) and (not self.eos_received):
 
                 message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
                 # print "image_arr: ", image_arr
@@ -231,16 +231,13 @@ class StreamCapture(threading.Thread):
                 if message:
                     self.on_message(bus, message)
 
-            self.pipeline.set_state(Gst.State.NULL)
-            logger.info("Pipeline stopped and cleaned up.")
-
         except Exception as e:
             logger.info("Exception")
             logger.error(e)
             traceback.print_exc()
-        # finally:
-        #     self.pipeline.set_state(Gst.State.NULL)
-        #     logger.info("Pipeline stopped and cleaned up.")
+        finally:
+            self.pipeline.set_state(Gst.State.NULL)
+            logger.info("Pipeline stopped and cleaned up.")
           
 
     def stop(self):
