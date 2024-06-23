@@ -294,7 +294,7 @@ class StreamCapture(threading.Thread):
                     logger.info(f"New file created: {location}")
 
                     duration_timedelta = timedelta(microseconds=structure.get_value("running-time"))
-                    start_datetime = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y/%m/%d %H:%M:%S").replace(tzinfo=timezone.utc)
+                    start_datetime = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
                     end_datetime = start_datetime + duration_timedelta
 
                     if not self.scanner_output_queue.full():

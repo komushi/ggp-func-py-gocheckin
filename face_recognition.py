@@ -102,7 +102,7 @@ class FaceRecognition(threading.Thread):
 
                             crt_time = time.time()
 
-                            if (crt_time - self.inference_begins_at) > 1.0:
+                            if (crt_time - self.inference_begins_at) > 0.5:
                             
                                 self.inference_begins_at = crt_time
 
