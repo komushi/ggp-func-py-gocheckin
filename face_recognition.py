@@ -142,8 +142,8 @@ class FaceRecognition(threading.Thread):
                                                     if self.captured_members[memberKey]["similarity"] < sim:
                                                         self.captured_members[memberKey]["similarity"] = sim
                                             
-                                # else:
-                                #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
+                                else:
+                                    logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
                     elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
                         if val is not None:
                             if not self.scanner_output_queue.full():
