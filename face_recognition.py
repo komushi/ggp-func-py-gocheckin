@@ -167,15 +167,19 @@ class FaceRecognition(threading.Thread):
             if self.thread_gst:
                 self.thread_gst.stop()
                 self.thread_gst.join()
+
+            logger.info(f"{self.thread_gst.name} stopped")
         
             with self.cam_queue.mutex:
                 self.cam_queue.queue.clear()
-            logger.info(f"{self.name} stopped and cam_queue cleared")
 
+            logger.info(f"cam_queue cleared")
         except Exception as e:
             logger.info(f"Caught Exception during stopping {self.name}")
             logger.info(e)
             traceback.print_exc()
+        finally:
+            logger.info(f"{self.name} stopped")
 
     def extend_runtime(self):
         current_time = time.time()

@@ -231,6 +231,7 @@ class StreamCapture(threading.Thread):
                 if message:
                     self.on_message(bus, message)
         except Exception as e:
+            logger.info("Exception")
             logger.error(e)
             traceback.print_exc()
         finally:
@@ -260,12 +261,18 @@ class StreamCapture(threading.Thread):
         self.record_valve.set_property('drop', True)
         
         # Send EOS to the recording branch
+        logger.info("Before sending sink eos")
         self.splitmuxsink.send_event(Gst.Event.new_eos())
+
+        logger.info("Before sending pipeline eos")
         self.pipeline.send_event(Gst.Event.new_eos())
+
+        logger.info("EOS sent")
 
         # Wait for the EOS event to be processed
         while not self.eos_received:
-            time.sleep(0.1)        
+            time.sleep(0.1)
+            logger.info("waiting for eos_received")
 
         logger.info("Recording stopped")
 
@@ -303,3 +310,4 @@ class StreamCapture(threading.Thread):
                         "time_filename": os.path.basename(location),
                         "local_file_path": location
                     }), block=False)
+                    
