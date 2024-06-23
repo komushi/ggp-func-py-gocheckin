@@ -41,7 +41,7 @@ class FaceRecognition(threading.Thread):
                 ! queue ! videoconvert name=m_videoconvert 
                 ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink 
                 t. ! queue ! valve name=m_record_valve ! h264parse 
-                ! splitmuxsink name=m_splitmuxsink max-size-time={(self.init_running_time - 3) * 1000000000}"""    
+                ! splitmuxsink name=m_splitmuxsink max-size-time={self.init_running_time * 1000000000}"""    
         elif params['codec'] == 'h265':
             self.pipeline_str = f"""rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
                 ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
@@ -141,9 +141,9 @@ class FaceRecognition(threading.Thread):
                                                     # logger.info(f"Captured members: {repr(self.captured_members)}")
                                                     if self.captured_members[memberKey]["similarity"] < sim:
                                                         self.captured_members[memberKey]["similarity"] = sim
-                                            
-                                else:
-                                    logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
+                                # else:
+                                #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
+
                     elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
                         if val is not None:
                             if not self.scanner_output_queue.full():
