@@ -77,7 +77,7 @@ class FaceRecognition(threading.Thread):
         self.thread_gst = gst.StreamCapture(self.cam_ip,
                             self.camlink,
                             self.pipeline_str,
-                            self.stop_event,
+                            # self.stop_event,
                             self.cam_queue,
                             self.framerate)
         self.thread_gst.start()

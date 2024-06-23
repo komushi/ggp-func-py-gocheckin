@@ -45,7 +45,7 @@ class StreamCommands(Enum):
 
 class StreamCapture(threading.Thread):
 
-    def __init__(self, cam_ip, link, pipeline_str, stop_event, cam_queue, framerate):
+    def __init__(self, cam_ip, link, pipeline_str, cam_queue, framerate):
         """
         Initialize the stream capturing process
         link - rstp link of stream
@@ -56,7 +56,7 @@ class StreamCapture(threading.Thread):
         super().__init__(name=f"Thread-Gst-{link}")
 
         self.streamLink = link
-        self.stop_event = stop_event
+        self.stop_event = threading.Event()
         self.cam_queue = cam_queue
         self.framerate = framerate
         self.currentState = StreamMode.INIT_STREAM
@@ -214,7 +214,7 @@ class StreamCapture(threading.Thread):
         # bus.connect("message", self.on_message)
 
         try:
-            while (not self.stop_event.is_set()) and (not self.eos_received):
+            while (not self.stop_event.is_set()):
 
                 message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
                 # print "image_arr: ", image_arr
