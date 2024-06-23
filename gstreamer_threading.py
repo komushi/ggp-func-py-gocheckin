@@ -53,7 +53,7 @@ class StreamCapture(threading.Thread):
         outPipe - this process can send commands outside
         """
 
-        super().__init__(name=f"Thread-Gst-{link}")
+        super().__init__(name=f"Thread-Gst-{cam_ip}")
 
         self.streamLink = link
         self.stop_event = threading.Event()
@@ -217,7 +217,7 @@ class StreamCapture(threading.Thread):
         try:
             while (not self.stop_event.is_set()):
 
-                message = bus.timed_pop_filtered(10000, Gst.MessageType.ANY)
+                message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
                 # print "image_arr: ", image_arr
                 if self.image_arr is not None and self.newImage is True:
 
@@ -245,16 +245,8 @@ class StreamCapture(threading.Thread):
         print(f"Stopping {self.name}")
 
         self.stop_recording()
-
         # time.sleep(1)
-
         self.stop_event.set()
-
-        # print(f"{self.name} stopping...")
-
-        # self.pipeline.set_state(Gst.State.NULL)
-
-        # print(f"{self.name} stopped")
 
     def stop_recording(self):
         logger.info("Stopping recording...")
@@ -269,7 +261,7 @@ class StreamCapture(threading.Thread):
         logger.info("Before sending pipeline eos")
         self.pipeline.send_event(Gst.Event.new_eos())
 
-        logger.info("EOS sent")
+        logger.info("End-Of-Stream sending...")
 
         # Wait for the EOS event to be processed
         # while not self.eos_received:
