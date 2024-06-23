@@ -230,13 +230,17 @@ class StreamCapture(threading.Thread):
                 
                 if message:
                     self.on_message(bus, message)
+
+            self.pipeline.set_state(Gst.State.NULL)
+            logger.info("Pipeline stopped and cleaned up.")
+
         except Exception as e:
             logger.info("Exception")
             logger.error(e)
             traceback.print_exc()
-        finally:
-            self.pipeline.set_state(Gst.State.NULL)
-            logger.info("Pipeline stopped and cleaned up.")
+        # finally:
+        #     self.pipeline.set_state(Gst.State.NULL)
+        #     logger.info("Pipeline stopped and cleaned up.")
           
 
     def stop(self):
@@ -271,7 +275,7 @@ class StreamCapture(threading.Thread):
 
         # Wait for the EOS event to be processed
         while not self.eos_received:
-            time.sleep(1)
+            time.sleep(10)
             logger.info("waiting for eos_received")
 
         logger.info("Recording stopped")
