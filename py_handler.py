@@ -222,7 +222,7 @@ def start_http_server():
                     # init_uploader_app
                     init_uploader_app()
 
-                    logger.info(f"/detect POST host: {format(event['cameraItem'][''])}")
+                    logger.info(f"/detect POST host: {format(event['cameraItem']['localIp'])}")
 
                     global thread_detectors
 
