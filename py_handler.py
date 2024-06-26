@@ -222,13 +222,13 @@ def start_http_server():
                     # init_uploader_app
                     init_uploader_app()
 
-                    logger.info(f"/detect POST host: {format(event['cameraItem']['ip'])}")
+                    logger.info(f"/detect POST host: {format(event['cameraItem'][''])}")
 
                     global thread_detectors
 
-                    if event['cameraItem']['ip'] not in thread_detectors or thread_detectors[event['cameraItem']['ip']] is None or not thread_detectors[event['cameraItem']['ip']].is_alive():
+                    if event['cameraItem']['localIp'] not in thread_detectors or thread_detectors[event['cameraItem']['localIp']] is None or not thread_detectors[event['cameraItem']['localIp']].is_alive():
 
-                        logger.info(f"Starting detector thread for : {event['cameraItem']['ip']}")
+                        logger.info(f"Starting detector thread for : {event['cameraItem']['localIp']}")
 
                         # logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
@@ -238,10 +238,10 @@ def start_http_server():
 
                         if active_members:
                             params = {}
-                            params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['ip']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
+                            params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['localIp']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
                             params['codec'] = event['cameraItem']['rtsp']['codec']
                             params['framerate'] = event['cameraItem']['rtsp']['framerate']
-                            params['cam_ip'] = event['cameraItem']['ip']
+                            params['cam_ip'] = event['cameraItem']['localIp']
                             params['cam_uuid'] = event['cameraItem']['uuid']
                             params['active_members'] = active_members
                             params['face_app'] = face_app
@@ -249,13 +249,13 @@ def start_http_server():
                             # params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
                             # params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
 
-                            thread_detectors[event['cameraItem']['ip']] = fdm.FaceRecognition(params, scanner_output_queue)
-                            thread_detectors[event['cameraItem']['ip']].start()
+                            thread_detectors[event['cameraItem']['localIp']] = fdm.FaceRecognition(params, scanner_output_queue)
+                            thread_detectors[event['cameraItem']['localIp']].start()
 
                             self.send_response(200)
                             self.send_header('Content-type', 'application/json')
                             self.end_headers()
-                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['ip']}).encode())
+                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['localIp']}).encode())
 
                             logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
                         else:
@@ -266,27 +266,27 @@ def start_http_server():
                             logger.info(f'No active_members: {repr(active_members)} to start Thread FaceRecognition')
 
                 
-                    elif thread_detectors[event['cameraItem']['ip']].is_alive():
+                    elif thread_detectors[event['cameraItem']['localIp']].is_alive():
 
-                        logger.info(f"Extending detector thread for : {event['cameraItem']['ip']}")
+                        logger.info(f"Extending detector thread for : {event['cameraItem']['localIp']}")
 
                         # logger.info(f'Available threads before extending: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                        thread_detectors[event['cameraItem']['ip']].extend_runtime()
+                        thread_detectors[event['cameraItem']['localIp']].extend_runtime()
                         self.send_response(200)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['ip']].name + " is already running"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is already running"}).encode())
 
                         # logger.info(f'Available threads after extending: {", ".join(thread.name for thread in threading.enumerate())}')
 
                     else:                        
-                        # logger.info(f"Detector thread for : {event['cameraItem']['ip']} is not running properly")  
+                        # logger.info(f"Detector thread for : {event['cameraItem']['localIp']} is not running properly")  
 
                         # logger.info(f'Available threads: {", ".join(thread.name for thread in threading.enumerate())}')
 
                         self.send_response(400)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['ip']].name + " is not running properly"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
 
                 else:
                     self.send_response(404)
