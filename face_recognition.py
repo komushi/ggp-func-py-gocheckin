@@ -26,8 +26,9 @@ class FaceRecognition(threading.Thread):
         self.cam_queue = queue.Queue(maxsize=100)
         self.scanner_output_queue = scanner_output_queue
         self.stop_event = threading.Event()
-        self.camlink = params['rtsp_src']
+        self.rtsp_src = params['rtsp_src']
         self.cam_ip = params['cam_ip']
+        self.cam_uuid = params['cam_uuid']
         self.start_time = time.time()
         self.init_running_time = int(os.environ['INIT_RUNNING_TIME'])
         self.max_running_time = int(os.environ['MAX_RUNNING_TIME'])
@@ -74,13 +75,16 @@ class FaceRecognition(threading.Thread):
         #get all cams
         time.sleep(1)
 
-        self.thread_gst = gst.StreamCapture(self.cam_ip,
-                            self.camlink,
-                            self.pipeline_str,
-                            # self.stop_event,
-                            self.cam_queue,
-                            self.scanner_output_queue,
-                            self.framerate)
+        self.thread_gst = gst.StreamCapture(
+            self.cam_ip,
+            self.cam_uuid,
+            self.rtsp_src,
+            self.pipeline_str,
+            # self.stop_event,
+            self.cam_queue,
+            self.scanner_output_queue,
+            self.framerate
+        )
         self.thread_gst.start()
 
         try:
@@ -112,7 +116,7 @@ class FaceRecognition(threading.Thread):
                                     for face in faces:
                                         for active_member in self.active_members:
                                             sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
-                                            logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {self.camlink}")
+                                            logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {self.rtsp_src}")
 
                                             if sim >= self.face_threshold:
                                                 memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
@@ -122,7 +126,7 @@ class FaceRecognition(threading.Thread):
 
                                                     self.captured_members[memberKey] = {
                                                         "equipmentId": os.environ['AWS_IOT_THING_NAME'],
-                                                        "cameraLink": self.camlink,
+                                                        "cameraLink": self.rtsp_src,
                                                         "reservationCode": active_member['reservationCode'],
                                                         "listingId": active_member['listingId'],
                                                         "memberNo": int(str(active_member['memberNo'])),
@@ -143,7 +147,7 @@ class FaceRecognition(threading.Thread):
                                                     if self.captured_members[memberKey]["similarity"] < sim:
                                                         self.captured_members[memberKey]["similarity"] = sim
                                 # else:
-                                #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.camlink}")
+                                #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.rtsp_src}")
 
                     # elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
                     #     logger.info(f"put scanner_output_queue video_clipped cmd: {cmd}")

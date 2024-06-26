@@ -45,17 +45,17 @@ class StreamCommands(Enum):
 
 class StreamCapture(threading.Thread):
 
-    def __init__(self, cam_ip, link, pipeline_str, cam_queue, scanner_output_queue, framerate):
+    def __init__(self, cam_ip, cam_uuid, rtsp_src, pipeline_str, cam_queue, scanner_output_queue, framerate):
         """
         Initialize the stream capturing process
-        link - rstp link of stream
+        rtsp_src - rstp link of stream
         stop_event - to send commands to this thread
         outPipe - this process can send commands outside
         """
 
         super().__init__(name=f"Thread-Gst-{cam_ip}")
 
-        self.streamLink = link
+        self.rtsp_src = rtsp_src
         self.stop_event = threading.Event()
         self.cam_queue = cam_queue
         self.scanner_output_queue = scanner_output_queue
@@ -76,6 +76,8 @@ class StreamCapture(threading.Thread):
         self.unexpected_cnt = 0
         # self.eos_received = False
         self.cam_ip = cam_ip
+        self.cam_uuid = cam_uuid
+        
 
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
@@ -84,7 +86,7 @@ class StreamCapture(threading.Thread):
         self.source = self.pipeline.get_by_name('m_rtspsrc')
         if  self.source is not None:
             self.source.set_property('latency', 0)
-            self.source.set_property('location', self.streamLink)
+            self.source.set_property('location', self.rtsp_src)
             self.source.set_property('protocols', 'udp')
             self.source.set_property('retry', 50)
             self.source.set_property('timeout', 2000000)
@@ -303,6 +305,7 @@ class StreamCapture(threading.Thread):
                             "payload": {
                                 "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
                                 "cam_ip": self.cam_ip,
+                                "cam_uuid": self.cam_uuid,
                                 "date_folder": self.date_folder,
                                 "time_filename": self.time_filename,
                                 "ext": self.ext,

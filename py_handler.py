@@ -21,6 +21,8 @@ import threading
 import sched
 import time
 
+import random
+
 import requests
 
 import PIL.Image
@@ -240,6 +242,7 @@ def start_http_server():
                             params['codec'] = event['cameraItem']['rtsp']['codec']
                             params['framerate'] = event['cameraItem']['rtsp']['framerate']
                             params['cam_ip'] = event['cameraItem']['ip']
+                            params['cam_uuid'] = event['cameraItem']['uuid']
                             params['active_members'] = active_members
                             params['face_app'] = face_app
                             # params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
@@ -483,7 +486,7 @@ def fetch_scanner_output_queue():
             if 'type' in message:
                 if message['type'] == 'guest_detected':
                     iotClient.publish(
-                        topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
+                        topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
                         payload=json.dumps(message['payload'])
                     )
                 elif message['type'] == 'video_clipped':
@@ -492,6 +495,24 @@ def fetch_scanner_output_queue():
                     object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['payload']['cam_ip']}/{message['payload']['date_folder']}/{message['payload']['time_filename']}{message['payload']['ext']}"""
 
                     uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
+
+                    payload = {
+                        "hostId": os.environ['HOST_ID'],
+                        "propertyCode": os.environ['PROPERTY_CODE'],
+                        "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+                        "scannerEquipmentId": os.environ['AWS_IOT_THING_NAME'],
+                        "equipmentId": message['payload']['cam_uuid'],
+                        "cameraIp": message['payload']['cam_ip'],
+                        "recordStart": message['payload']['start_datetime'],
+                        "recordEnd": message['payload']['end_datetime'],
+                        "videoKey": object_key,
+                        "snapshotKey": ''
+                    }
+
+                    iotClient.publish(
+                        topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
+                        payload=json.dumps(payload)
+                    )
 
         except Empty:
             pass
