@@ -45,7 +45,7 @@ class StreamCommands(Enum):
 
 class StreamCapture(threading.Thread):
 
-    def __init__(self, cam_ip, cam_uuid, rtsp_src, pipeline_str, cam_queue, scanner_output_queue, framerate):
+    def __init__(self, cam_ip, cam_uuid, cam_name, rtsp_src, pipeline_str, cam_queue, scanner_output_queue, framerate):
         """
         Initialize the stream capturing process
         rtsp_src - rstp link of stream
@@ -77,7 +77,7 @@ class StreamCapture(threading.Thread):
         # self.eos_received = False
         self.cam_ip = cam_ip
         self.cam_uuid = cam_uuid
-        
+        self.cam_name = cam_name
 
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
@@ -306,6 +306,7 @@ class StreamCapture(threading.Thread):
                                 "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
                                 "cam_ip": self.cam_ip,
                                 "cam_uuid": self.cam_uuid,
+                                "cam_name": self.cam_name,
                                 "date_folder": self.date_folder,
                                 "time_filename": self.time_filename,
                                 "ext": self.ext,

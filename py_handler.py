@@ -243,6 +243,7 @@ def start_http_server():
                             params['framerate'] = event['cameraItem']['rtsp']['framerate']
                             params['cam_ip'] = event['cameraItem']['localIp']
                             params['cam_uuid'] = event['cameraItem']['uuid']
+                            params['cam_name'] = event['cameraItem']['equipmentName']
                             params['active_members'] = active_members
                             params['face_app'] = face_app
                             # params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
@@ -502,6 +503,7 @@ def fetch_scanner_output_queue():
                         "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
                         "scannerEquipmentId": os.environ['AWS_IOT_THING_NAME'],
                         "equipmentId": message['payload']['cam_uuid'],
+                        "equipmentName": message['payload']['cam_name'],
                         "cameraIp": message['payload']['cam_ip'],
                         "recordStart": message['payload']['start_datetime'],
                         "recordEnd": message['payload']['end_datetime'],

@@ -29,6 +29,7 @@ class FaceRecognition(threading.Thread):
         self.rtsp_src = params['rtsp_src']
         self.cam_ip = params['cam_ip']
         self.cam_uuid = params['cam_uuid']
+        self.cam_name = params['cam_name']
         self.start_time = time.time()
         self.init_running_time = int(os.environ['INIT_RUNNING_TIME'])
         self.max_running_time = int(os.environ['MAX_RUNNING_TIME'])
@@ -78,6 +79,7 @@ class FaceRecognition(threading.Thread):
         self.thread_gst = gst.StreamCapture(
             self.cam_ip,
             self.cam_uuid,
+            self.cam_name
             self.rtsp_src,
             self.pipeline_str,
             # self.stop_event,
