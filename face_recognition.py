@@ -79,7 +79,7 @@ class FaceRecognition(threading.Thread):
         self.thread_gst = gst.StreamCapture(
             self.cam_ip,
             self.cam_uuid,
-            self.cam_name
+            self.cam_name,
             self.rtsp_src,
             self.pipeline_str,
             # self.stop_event,
