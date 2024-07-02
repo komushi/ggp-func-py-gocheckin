@@ -493,7 +493,7 @@ def fetch_scanner_output_queue():
                 elif message['type'] == 'video_clipped':
                     local_file_path = message['payload']['local_file_path']
 
-                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['payload']['cam_ip']}/{message['payload']['date_folder']}/{message['payload']['time_filename']}{message['payload']['ext']}"""
+                    object_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['payload']['cam_ip']}/{message['payload']['date_folder']}/{message['payload']['time_filename']}{message['payload']['ext']}"""
 
                     uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 
@@ -507,6 +507,8 @@ def fetch_scanner_output_queue():
                         "cameraIp": message['payload']['cam_ip'],
                         "recordStart": message['payload']['start_datetime'],
                         "recordEnd": message['payload']['end_datetime'],
+                        "identityId": os.environ['IDENTITY_ID'],
+                        "s3level": 'private',
                         "videoKey": object_key,
                         "snapshotKey": ''
                     }
