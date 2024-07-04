@@ -502,7 +502,7 @@ def fetch_scanner_output_queue():
                         "hostId": os.environ['HOST_ID'],
                         "propertyCode": os.environ['PROPERTY_CODE'],
                         "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
-                        "scannerEquipmentId": os.environ['AWS_IOT_THING_NAME'],
+                        "coreName": os.environ['AWS_IOT_THING_NAME'],
                         "equipmentId": message['payload']['cam_uuid'],
                         "equipmentName": message['payload']['cam_name'],
                         "cameraIp": message['payload']['cam_ip'],
