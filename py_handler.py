@@ -392,7 +392,7 @@ def get_active_members():
     active_reservations = get_active_reservations()
 
     # Define the list of attributes to retrieve
-    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName', 'memberKeyItem']
+    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName']
 
     # Initialize an empty list to store the results
     results = []

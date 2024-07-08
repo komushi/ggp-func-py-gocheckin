@@ -133,8 +133,6 @@ class FaceRecognition(threading.Thread):
                                                         "listingId": active_member['listingId'],
                                                         "memberNo": int(str(active_member['memberNo'])),
                                                         "fullName": active_member['fullName'],
-                                                        "keyInfo": active_member['memberKeyItem']['keyInfo'],
-                                                        "roomCode": active_member['memberKeyItem']['roomCode'],
                                                         "similarity": sim,
                                                         "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
                                                     }
