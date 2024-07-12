@@ -171,6 +171,15 @@ def start_http_server():
                     self.end_headers()
 
                     # Process the POST data
+                    if not self.headers['Content-Length']:
+
+                        logger.info('/recognise POST finished with fetch_members only')
+
+                        timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
+                        timer.start()
+
+                        return
+
                     content_length = int(self.headers['Content-Length'])
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
