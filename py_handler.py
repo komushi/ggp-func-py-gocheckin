@@ -245,35 +245,35 @@ def start_http_server():
 
                         fetch_members()
 
-                        if active_members:
-                            params = {}
-                            params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['localIp']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
-                            params['codec'] = event['cameraItem']['rtsp']['codec']
-                            params['framerate'] = event['cameraItem']['rtsp']['framerate']
-                            params['cam_ip'] = event['cameraItem']['localIp']
-                            params['cam_uuid'] = event['cameraItem']['uuid']
-                            params['cam_name'] = event['cameraItem']['equipmentName']
-                            params['active_members'] = active_members
-                            params['face_app'] = face_app
-                            # params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
-                            # params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
-                            # params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
+                        # if active_members:
+                        params = {}
+                        params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['localIp']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
+                        params['codec'] = event['cameraItem']['rtsp']['codec']
+                        params['framerate'] = event['cameraItem']['rtsp']['framerate']
+                        params['cam_ip'] = event['cameraItem']['localIp']
+                        params['cam_uuid'] = event['cameraItem']['uuid']
+                        params['cam_name'] = event['cameraItem']['equipmentName']
+                        params['active_members'] = active_members
+                        params['face_app'] = face_app
+                        # params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
+                        # params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
+                        # params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
 
-                            thread_detectors[event['cameraItem']['localIp']] = fdm.FaceRecognition(params, scanner_output_queue)
-                            thread_detectors[event['cameraItem']['localIp']].start()
+                        thread_detectors[event['cameraItem']['localIp']] = fdm.FaceRecognition(params, scanner_output_queue)
+                        thread_detectors[event['cameraItem']['localIp']].start()
 
-                            self.send_response(200)
-                            self.send_header('Content-type', 'application/json')
-                            self.end_headers()
-                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['localIp']}).encode())
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['localIp']}).encode())
 
-                            logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                        else:
-                            self.send_response(400)
-                            self.end_headers()
-                            self.wfile.write(json.dumps({"message": f'No active_members: {repr(active_members)} to start Thread FaceRecognition'}).encode())
+                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                        # else:
+                        #     self.send_response(400)
+                        #     self.end_headers()
+                        #     self.wfile.write(json.dumps({"message": f'No active_members: {repr(active_members)} to start Thread FaceRecognition'}).encode())
 
-                            logger.info(f'No active_members: {repr(active_members)} to start Thread FaceRecognition')
+                        #     logger.info(f'No active_members: {repr(active_members)} to start Thread FaceRecognition')
 
                 
                     elif thread_detectors[event['cameraItem']['localIp']].is_alive():

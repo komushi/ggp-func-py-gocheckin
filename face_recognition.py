@@ -106,59 +106,45 @@ class FaceRecognition(threading.Thread):
                     if cmd == gst.StreamCommands.FRAME:
                         if val is not None:
 
-                            crt_time = time.time()
+                            if self.active_members:
 
-                            if (crt_time - self.inference_begins_at) > 0.5:
-                            
-                                self.inference_begins_at = crt_time
+                                crt_time = time.time()
 
-                                faces = self.face_app.get(val)
+                                if (crt_time - self.inference_begins_at) > 0.5:
                                 
-                                if len(faces) > 0:
-                                    for face in faces:
-                                        for active_member in self.active_members:
-                                            sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
-                                            logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {self.rtsp_src}")
+                                    self.inference_begins_at = crt_time
 
-                                            if sim >= self.face_threshold:
-                                                memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
-                                                if memberKey not in self.captured_members:
-                                                    # logger.info(f"New member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
-                                                    # logger.info(f"Captured members: {repr(self.captured_members)}")
+                                    faces = self.face_app.get(val)
+                                    
+                                    if len(faces) > 0:
+                                        for face in faces:
+                                            for active_member in self.active_members:
+                                                sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
+                                                logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {self.rtsp_src}")
 
-                                                    self.captured_members[memberKey] = {
-                                                        "equipmentId": os.environ['AWS_IOT_THING_NAME'],
-                                                        "cameraLink": self.rtsp_src,
-                                                        "reservationCode": active_member['reservationCode'],
-                                                        "listingId": active_member['listingId'],
-                                                        "memberNo": int(str(active_member['memberNo'])),
-                                                        "fullName": active_member['fullName'],
-                                                        "similarity": sim,
-                                                        "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-                                                    }
-                                                    if not self.scanner_output_queue.full():
-                                                        self.scanner_output_queue.put({
-                                                            "type": "guest_detected",
-                                                            "payload": self.captured_members[memberKey]
-                                                        }, block=False)
-                                                else:
-                                                    # logger.info(f"Existing member recognized fullName: {active_member['fullName']} similarity: {str(sim)}")
-                                                    # logger.info(f"Captured members: {repr(self.captured_members)}")
-                                                    if self.captured_members[memberKey]["similarity"] < sim:
-                                                        self.captured_members[memberKey]["similarity"] = sim
-                                # else:
-                                #     logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.rtsp_src}")
-
-                    # elif cmd == gst.StreamCommands.VIDEO_CLIPPED:
-                    #     logger.info(f"put scanner_output_queue video_clipped cmd: {cmd}")
-                    #     if val is not None:
-                    #         if not self.scanner_output_queue.full():
-                    #             logger.info(f"put scanner_output_queue video_clipped val: {val}")
-                    #             self.scanner_output_queue.put({
-                    #                 "type": "video_clipped",
-                    #                 "payload": val
-                    #             }, block=False)
-
+                                                if sim >= self.face_threshold:
+                                                    memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
+                                                    if memberKey not in self.captured_members:
+                                                        self.captured_members[memberKey] = {
+                                                            "equipmentId": os.environ['AWS_IOT_THING_NAME'],
+                                                            "cameraLink": self.rtsp_src,
+                                                            "reservationCode": active_member['reservationCode'],
+                                                            "listingId": active_member['listingId'],
+                                                            "memberNo": int(str(active_member['memberNo'])),
+                                                            "fullName": active_member['fullName'],
+                                                            "similarity": sim,
+                                                            "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+                                                        }
+                                                        if not self.scanner_output_queue.full():
+                                                            self.scanner_output_queue.put({
+                                                                "type": "guest_detected",
+                                                                "payload": self.captured_members[memberKey]
+                                                            }, block=False)
+                                                    else:
+                                                        if self.captured_members[memberKey]["similarity"] < sim:
+                                                            self.captured_members[memberKey]["similarity"] = sim
+                                    else:
+                                        logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.rtsp_src}")
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
