@@ -161,9 +161,9 @@ def start_http_server():
         def do_POST(self):
             try:
 
-                # if self.client_address[0] != '127.0.0.1':
-                #     self.send_error(403, "Forbidden: Only localhost is allowed")
-                #     return
+                if self.client_address[0] != '127.0.0.1':
+                    self.send_error(403, "Forbidden: Only localhost allowed")
+                    return
 
                 if self.path == '/recognise':
                     self.send_response(200)
