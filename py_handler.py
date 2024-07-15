@@ -464,8 +464,7 @@ def fetch_members(forced=False):
             else:
                 logger.info('fetch_members skip')
         
-
-def claim_scanner():
+def claim_scanner_once():
     data = {
         "equipmentId": os.environ['AWS_IOT_THING_NAME'],
         "equipmentName": os.environ['AWS_IOT_THING_NAME'],
@@ -477,11 +476,17 @@ def claim_scanner():
         payload=json.dumps(data)
     )
 
+
+def claim_scanner():
+    claim_scanner_once()
+
     # Reschedule the function
     scheduler.enter(1800, 1, claim_scanner)
 
 # Function to start the scheduler
 def start_scheduler():
+
+    claim_scanner_once()
     # Schedule the first call to my_function
     scheduler.enter(1800, 1, claim_scanner)
     # Start the scheduler
