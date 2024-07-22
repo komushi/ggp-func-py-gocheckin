@@ -184,7 +184,7 @@ class FaceRecognition(threading.Thread):
                                                                     "equipmentName": self.cam_name,
                                                                     "cameraIp": self.cam_ip,
                                                                     "recordStart": self.captured_members[memberKey]['recordTime'],
-                                                                    "recordEnd": '',
+                                                                    "recordEnd": self.captured_members[memberKey]['recordTime'],
                                                                     "identityId": os.environ['IDENTITY_ID'],
                                                                     "s3level": 'private',
                                                                     "videoKey": '',
