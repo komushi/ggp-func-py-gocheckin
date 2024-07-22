@@ -500,6 +500,13 @@ def fetch_scanner_output_queue():
             
             if 'type' in message:
                 if message['type'] == 'guest_detected':
+                    local_file_path = message['local_file_path']
+                    object_key = message['object_key']
+                    if local_file_path:
+                        # snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['cam_ip']}/{message['date_folder']}/{message['time_filename']}{message['ext']}"""
+                        # object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['cam_ip']}/{message['date_folder']}/{message['time_filename']}{message['ext']}"""
+                        uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
+
                     iotClient.publish(
                         topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
                         payload=json.dumps(message['payload'])
