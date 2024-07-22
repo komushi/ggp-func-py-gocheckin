@@ -128,7 +128,12 @@ class FaceRecognition(threading.Thread):
                                                     memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                                     if memberKey not in self.captured_members:
 
-                                                        if not active_member['checkedIn']:
+                                                        checkedIn = False
+                                                        if 'checkedIn' in active_member:
+                                                            if active_member['checkedIn']:
+                                                                checkedIn = active_member['checkedIn']
+
+                                                        if not checkedIn:
                                                             
                                                             self.captured_members[memberKey] = {
                                                                 "equipmentId": os.environ['AWS_IOT_THING_NAME'],
