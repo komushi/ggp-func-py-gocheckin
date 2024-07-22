@@ -123,49 +123,74 @@ class FaceRecognition(threading.Thread):
                                                 logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {self.rtsp_src}")
 
                                                 local_file_path = ''
-                                                now = datetime.now(timezone.utc)
-                                                date_folder = now.strftime("%Y-%m-%d")
-                                                time_filename = now.strftime("%H:%M:%S")
-                                                ext = ".jpg"
-                                                
+
                                                 if sim >= self.face_threshold:
                                                     memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                                     if memberKey not in self.captured_members:
-                                                        
-                                                        local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
-                                                        if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder)):
-                                                            os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
-                                                        object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/listings/{active_member['listingId']}/{active_member['reservationCode']}/checkin/{str(active_member['memberNo'])}{ext}"""
 
-                                                        bbox = face.bbox.astype(int)
-                                                        img = val.astype(np.uint8)
-                                                        face_box = cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
-                                                        cv2.putText(face_box, f"{active_member['fullName']}:{sim}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-                                                        cv2.imwrite(local_file_path, face_box)
+                                                        if not active_member['checkedIn']:
+                                                            
+                                                            self.captured_members[memberKey] = {
+                                                                "equipmentId": os.environ['AWS_IOT_THING_NAME'],
+                                                                "cameraLink": self.rtsp_src,
+                                                                "reservationCode": active_member['reservationCode'],
+                                                                "listingId": active_member['listingId'],
+                                                                "memberNo": int(str(active_member['memberNo'])),
+                                                                "fullName": active_member['fullName'],
+                                                                "similarity": sim,
+                                                                "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                                                            }
 
-                                                        self.captured_members[memberKey] = {
-                                                            "equipmentId": os.environ['AWS_IOT_THING_NAME'],
-                                                            "cameraLink": self.rtsp_src,
-                                                            "reservationCode": active_member['reservationCode'],
-                                                            "listingId": active_member['listingId'],
-                                                            "memberNo": int(str(active_member['memberNo'])),
-                                                            "fullName": active_member['fullName'],
-                                                            "similarity": sim,
-                                                            "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-                                                            "checkInImgKey": object_key
-                                                        }
+                                                            now = datetime.now(timezone.utc)
+                                                            date_folder = now.strftime("%Y-%m-%d")
+                                                            time_filename = now.strftime("%H:%M:%S")
+                                                            ext = ".jpg"
+
+                                                            local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
+                                                            if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder)):
+                                                                os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
+
+                                                            bbox = face.bbox.astype(int)
+                                                            img = val.astype(np.uint8)
+                                                            face_box = cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+                                                            cv2.putText(face_box, f"{active_member['fullName']}:{sim}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+                                                            cv2.imwrite(local_file_path, face_box)
+
+                                                            logger.info(f"Newly checkIn snapshot taken at {local_file_path}")
+
+
 
                                                         if not self.scanner_output_queue.full():
                                                             if local_file_path:
+
+                                                                checkin_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/listings/{active_member['listingId']}/{active_member['reservationCode']}/checkin/{str(active_member['memberNo'])}{ext}"""
+                                                                property_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+                                                                snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+
+                                                                self.captured_members[memberKey]['checkInImgKey'] = checkin_object_key
+                                                                self.captured_members[memberKey]['propertyImgKey'] = property_object_key
+
+                                                                snapshot_payload = {
+                                                                    "hostId": os.environ['HOST_ID'],
+                                                                    "propertyCode": os.environ['PROPERTY_CODE'],
+                                                                    "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+                                                                    "coreName": os.environ['AWS_IOT_THING_NAME'],
+                                                                    "equipmentId": self.cam_uuid,
+                                                                    "equipmentName": self.cam_name,
+                                                                    "cameraIp": self.cam_ip,
+                                                                    "recordStart": self.captured_members[memberKey]['recordTime'],
+                                                                    "recordEnd": '',
+                                                                    "identityId": os.environ['IDENTITY_ID'],
+                                                                    "s3level": 'private',
+                                                                    "videoKey": '',
+                                                                    "snapshotKey": snapshot_key
+                                                                }
+
                                                                 self.scanner_output_queue.put({
                                                                     "type": "guest_detected",
                                                                     "payload": self.captured_members[memberKey],
                                                                     "local_file_path": local_file_path,
-                                                                    "object_key": object_key,
-                                                                    "cam_ip": self.cam_ip,
-                                                                    "date_folder": date_folder,
-                                                                    "time_filename": time_filename,
-                                                                    "ext": ext
+                                                                    "snapshot_payload": snapshot_payload
                                                                 }, block=False)
                                                             else:
                                                                 self.scanner_output_queue.put({
