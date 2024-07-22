@@ -152,9 +152,9 @@ class FaceRecognition(threading.Thread):
 
                                                             bbox = face.bbox.astype(int)
                                                             img = val.astype(np.uint8)
-                                                            face_box = cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
-                                                            cv2.putText(face_box, f"{active_member['fullName']}:{sim}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-                                                            cv2.imwrite(local_file_path, face_box)
+                                                            cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+                                                            cv2.putText(img, f"{active_member['fullName']}:{sim}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+                                                            cv2.imwrite(local_file_path, img)
 
                                                             logger.info(f"Newly checkIn snapshot taken at {local_file_path}")
 
