@@ -229,7 +229,7 @@ class StreamCapture(threading.Thread):
                     self.on_message(bus, message)
 
         except Exception as e:
-            logger.info("Exception")
+            logger.info(f"Caught exception during running {self.name}")
             logger.error(e)
             traceback.print_exc()
         finally:

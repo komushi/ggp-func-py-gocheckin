@@ -128,24 +128,23 @@ class FaceRecognition(threading.Thread):
                                                     memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                                     if memberKey not in self.captured_members:
 
+                                                        self.captured_members[memberKey] = {
+                                                            "equipmentId": os.environ['AWS_IOT_THING_NAME'],
+                                                            "cameraLink": self.rtsp_src,
+                                                            "reservationCode": active_member['reservationCode'],
+                                                            "listingId": active_member['listingId'],
+                                                            "memberNo": int(str(active_member['memberNo'])),
+                                                            "fullName": active_member['fullName'],
+                                                            "similarity": sim,
+                                                            "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                                                        }
+
                                                         checkedIn = False
                                                         if 'checkedIn' in active_member:
                                                             if active_member['checkedIn']:
                                                                 checkedIn = active_member['checkedIn']
 
                                                         if not checkedIn:
-                                                            
-                                                            self.captured_members[memberKey] = {
-                                                                "equipmentId": os.environ['AWS_IOT_THING_NAME'],
-                                                                "cameraLink": self.rtsp_src,
-                                                                "reservationCode": active_member['reservationCode'],
-                                                                "listingId": active_member['listingId'],
-                                                                "memberNo": int(str(active_member['memberNo'])),
-                                                                "fullName": active_member['fullName'],
-                                                                "similarity": sim,
-                                                                "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-                                                            }
-
                                                             now = datetime.now(timezone.utc)
                                                             date_folder = now.strftime("%Y-%m-%d")
                                                             time_filename = now.strftime("%H:%M:%S")
@@ -163,11 +162,13 @@ class FaceRecognition(threading.Thread):
 
                                                             logger.info(f"Newly checkIn snapshot taken at {local_file_path}")
 
-
-
                                                         if not self.scanner_output_queue.full():
-                                                            if local_file_path:
-
+                                                            if checkedIn:
+                                                                self.scanner_output_queue.put({
+                                                                    "type": "guest_detected",
+                                                                    "payload": self.captured_members[memberKey]
+                                                                }, block=False)
+                                                            else:
                                                                 checkin_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/listings/{active_member['listingId']}/{active_member['reservationCode']}/checkIn/{str(active_member['memberNo'])}{ext}"""
                                                                 property_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
                                                                 snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
@@ -197,11 +198,7 @@ class FaceRecognition(threading.Thread):
                                                                     "local_file_path": local_file_path,
                                                                     "snapshot_payload": snapshot_payload
                                                                 }, block=False)
-                                                            else:
-                                                                self.scanner_output_queue.put({
-                                                                    "type": "guest_detected",
-                                                                    "payload": self.captured_members[memberKey]
-                                                                }, block=False)
+
                                                     else:
                                                         if self.captured_members[memberKey]["similarity"] < sim:
                                                             self.captured_members[memberKey]["similarity"] = sim
@@ -212,6 +209,8 @@ class FaceRecognition(threading.Thread):
             logger.info(f"Caught exception during running {self.name}")
             logger.info(e)
             traceback.print_exc()
+        finally:
+            self.stop()
 
 
     def stop(self):
@@ -233,7 +232,7 @@ class FaceRecognition(threading.Thread):
 
             logger.info(f"cam_queue cleared")
         except Exception as e:
-            logger.info(f"Caught Exception during stopping {self.name}")
+            logger.info(f"Caught exception during stopping {self.name}")
             logger.info(e)
             traceback.print_exc()
         finally:

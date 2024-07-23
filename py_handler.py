@@ -383,6 +383,40 @@ def get_active_reservations():
 
     return items
 
+def update_member(reservationCode, memberNo):
+    logger.info('update_member in')
+
+    # Initialize the DynamoDB resource
+    dynamodb = boto3.resource(
+        'dynamodb',
+        endpoint_url=os.environ['DDB_ENDPOINT'],
+        region_name='us-west-1',
+        aws_access_key_id='fakeMyKeyId',
+        aws_secret_access_key='fakeSecretAccessKey'
+    )
+    # Specify the table name
+    tbl_member = os.environ['TBL_MEMBER']
+
+    member_key = {
+        'reservationCode': reservationCode,
+        'memberNo': memberNo         # Replace with actual member number
+    }
+
+    attribute_name = 'checkedIn'
+
+    response = table.update_item(
+        Key=member_key,
+        UpdateExpression=f'SET {attribute_name} = :val',
+        ExpressionAttributeValues={
+            ':val': True
+        },
+        ReturnValues='UPDATED_NEW'
+    )
+
+    logger.info('update_member out')
+
+    return
+
 def get_active_members():
     logger.info('get_active_members in')
 
@@ -427,8 +461,16 @@ def get_active_members():
 
     # logger.info(f'active_member: {results}')
 
+    filtered_results = []
+
     for item in results:
-        item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
+        if 'faceEmbedding' in item:
+            item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
+            filtered_results.append(item)
+        else:
+            logger.info(f"get_active_members, member {item.reservationCode}-{item.memberNo} filtered out with no faceEmbedding")
+    
+    results = filtered_results
 
     logger.info('get_active_members out')
 
@@ -462,7 +504,7 @@ def fetch_members(forced=False):
                 active_members = get_active_members()
                 last_fetch_time = current_date
             else:
-                logger.info('fetch_members skip')
+                logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
         
 def claim_scanner_once():
     data = {
@@ -510,6 +552,11 @@ def fetch_scanner_output_queue():
                             topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
                             payload=json.dumps(message['snapshot_payload'])
                         )
+
+                        update_member(message['payload']['reservationCode'], message['payload']['memberNo'])
+
+                        timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
+                        timer.start()
 
                     iotClient.publish(
                         topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
