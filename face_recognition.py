@@ -209,8 +209,8 @@ class FaceRecognition(threading.Thread):
             logger.info(f"Caught exception during running {self.name}")
             logger.info(e)
             traceback.print_exc()
-        finally:
-            self.stop()
+        # finally:
+        #     self.stop()
 
 
     def stop(self):
