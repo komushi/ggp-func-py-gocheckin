@@ -397,6 +397,8 @@ def update_member(reservationCode, memberNo):
     # Specify the table name
     tbl_member = os.environ['TBL_MEMBER']
 
+    table = dynamodb.Table(tbl_member)
+
     member_key = {
         'reservationCode': reservationCode,
         'memberNo': memberNo         # Replace with actual member number
@@ -404,7 +406,7 @@ def update_member(reservationCode, memberNo):
 
     attribute_name = 'checkedIn'
 
-    response = tbl_member.update_item(
+    response = table.update_item(
         Key=member_key,
         UpdateExpression=f'SET {attribute_name} = :val',
         ExpressionAttributeValues={
