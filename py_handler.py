@@ -545,9 +545,9 @@ def fetch_scanner_output_queue():
             
             if 'type' in message:
                 if message['type'] == 'guest_detected':
-                    local_file_path = message['local_file_path']
+                    if 'local_file_path' in message:
+                        local_file_path = message['local_file_path']
                     
-                    if local_file_path:
                         property_object_key = message['payload']['propertyImgKey']
                         uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
 
