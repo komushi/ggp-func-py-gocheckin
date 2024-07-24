@@ -404,7 +404,7 @@ def update_member(reservationCode, memberNo):
 
     attribute_name = 'checkedIn'
 
-    response = table.update_item(
+    response = tbl_member.update_item(
         Key=member_key,
         UpdateExpression=f'SET {attribute_name} = :val',
         ExpressionAttributeValues={
@@ -412,6 +412,7 @@ def update_member(reservationCode, memberNo):
         },
         ReturnValues='UPDATED_NEW'
     )
+    logger.info(f"update_member update_item: {repr(response)}")
 
     logger.info('update_member out')
 
