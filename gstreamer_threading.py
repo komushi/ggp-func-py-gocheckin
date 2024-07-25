@@ -315,4 +315,5 @@ class StreamCapture(threading.Thread):
                                 "end_datetime": end_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                             }
                         }, block=False)
+                        logger.info(f"Sending video_clipped for video file: {self.time_filename}")
                     
