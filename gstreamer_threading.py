@@ -183,11 +183,16 @@ class StreamCapture(threading.Thread):
         return arr
 
     def new_buffer(self, sink, _):
-        sample = sink.emit("pull-sample")
-        arr = self.gst_to_opencv(sample)
-        self.image_arr = arr
-        self.newImage = True
-        return Gst.FlowReturn.OK
+        if self.stop_event.is_set():
+            self.image_arr = None
+            self.newImage = False
+            return Gst.FlowReturn.OK
+        else:    
+            sample = sink.emit("pull-sample")
+            arr = self.gst_to_opencv(sample)
+            self.image_arr = arr
+            self.newImage = True
+            return Gst.FlowReturn.OK
 
     def run(self):
         # Start playing
@@ -205,6 +210,8 @@ class StreamCapture(threading.Thread):
             while True:
 
                 if self.stop_event.is_set():
+                    time.sleep(1)
+                else:
                     if self.image_arr is not None and self.newImage is True:
 
                         if not self.cam_queue.full():
@@ -219,8 +226,7 @@ class StreamCapture(threading.Thread):
 
                     if message:
                         self.on_message(bus, message)
-                else:
-                    time.sleep(1)
+                    
                 
 
 
@@ -242,9 +248,11 @@ class StreamCapture(threading.Thread):
         self.stop_event.set()
 
     def pause_sampling(self):
+        logger.info(f"pause_sampling")
         self.stop_event.set()
 
     def restart_sampling(self):
+        logger.info(f"restart_sampling")
         self.stop_event.clear()
 
     def stop_recording(self):
