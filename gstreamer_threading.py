@@ -202,27 +202,39 @@ class StreamCapture(threading.Thread):
         # bus.connect("message", self.on_message)
 
         try:
-            while (not self.stop_event.is_set()):
+            while True:
 
                 message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
-                # print "image_arr: ", image_arr
-                if self.image_arr is not None and self.newImage is True:
 
-                    if not self.cam_queue.full():
-                        # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
-                        # print("adding to queue of size")
-                        self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
+                if self.stop_event.is_set():
+                    if self.image_arr is not None and self.newImage is True:
 
-                    self.image_arr = None
-                    self.unexpected_cnt = 0
+                        if not self.cam_queue.full():
+                            # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
+                            # print("adding to queue of size")
+                            self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
+
+                        self.image_arr = None
+                        self.unexpected_cnt = 0
+
+                    if message:
+                        self.on_message(bus, message)
+
+                else:
+                    if self.image_arr is not None and self.newImage is True:
+
+                        if not self.cam_queue.full():
+                            # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
+                            # print("adding to queue of size")
+                            self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
+
+                        self.image_arr = None
+                        self.unexpected_cnt = 0
+
                 
-                if message:
-                    self.on_message(bus, message)
-            else:
-                message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+                    if message:
+                        self.on_message(bus, message)
 
-                if message:
-                    self.on_message(bus, message)
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
