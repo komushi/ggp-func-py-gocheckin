@@ -282,7 +282,7 @@ def start_http_server():
 
                         # logger.info(f'Available threads before extending: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                        thread_detectors[event['cameraItem']['localIp']].extend_runtime()
+                        thread_detectors[event['cameraItem']['localIp']].extend_detection_time()
                         self.send_response(200)
                         self.end_headers()
                         self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is already running"}).encode())

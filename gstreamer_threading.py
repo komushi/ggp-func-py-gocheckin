@@ -82,6 +82,9 @@ class StreamCapture(threading.Thread):
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
 
+        # Get the tee element
+        tee = self.pipeline.get_by_name("t")
+
         # source params
         self.source = self.pipeline.get_by_name('m_rtspsrc')
         if  self.source is not None:
@@ -103,13 +106,6 @@ class StreamCapture(threading.Thread):
         if  self.decode is not None:
             self.decode.set_property('max-threads', 2)
             self.decode.set_property('output-corrupt', 'false')
-
-        # motioncells params
-        # self.motioncells = self.pipeline.get_by_name('m_motioncells')
-        # if self.motioncells is not None:
-        #     self.motioncells.set_property('display', 'false')
-        #     self.motioncells.set_property('postallmotion', 'false')
-        #     self.motioncells.set_property('sensitivity', 0.5)
         
         # convert params
         self.convert = self.pipeline.get_by_name('m_videoconvert')
@@ -158,30 +154,25 @@ class StreamCapture(threading.Thread):
 
         self.sink.connect("new-sample", self.new_buffer, self.sink)
 
-        # record_valve params
-        self.record_valve = self.pipeline.get_by_name('m_record_valve')
+        # # record_valve params
+        # self.record_valve = self.pipeline.get_by_name('m_record_valve')
 
-        # record_valve params
-        self.splitmuxsink = self.pipeline.get_by_name('m_splitmuxsink')
+        # # splitmuxsink params
+        # self.splitmuxsink = self.pipeline.get_by_name('m_splitmuxsink')
 
-        now = datetime.now(timezone.utc)
-        self.date_folder = now.strftime("%Y-%m-%d")
-        self.time_filename = now.strftime("%H:%M:%S")
-        self.ext = ".mp4"
+        # now = datetime.now(timezone.utc)
+        # self.date_folder = now.strftime("%Y-%m-%d")
+        # self.time_filename = now.strftime("%H:%M:%S")
+        # self.ext = ".mp4"
 
-        self.splitmuxsink.set_property('location', os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
-        if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
-            os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
+        # self.splitmuxsink.set_property('location', os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
+        # if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
+        #     os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
 
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
         caps = sample.get_caps()
-
-        # Print Height, Width and Format
-        # print(caps.get_structure(0).get_value('format'))
-        # print(caps.get_structure(0).get_value('height'))
-        # print(caps.get_structure(0).get_value('width'))
 
         arr = np.ndarray(
             (caps.get_structure(0).get_value('height'),
@@ -240,8 +231,8 @@ class StreamCapture(threading.Thread):
     def stop(self):
         print(f"Stopping {self.name}")
 
-        self.stop_recording()
-        # time.sleep(1)
+        # self.stop_recording()
+
         self.stop_event.set()
 
     def stop_recording(self):
@@ -279,8 +270,8 @@ class StreamCapture(threading.Thread):
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
                 logger.info(f"Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
-        elif message.type == Gst.MessageType.WARNING:
-            logger.info(f"Warning message {message.parse_warning()}： {message.type}.")
+        # elif message.type == Gst.MessageType.WARNING:
+        #     logger.info(f"Warning message {message.parse_warning()}： {message.type}.")
         elif message.type == Gst.MessageType.ELEMENT:
             structure = message.get_structure()
             # logger.info(f"New ELEMENT detected: {structure.get_name()}")
