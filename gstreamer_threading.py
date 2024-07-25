@@ -218,6 +218,11 @@ class StreamCapture(threading.Thread):
                 
                 if message:
                     self.on_message(bus, message)
+            else:
+                message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+
+                if message:
+                    self.on_message(bus, message)
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
@@ -231,9 +236,15 @@ class StreamCapture(threading.Thread):
     def stop(self):
         print(f"Stopping {self.name}")
 
-        # self.stop_recording()
+        self.stop_recording()
 
         self.stop_event.set()
+
+    def pause_sampling(self):
+        self.stop_event.set()
+
+    def restart_sampling(self):
+        self.stop_event.clear()
 
     def stop_recording(self):
         logger.info("Stopping recording...")

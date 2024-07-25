@@ -96,7 +96,8 @@ class FaceRecognition(threading.Thread):
                     cmd, val = self.cam_queue.get(False)
 
                     if crt_time >= self.end_time:
-                        logger.info(f"{self.name} reached maximum seconds limit of {self.end_time - self.start_time}")
+                        # logger.info(f"{self.name} reached maximum seconds limit of {self.end_time - self.start_time}")
+                        self.thread_gst.pause_sampling()
                     else:
                         if cmd == gst.StreamCommands.FRAME:
                             if val is not None:
@@ -239,6 +240,8 @@ class FaceRecognition(threading.Thread):
             self.end_time += additional_time
             logger.info(f"{self.name} detection time extended by {additional_time} seconds to total {self.end_time - self.start_time} seconds")
         else:
+            self.thread_gst.restart_sampling()
+
             self.start_time = current_time
             self.end_time = self.start_time + self.init_running_time
 
