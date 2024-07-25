@@ -204,8 +204,6 @@ class StreamCapture(threading.Thread):
         try:
             while True:
 
-                message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
-
                 if self.stop_event.is_set():
                     if self.image_arr is not None and self.newImage is True:
 
@@ -217,23 +215,14 @@ class StreamCapture(threading.Thread):
                         self.image_arr = None
                         self.unexpected_cnt = 0
 
+                    message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+
                     if message:
                         self.on_message(bus, message)
-
                 else:
-                    if self.image_arr is not None and self.newImage is True:
-
-                        if not self.cam_queue.full():
-                            # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
-                            # print("adding to queue of size")
-                            self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
-
-                        self.image_arr = None
-                        self.unexpected_cnt = 0
-
+                    time.sleep(1)
                 
-                    if message:
-                        self.on_message(bus, message)
+
 
 
         except Exception as e:
