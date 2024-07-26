@@ -196,7 +196,7 @@ class FaceRecognition(threading.Thread):
                                             logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.rtsp_src}")
                 else:
                     # logger.info(f"{self.thread_gst.name} is not sending FRAME")
-                    time.sleep(0.1)
+                    time.sleep(2)
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
             logger.info(e)
