@@ -264,7 +264,7 @@ class StreamCapture(threading.Thread):
         
         # Send EOS to the recording branch
         logger.info("Before sending sink eos")
-        self.splitmuxsink.send_event(Gst.Event.new_eos())
+        # self.splitmuxsink.send_event(Gst.Event.new_eos())
 
         # logger.info("Before sending pipeline eos")
         # self.pipeline.send_event(Gst.Event.new_eos())
