@@ -210,7 +210,7 @@ class StreamCapture(threading.Thread):
             while True:
 
                 if self.stop_event.is_set():
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     logger.info(f"{self.name} is in paused mode")
                 else:
                     if self.image_arr is not None and self.newImage is True:
