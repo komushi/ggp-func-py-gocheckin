@@ -487,7 +487,8 @@ def get_active_members():
     results = filtered_results
 
     for item in results:
-        logger.info(f"get_active_members out, reservationCode: {item.reservationCode}, memberNo: {item.memberNo}, fullName: {item.fullName}, checkedIn: {item.checkedIn}")
+        # logger.info(f"get_active_members out, reservationCode: {item.reservationCode}, memberNo: {item.memberNo}, fullName: {item.fullName}, checkedIn: {item.checkedIn}")
+        logger.info(f"get_active_members out item: {item}")
 
     return results
 
