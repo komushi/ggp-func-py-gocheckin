@@ -522,8 +522,9 @@ def fetch_members(forced=False):
             else:
                 logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
 
-    for thread_detector in thread_detectors.items():
+    for key, thread_detector in thread_detectors.items():
         if thread_detector != None:
+            logger.info(f"Set active_members to thread_detector {key}")
             thread_detector.active_members = active_members
         
         

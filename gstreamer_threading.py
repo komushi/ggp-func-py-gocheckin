@@ -290,7 +290,7 @@ class StreamCapture(threading.Thread):
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
-                logger.info(f"Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
+                logger.info(f"{self.cam_ip} Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
         # elif message.type == Gst.MessageType.WARNING:
         #     logger.info(f"Warning message {message.parse_warning()}： {message.type}.")
         elif message.type == Gst.MessageType.ELEMENT:
