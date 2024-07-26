@@ -242,6 +242,7 @@ class FaceRecognition(threading.Thread):
 
             self.start_time = current_time
             self.end_time = self.start_time + self.init_running_time
+            self.captured_members = {}
 
             logger.info(f"{self.name} has new start_time: {self.start_time} for {self.init_running_time} seconds")
 
