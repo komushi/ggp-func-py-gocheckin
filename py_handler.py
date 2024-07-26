@@ -486,7 +486,8 @@ def get_active_members():
     
     results = filtered_results
 
-    logger.info('get_active_members out')
+    for item in results:
+        logger.info(f"get_active_members out, reservationCode: {item.reservationCode}, memberNo: {item.memberNo}, fullName: {item.fullName}, checkedIn: {item.checkedIn}")
 
     return results
 
@@ -565,7 +566,7 @@ def fetch_scanner_output_queue():
 
                         iotClient.publish(
                             topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
-                            payload=json.dumps(message['snapshot_payload'])
+                            payload=json.dumps(snapshot_payload)
                         )
 
                     if 'checkedIn' in message:
