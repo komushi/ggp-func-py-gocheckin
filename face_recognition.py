@@ -96,8 +96,9 @@ class FaceRecognition(threading.Thread):
                     cmd, val = self.cam_queue.get(False)
 
                     if crt_time >= self.end_time:
-                        # logger.info(f"{self.name} reached maximum seconds limit of {self.end_time - self.start_time}")
-                        self.thread_gst.pause_sampling()
+                        if not self.thread_gst.stop_event.is_set():
+                            # logger.info(f"{self.name} reached maximum seconds limit of {self.end_time - self.start_time}")
+                            self.thread_gst.pause_sampling()
                     else:
                         if cmd == gst.StreamCommands.FRAME:
                             if val is not None:
@@ -198,7 +199,9 @@ class FaceRecognition(threading.Thread):
                                                                 self.captured_members[memberKey]["similarity"] = sim
                                         else:
                                             logger.info(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {self.rtsp_src}")
-
+                else:
+                    logger.info(f"{self.thread_gst.name} is not sending FRAME")
+                    time.sleep(1)
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
             logger.info(e)
