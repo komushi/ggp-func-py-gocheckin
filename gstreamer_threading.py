@@ -91,14 +91,16 @@ class StreamCapture(threading.Thread):
             self.source.set_property('latency', 1000)
             self.source.set_property('location', self.rtsp_src)
             self.source.set_property('protocols', 'tcp')
-            self.source.set_property('retry', 3000000)
+            self.source.set_property('retry', 1)
             self.source.set_property('timeout', 2000000)
             self.source.set_property('tcp-timeout', 2000000)
             self.source.set_property('buffer-mode', 1)
-            self.source.set_property("onvif-mode", True)
-            self.source.set_property("onvif-rate-control", True)
-            if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
-                self.source.set_property('is-live', True)
+            
+            # self.source.set_property("onvif-mode", True)
+            # self.source.set_property("onvif-rate-control", True)
+            # if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
+            #     self.source.set_property('is-live', True)
+
             # self.source.set_property('drop-on-latency', 'true')
             # self.source.set_property('ntp-time-source', 0)
             # self.source.set_property('ntp-sync', 'true')
