@@ -213,7 +213,7 @@ class StreamCapture(threading.Thread):
                     time.sleep(2)
                     # logger.info(f"{self.name} is in paused mode")
                 else:
-                    if self.image_arr != None and self.newImage:
+                    if self.image_arr is not None and self.newImage:
 
                         if not self.cam_queue.full():
                             # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
