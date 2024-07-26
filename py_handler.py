@@ -521,6 +521,11 @@ def fetch_members(forced=False):
                 last_fetch_time = current_date
             else:
                 logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
+
+    for thread_detector in thread_detectors.items():
+        if thread_detector != None:
+            thread_detector.active_members = active_members
+        
         
 def claim_scanner_once():
     data = {
