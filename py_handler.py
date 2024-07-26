@@ -545,10 +545,11 @@ def fetch_scanner_output_queue():
             
             if 'type' in message:
                 if message['type'] == 'guest_detected':
-                    if 'local_file_path' in message:
+                    if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message):
                         local_file_path = message['local_file_path']
-                    
                         property_object_key = message['payload']['propertyImgKey']
+                        snapshot_payload= message['snapshot_payload']
+
                         uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
 
                         iotClient.publish(
@@ -556,17 +557,19 @@ def fetch_scanner_output_queue():
                             payload=json.dumps(message['snapshot_payload'])
                         )
 
-                        update_member(message['payload']['reservationCode'], message['payload']['memberNo'])
+                    if 'checkedIn' in message:
+                        checkedIn = message['checkedIn']
 
-                        timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
-                        timer.start()
+                        if not checkedIn:    
+                            update_member(message['payload']['reservationCode'], message['payload']['memberNo'])
 
-                    iotClient.publish(
-                        topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
-                        payload=json.dumps(message['payload'])
-                    )
+                            timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
+                            timer.start()
 
-
+                            iotClient.publish(
+                                topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
+                                payload=json.dumps(message['payload'])
+                            )
 
                 elif message['type'] == 'video_clipped':
                     local_file_path = message['payload']['local_file_path']

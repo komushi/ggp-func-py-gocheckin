@@ -139,60 +139,55 @@ class FaceRecognition(threading.Thread):
                                                                 if active_member['checkedIn']:
                                                                     checkedIn = active_member['checkedIn']
 
-                                                            if not checkedIn:
-                                                                now = datetime.now(timezone.utc)
-                                                                date_folder = now.strftime("%Y-%m-%d")
-                                                                time_filename = now.strftime("%H:%M:%S")
-                                                                ext = ".jpg"
+                                                            # if not checkedIn:
+                                                            now = datetime.now(timezone.utc)
+                                                            date_folder = now.strftime("%Y-%m-%d")
+                                                            time_filename = now.strftime("%H:%M:%S")
+                                                            ext = ".jpg"
 
-                                                                local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
-                                                                if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder)):
-                                                                    os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
+                                                            local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
+                                                            if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder)):
+                                                                os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
 
-                                                                bbox = face.bbox.astype(int)
-                                                                img = val.astype(np.uint8)
-                                                                cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
-                                                                cv2.putText(img, f"{active_member['fullName']}:{sim}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-                                                                cv2.imwrite(local_file_path, img)
+                                                            bbox = face.bbox.astype(int)
+                                                            img = val.astype(np.uint8)
+                                                            cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+                                                            cv2.putText(img, f"{active_member['fullName']}:{sim}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+                                                            cv2.imwrite(local_file_path, img)
 
-                                                                logger.info(f"Newly checkIn snapshot taken at {local_file_path}")
+                                                            logger.info(f"Newly checkIn snapshot taken at {local_file_path}")
 
                                                             if not self.scanner_output_queue.full():
-                                                                if checkedIn:
-                                                                    self.scanner_output_queue.put({
-                                                                        "type": "guest_detected",
-                                                                        "payload": self.captured_members[memberKey]
-                                                                    }, block=False)
-                                                                else:
-                                                                    checkin_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/listings/{active_member['listingId']}/{active_member['reservationCode']}/checkIn/{str(active_member['memberNo'])}{ext}"""
-                                                                    property_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
-                                                                    snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+                                                                checkin_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/listings/{active_member['listingId']}/{active_member['reservationCode']}/checkIn/{str(active_member['memberNo'])}{ext}"""
+                                                                property_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+                                                                snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                                                                    self.captured_members[memberKey]['checkInImgKey'] = checkin_object_key
-                                                                    self.captured_members[memberKey]['propertyImgKey'] = property_object_key
+                                                                self.captured_members[memberKey]['checkInImgKey'] = checkin_object_key
+                                                                self.captured_members[memberKey]['propertyImgKey'] = property_object_key
 
-                                                                    snapshot_payload = {
-                                                                        "hostId": os.environ['HOST_ID'],
-                                                                        "propertyCode": os.environ['PROPERTY_CODE'],
-                                                                        "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
-                                                                        "coreName": os.environ['AWS_IOT_THING_NAME'],
-                                                                        "equipmentId": self.cam_uuid,
-                                                                        "equipmentName": self.cam_name,
-                                                                        "cameraIp": self.cam_ip,
-                                                                        "recordStart": self.captured_members[memberKey]['recordTime'],
-                                                                        "recordEnd": self.captured_members[memberKey]['recordTime'],
-                                                                        "identityId": os.environ['IDENTITY_ID'],
-                                                                        "s3level": 'private',
-                                                                        "videoKey": '',
-                                                                        "snapshotKey": snapshot_key
-                                                                    }
+                                                                snapshot_payload = {
+                                                                    "hostId": os.environ['HOST_ID'],
+                                                                    "propertyCode": os.environ['PROPERTY_CODE'],
+                                                                    "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+                                                                    "coreName": os.environ['AWS_IOT_THING_NAME'],
+                                                                    "equipmentId": self.cam_uuid,
+                                                                    "equipmentName": self.cam_name,
+                                                                    "cameraIp": self.cam_ip,
+                                                                    "recordStart": self.captured_members[memberKey]['recordTime'],
+                                                                    "recordEnd": self.captured_members[memberKey]['recordTime'],
+                                                                    "identityId": os.environ['IDENTITY_ID'],
+                                                                    "s3level": 'private',
+                                                                    "videoKey": '',
+                                                                    "snapshotKey": snapshot_key
+                                                                }
 
-                                                                    self.scanner_output_queue.put({
-                                                                        "type": "guest_detected",
-                                                                        "payload": self.captured_members[memberKey],
-                                                                        "local_file_path": local_file_path,
-                                                                        "snapshot_payload": snapshot_payload
-                                                                    }, block=False)
+                                                                self.scanner_output_queue.put({
+                                                                    "type": "guest_detected",
+                                                                    "checkedIn": checkedIn,
+                                                                    "payload": self.captured_members[memberKey],
+                                                                    "local_file_path": local_file_path,
+                                                                    "snapshot_payload": snapshot_payload
+                                                                }, block=False)
 
                                                         else:
                                                             if self.captured_members[memberKey]["similarity"] < sim:
