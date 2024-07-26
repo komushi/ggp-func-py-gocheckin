@@ -210,7 +210,7 @@ class StreamCapture(threading.Thread):
             while True:
 
                 if self.stop_event.is_set():
-                    time.sleep(1)
+                    time.sleep(0.5)
                     logger.info(f"{self.name} is in paused mode")
                 else:
                     if self.image_arr is not None and self.newImage is True:
@@ -260,7 +260,7 @@ class StreamCapture(threading.Thread):
         logger.info("Stopping recording...")
         # self.eos_received = False
 
-        self.record_valve.set_property('drop', True)
+        # self.record_valve.set_property('drop', True)
         
         # Send EOS to the recording branch
         logger.info("Before sending sink eos")
