@@ -69,21 +69,16 @@ class StreamCapture(threading.Thread):
         self.sink = None
         self.image_arr = None
         self.newImage = False
-        self.record_valve = None
-        self.splitmuxsink = None
-        # self.motioncells = None
+
         self.num_unexpected_tot = 1000
         self.unexpected_cnt = 0
-        # self.eos_received = False
+
         self.cam_ip = cam_ip
         self.cam_uuid = cam_uuid
         self.cam_name = cam_name
 
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
-
-        # Get the tee element
-        tee = self.pipeline.get_by_name("t")
 
         # source params
         self.source = self.pipeline.get_by_name('m_rtspsrc')
@@ -104,6 +99,10 @@ class StreamCapture(threading.Thread):
             # self.source.set_property('drop-on-latency', 'true')
             # self.source.set_property('ntp-time-source', 0)
             # self.source.set_property('ntp-sync', 'true')
+
+        # rtph264depay
+        self.rtph264depay = self.pipeline.get_by_name('m_rtph264depay')
+        self.rtph265depay = self.pipeline.get_by_name('m_rtph265depay')
 
         # decode params
         self.decode = self.pipeline.get_by_name('m_avdec')
@@ -158,20 +157,17 @@ class StreamCapture(threading.Thread):
 
         self.sink.connect("new-sample", self.new_buffer, self.sink)
 
-        # # record_valve params
-        # self.record_valve = self.pipeline.get_by_name('m_record_valve')
+        # Get the tee element
+        self.tee = None
+        self.tee_pad = None
+        self.queue = None
+        self.record_valve = None
+        self.splitmuxsink = None
+        self.h264h265_parser = None
 
-        # # splitmuxsink params
-        # self.splitmuxsink = self.pipeline.get_by_name('m_splitmuxsink')
-
-        # now = datetime.now(timezone.utc)
-        # self.date_folder = now.strftime("%Y-%m-%d")
-        # self.time_filename = now.strftime("%H:%M:%S")
-        # self.ext = ".mp4"
-
-        # self.splitmuxsink.set_property('location', os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
-        # if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
-        #     os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
+        self.date_folder = None
+        self.time_filename = None
+        self.ext = ".mp4"
 
 
     def gst_to_opencv(self, sample):
@@ -231,10 +227,6 @@ class StreamCapture(threading.Thread):
 
                     if message:
                         self.on_message(bus, message)
-                    
-                
-
-
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
@@ -254,33 +246,33 @@ class StreamCapture(threading.Thread):
 
     def pause_sampling(self):
         logger.info(f"pause_sampling")
+        self.stop_recording()
+
         self.stop_event.set()
 
     def restart_sampling(self):
         logger.info(f"restart_sampling")
         self.stop_event.clear()
 
-    def stop_recording(self):
-        logger.info("Stopping recording...")
-        # self.eos_received = False
+        self.start_recording()
 
-        # self.record_valve.set_property('drop', True)
+    def start_recording(self):
+        logger.info("Start recording")
+
+        self.create_and_link_splitmuxsink()
+
+        self.record_valve.set_property('drop', False)
+        
+        logger.info("Recording started...")
+
+    def stop_recording(self):
+        logger.info("Stop recording")
+
+        self.record_valve.set_property('drop', True)
         
         # Send EOS to the recording branch
-        logger.info("Before sending sink eos")
-        # self.splitmuxsink.send_event(Gst.Event.new_eos())
-
-        # logger.info("Before sending pipeline eos")
-        # self.pipeline.send_event(Gst.Event.new_eos())
-
-        logger.info("End-Of-Stream sending...")
-
-        # Wait for the EOS event to be processed
-        # while not self.eos_received:
-        #     time.sleep(0.1)
-        #     logger.info("waiting for eos_received")
-
-        logger.info("Recording stopped")
+        self.splitmuxsink.send_event(Gst.Event.new_eos())
+        logger.info("End-Of-Stream sent...")
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
@@ -333,3 +325,66 @@ class StreamCapture(threading.Thread):
                         }, block=False)
                         logger.info(f"Sending video_clipped for video file: {self.time_filename}")
                     
+
+    def create_and_link_splitmuxsink(self):
+            
+            # Create elements for the splitmuxsink branch
+            self.queue = Gst.ElementFactory.make("queue", "record_queue")
+            self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
+            if self.rtph265depay is not None:
+                self.h264h265_parser = Gst.ElementFactory.make("h265parse", "record_h265parse")
+            elif self.rtph264depay is not None:
+                self.h264h265_parser = Gst.ElementFactory.make("h264parse", "record_h264parse")
+            self.splitmuxsink = Gst.ElementFactory.make("splitmuxsink", "splitmuxsink")
+            
+            now = datetime.now(timezone.utc)
+            self.date_folder = now.strftime("%Y-%m-%d")
+            self.time_filename = now.strftime("%H:%M:%S")
+
+            if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
+                os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
+
+            # Set properties
+            self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
+            self.splitmuxsink.set_property("max-size-time", 20000000000)  # 20 seconds
+
+            # Add elements to the pipeline
+            self.pipeline.add(self.queue)
+            self.pipeline.add(self.record_valve)
+            self.pipeline.add(self.h264h265_parser)
+            self.pipeline.add(self.splitmuxsink)
+
+            # Link the elements together
+            self.queue.link(self.record_valve)
+            self.record_valve.link(self.h264h265_parser)
+            self.h264h265_parser.link(self.splitmuxsink)
+
+            # Link the tee to the queue
+            self.tee_pad = self.tee.request_pad_simple("src_%u")
+            queue_pad = self.queue.get_static_pad("sink")
+            self.tee_pad.link(queue_pad)
+
+            self.pipeline.set_state(Gst.State.PLAYING)
+
+            logging.info("Splitmuxsink branch created and linked")
+
+    # Function to unlink and remove the splitmuxsink branch
+    def unlink_and_remove_splitmuxsink(self):
+        # Unlink the tee from the queue
+        self.tee_pad.unlink(self.queue.get_static_pad("sink"))
+
+        self.queue.set_state(Gst.State.NULL)
+        self.record_valve.set_state(Gst.State.NULL)
+        self.h264h265_parser.set_state(Gst.State.NULL)
+        self.splitmuxsink.set_state(Gst.State.NULL)
+
+        # Remove the elements from the pipeline
+        self.pipeline.remove(self.queue)
+        self.pipeline.remove(self.record_valve)
+        self.pipeline.remove(self.h264h265_parser)
+        self.pipeline.remove(self.splitmuxsink)
+
+        # Release the tee pad
+        self.tee.release_request_pad(self.tee_pad)
+
+        logging.info("Splitmuxsink branch unlinked and removed")
