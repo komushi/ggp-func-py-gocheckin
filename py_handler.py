@@ -165,6 +165,8 @@ def start_http_server():
                     self.send_error(403, "Forbidden: Only localhost allowed")
                     return
 
+                global thread_detectors
+
                 if self.path == '/recognise':
                     self.send_response(200)
                     self.send_header('Content-type', 'application/json')
@@ -234,6 +236,8 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
+                    logger.info(f"/detect camera: {format(event['cameraItem']['localIp'])}")
+
                     if event['cameraItem']['localIp'] in thread_detectors and thread_detectors[event['cameraItem']['localIp']] is not None:
                         # detect
                         rtn_active_members = fetch_members()
@@ -251,9 +255,7 @@ def start_http_server():
                         set_host_info_to_env(event['hostInfo'])
                         init_uploader_app()
 
-                    logger.info(f"/detect POST host: {format(event['cameraItem']['localIp'])}")
-
-                    global thread_detectors
+                    logger.info(f"/start camera: {format(event['cameraItem']['localIp'])}")
 
                     if event['cameraItem']['localIp'] not in thread_detectors or thread_detectors[event['cameraItem']['localIp']] is None or not thread_detectors[event['cameraItem']['localIp']].is_alive():
 
