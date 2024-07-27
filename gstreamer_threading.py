@@ -77,6 +77,8 @@ class StreamCapture(threading.Thread):
         self.cam_uuid = cam_uuid
         self.cam_name = cam_name
 
+        self.handler_id = None
+
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
 
@@ -155,8 +157,6 @@ class StreamCapture(threading.Thread):
             print("Not all elements could be created.")
             self.stop_event.set()
 
-        self.sink.connect("new-sample", self.new_buffer, self.sink)
-
         # Get the tee element
         self.tee = self.pipeline.get_by_name("t")
         self.tee_pad = None
@@ -200,8 +200,6 @@ class StreamCapture(threading.Thread):
         if ret == Gst.StateChangeReturn.FAILURE:
             print("Unable to set the pipeline to the playing state.")
             self.stop_event.set()
-
-        self.start_recording()
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
@@ -248,15 +246,21 @@ class StreamCapture(threading.Thread):
 
     def pause_sampling(self):
         logger.info(f"pause_sampling")
-        self.stop_recording()
 
         self.stop_event.set()
 
-    def restart_sampling(self):
-        logger.info(f"restart_sampling")
-        self.stop_event.clear()
+        if self.handler_id is not None:
+            self.sink.disconnect(self.handler_id)
+            self.handler_id = None
 
-        self.start_recording()
+
+    def start_sampling(self):
+        logger.info(f"start_sampling")
+        
+        if self.handler_id is None:
+            self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
+
+        self.stop_event.clear()
 
     def start_recording(self):
         logger.info("Start recording")

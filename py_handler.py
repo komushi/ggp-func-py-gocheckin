@@ -32,6 +32,7 @@ import boto3
 from boto3.dynamodb.conditions import  Attr
 
 from insightface.app import FaceAnalysis
+import face_recognition as fdm
 
 import greengrasssdk
 iotClient = greengrasssdk.client("iot-data")
@@ -51,7 +52,6 @@ scheduler_thread = None
 scheduler = sched.scheduler(time.time, time.sleep)
 
 # Initialize the active_members and the last_fetch_time
-active_members = []
 last_fetch_time = None
 
 # Initialize the face_app, uploader_app
@@ -228,8 +228,19 @@ def start_http_server():
 
                     timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
                     timer.start()
-
                 elif self.path == '/detect':
+                    # Process the POST data
+                    content_length = int(self.headers['Content-Length'])
+                    post_data = self.rfile.read(content_length)
+                    event = json.loads(post_data)
+
+                    if event['cameraItem']['localIp'] in thread_detectors and thread_detectors[event['cameraItem']['localIp']] is not None:
+                        # detect
+                        rtn_active_members = fetch_members()
+                        thread_detectors[event['cameraItem']['localIp']].active_members = rtn_active_members
+                        thread_detectors[event['cameraItem']['localIp']].start_detection()
+                
+                elif self.path == '/start':
 
                     # Process the POST data
                     content_length = int(self.headers['Content-Length'])
@@ -238,9 +249,7 @@ def start_http_server():
 
                     if 'hostInfo' in event:
                         set_host_info_to_env(event['hostInfo'])
-
-                    # init_uploader_app
-                    init_uploader_app()
+                        init_uploader_app()
 
                     logger.info(f"/detect POST host: {format(event['cameraItem']['localIp'])}")
 
@@ -252,11 +261,8 @@ def start_http_server():
 
                         # logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                        import face_recognition as fdm
+                        # rtn_active_members = fetch_members()
 
-                        fetch_members()
-
-                        # if active_members:
                         params = {}
                         params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['localIp']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
                         params['codec'] = event['cameraItem']['rtsp']['codec']
@@ -264,11 +270,8 @@ def start_http_server():
                         params['cam_ip'] = event['cameraItem']['localIp']
                         params['cam_uuid'] = event['cameraItem']['uuid']
                         params['cam_name'] = event['cameraItem']['equipmentName']
-                        params['active_members'] = active_members
+                        # params['active_members'] = rtn_active_members
                         params['face_app'] = face_app
-                        # params['max_running_time'] = int(os.environ['MAX_RUNNING_TIME'])
-                        # params['init_running_time'] = int(os.environ['INIT_RUNNING_TIME'])
-                        # params['face_threshold'] = float(os.environ['FACE_THRESHOLD'])
 
                         thread_detectors[event['cameraItem']['localIp']] = fdm.FaceRecognition(params, scanner_output_queue)
                         thread_detectors[event['cameraItem']['localIp']].start()
@@ -279,13 +282,6 @@ def start_http_server():
                         self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['localIp']}).encode())
 
                         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                        # else:
-                        #     self.send_response(400)
-                        #     self.end_headers()
-                        #     self.wfile.write(json.dumps({"message": f'No active_members: {repr(active_members)} to start Thread FaceRecognition'}).encode())
-
-                        #     logger.info(f'No active_members: {repr(active_members)} to start Thread FaceRecognition')
-
                 
                     elif thread_detectors[event['cameraItem']['localIp']].is_alive():
 
@@ -412,7 +408,7 @@ def update_member(reservationCode, memberNo):
 
     member_key = {
         'reservationCode': reservationCode,
-        'memberNo': memberNo         # Replace with actual member number
+        'memberNo': memberNo
     }
 
     attribute_name = 'checkedIn'
@@ -495,13 +491,11 @@ def get_active_members():
 def fetch_members(forced=False):
     logger.info('fetch_members in')
 
-    current_date = datetime.now().date()
-
-    global active_members
     global last_fetch_time
 
-    # logger.info('fetch_members last_fetch_time: %s', str(last_fetch_time))
-    # logger.info('fetch_members current_date: %s', str(current_date))
+    current_date = datetime.now().date()
+    active_members = None 
+
 
     if forced is True:
         logger.info('fetch_members init')
@@ -522,10 +516,12 @@ def fetch_members(forced=False):
             else:
                 logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
 
-    for key, thread_detector in thread_detectors.items():
-        if thread_detector != None:
-            logger.info(f"Set active_members to thread_detector {key}")
-            thread_detector.active_members = active_members
+    return active_members
+
+    # for key, thread_detector in thread_detectors.items():
+    #     if thread_detector != None:
+    #         logger.info(f"Set active_members to thread_detector {key}")
+    #         thread_detector.active_members = active_members
         
         
 def claim_scanner_once():
@@ -680,6 +676,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
 init_face_app()
+
 
 # Start the HTTP server thread
 start_server_thread()
