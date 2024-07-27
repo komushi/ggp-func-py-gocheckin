@@ -158,7 +158,7 @@ class StreamCapture(threading.Thread):
         self.sink.connect("new-sample", self.new_buffer, self.sink)
 
         # Get the tee element
-        self.tee = None
+        self.tee = self.pipeline.get_by_name("t")
         self.tee_pad = None
         self.queue = None
         self.record_valve = None
