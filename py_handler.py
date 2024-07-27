@@ -243,7 +243,21 @@ def start_http_server():
                         rtn_active_members = fetch_members()
                         thread_detectors[event['cameraItem']['localIp']].active_members = rtn_active_members
                         thread_detectors[event['cameraItem']['localIp']].start_detection()
-                
+
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition Detection " + event['cameraItem']['localIp']}).encode())
+
+                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                    else:
+                        self.send_response(400)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
+
+                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+
+
                 elif self.path == '/start':
 
                     # Process the POST data
