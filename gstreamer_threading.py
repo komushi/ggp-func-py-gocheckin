@@ -362,7 +362,7 @@ class StreamCapture(threading.Thread):
             self.h264h265_parser.link(self.splitmuxsink)
 
             # Link the tee to the queue
-            self.tee_pad = self.tee.request_pad_simple("src_%u")
+            self.tee_pad = self.tee.get_request_pad("src_%u")
             queue_pad = self.queue.get_static_pad("sink")
             self.tee_pad.link(queue_pad)
 
