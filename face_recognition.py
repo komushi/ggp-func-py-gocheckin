@@ -88,7 +88,9 @@ class FaceRecognition(threading.Thread):
             self.framerate
         )
         
-        self.thread_gst.pause_sampling()
+        # self.thread_gst.pause_sampling()
+
+        self.thread_gst.start_sampling()
 
         self.thread_gst.start()
 
