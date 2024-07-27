@@ -201,6 +201,8 @@ class StreamCapture(threading.Thread):
             print("Unable to set the pipeline to the playing state.")
             self.stop_event.set()
 
+        self.start_recording()
+
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
         # bus.add_signal_watch()
