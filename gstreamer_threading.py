@@ -334,45 +334,45 @@ class StreamCapture(threading.Thread):
 
     def create_and_link_splitmuxsink(self):
             
-            # Create elements for the splitmuxsink branch
-            self.queue = Gst.ElementFactory.make("queue", "record_queue")
-            self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
-            if self.rtph265depay is not None:
-                self.h264h265_parser = Gst.ElementFactory.make("h265parse", "record_h265parse")
-            elif self.rtph264depay is not None:
-                self.h264h265_parser = Gst.ElementFactory.make("h264parse", "record_h264parse")
-            self.splitmuxsink = Gst.ElementFactory.make("splitmuxsink", "splitmuxsink")
-            
-            now = datetime.now(timezone.utc)
-            self.date_folder = now.strftime("%Y-%m-%d")
-            self.time_filename = now.strftime("%H:%M:%S")
+        # Create elements for the splitmuxsink branch
+        self.queue = Gst.ElementFactory.make("queue", "record_queue")
+        self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
+        if self.rtph265depay is not None:
+            self.h264h265_parser = Gst.ElementFactory.make("h265parse", "record_h265parse")
+        elif self.rtph264depay is not None:
+            self.h264h265_parser = Gst.ElementFactory.make("h264parse", "record_h264parse")
+        self.splitmuxsink = Gst.ElementFactory.make("splitmuxsink", "splitmuxsink")
+        
+        now = datetime.now(timezone.utc)
+        self.date_folder = now.strftime("%Y-%m-%d")
+        self.time_filename = now.strftime("%H:%M:%S")
 
-            if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
-                os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
+        if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
+            os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
 
-            # Set properties
-            self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
-            self.splitmuxsink.set_property("max-size-time", 20000000000)  # 20 seconds
+        # Set properties
+        self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
+        self.splitmuxsink.set_property("max-size-time", 20000000000)  # 20 seconds
 
-            # Add elements to the pipeline
-            self.pipeline.add(self.queue)
-            self.pipeline.add(self.record_valve)
-            self.pipeline.add(self.h264h265_parser)
-            self.pipeline.add(self.splitmuxsink)
+        # Add elements to the pipeline
+        self.pipeline.add(self.queue)
+        self.pipeline.add(self.record_valve)
+        self.pipeline.add(self.h264h265_parser)
+        self.pipeline.add(self.splitmuxsink)
 
-            # Link the elements together
-            self.queue.link(self.record_valve)
-            self.record_valve.link(self.h264h265_parser)
-            self.h264h265_parser.link(self.splitmuxsink)
+        # Link the elements together
+        self.queue.link(self.record_valve)
+        self.record_valve.link(self.h264h265_parser)
+        self.h264h265_parser.link(self.splitmuxsink)
 
-            # Link the tee to the queue
-            self.tee_pad = self.tee.get_request_pad("src_%u")
-            queue_pad = self.queue.get_static_pad("sink")
-            self.tee_pad.link(queue_pad)
+        # Link the tee to the queue
+        self.tee_pad = self.tee.get_request_pad("src_%u")
+        queue_pad = self.queue.get_static_pad("sink")
+        self.tee_pad.link(queue_pad)
 
-            self.pipeline.set_state(Gst.State.PLAYING)
+        self.pipeline.set_state(Gst.State.PLAYING)
 
-            logging.info("Splitmuxsink branch created and linked")
+        logging.info("Splitmuxsink branch created and linked")
 
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):

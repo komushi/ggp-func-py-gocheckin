@@ -53,6 +53,7 @@ scheduler = sched.scheduler(time.time, time.sleep)
 
 # Initialize the active_members and the last_fetch_time
 last_fetch_time = None
+active_members = None
 
 # Initialize the face_app, uploader_app
 face_app = None
@@ -230,19 +231,18 @@ def start_http_server():
 
                     timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
                     timer.start()
-                elif self.path == '/detect':
+                elif self.path == '/record':
+                    # TODO
                     # Process the POST data
                     content_length = int(self.headers['Content-Length'])
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
-                    logger.info(f"/detect camera: {format(event['cameraItem']['localIp'])}")
+                    logger.info(f"/record camera: {format(event['cameraItem']['localIp'])}")
 
                     if event['cameraItem']['localIp'] in thread_detectors and thread_detectors[event['cameraItem']['localIp']] is not None:
-                        # detect
-                        rtn_active_members = fetch_members()
-                        thread_detectors[event['cameraItem']['localIp']].active_members = rtn_active_members
-                        thread_detectors[event['cameraItem']['localIp']].start_detection()
+                        # record 
+                        thread_detectors[event['cameraItem']['localIp']].start_recording()
 
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
@@ -257,6 +257,46 @@ def start_http_server():
 
                         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
+                elif self.path == '/detect':
+                    # Process the POST data
+                    content_length = int(self.headers['Content-Length'])
+                    post_data = self.rfile.read(content_length)
+                    event = json.loads(post_data)
+
+                    logger.info(f"/detect camera: {format(event['cameraItem']['localIp'])}")
+
+                    if event['cameraItem']['localIp'] in thread_detectors and thread_detectors[event['cameraItem']['localIp']] is not None:
+
+                        if not thread_detectors[event['cameraItem']['localIp']].stop_event.is_set():
+
+                            logger.info(f"Extending detector thread for : {event['cameraItem']['localIp']}")
+
+                            # logger.info(f'Available threads before extending: {", ".join(thread.name for thread in threading.enumerate())}')
+
+                            thread_detectors[event['cameraItem']['localIp']].extend_detection_time()
+                            self.send_response(200)
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is already running"}).encode())
+
+                        else:
+
+                            # detect
+                            fetch_members()
+                            thread_detectors[event['cameraItem']['localIp']].active_members = active_members
+                            thread_detectors[event['cameraItem']['localIp']].start_detection()
+
+                            self.send_response(200)
+                            self.send_header('Content-type', 'application/json')
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition Detection " + event['cameraItem']['localIp']}).encode())
+
+                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                    else:
+                        self.send_response(400)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
+
+                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                 elif self.path == '/start':
 
@@ -277,8 +317,6 @@ def start_http_server():
 
                         # logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                        # rtn_active_members = fetch_members()
-
                         params = {}
                         params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['localIp']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
                         params['codec'] = event['cameraItem']['rtsp']['codec']
@@ -298,20 +336,6 @@ def start_http_server():
                         self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition " + event['cameraItem']['localIp']}).encode())
 
                         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                
-                    elif thread_detectors[event['cameraItem']['localIp']].is_alive():
-
-                        logger.info(f"Extending detector thread for : {event['cameraItem']['localIp']}")
-
-                        # logger.info(f'Available threads before extending: {", ".join(thread.name for thread in threading.enumerate())}')
-
-                        thread_detectors[event['cameraItem']['localIp']].extend_detection_time()
-                        self.send_response(200)
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is already running"}).encode())
-
-                        # logger.info(f'Available threads after extending: {", ".join(thread.name for thread in threading.enumerate())}')
-
                     else:                        
                         # logger.info(f"Detector thread for : {event['cameraItem']['localIp']} is not running properly")  
 
@@ -508,10 +532,9 @@ def fetch_members(forced=False):
     logger.info('fetch_members in')
 
     global last_fetch_time
+    global active_members
 
     current_date = datetime.now().date()
-    active_members = None 
-
 
     if forced is True:
         logger.info('fetch_members init')
@@ -531,8 +554,6 @@ def fetch_members(forced=False):
                 last_fetch_time = current_date
             else:
                 logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
-
-    return active_members
 
     # for key, thread_detector in thread_detectors.items():
     #     if thread_detector != None:

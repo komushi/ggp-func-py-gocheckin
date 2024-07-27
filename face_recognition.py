@@ -101,6 +101,7 @@ class FaceRecognition(threading.Thread):
                     else:
                         cmd, val = self.cam_queue.get(False)
                 else:
+                    #TODO need to separate recording and detecting
                     if not self.cam_queue.empty():
                         cmd, val = self.cam_queue.get(False)
                     
@@ -246,6 +247,13 @@ class FaceRecognition(threading.Thread):
         self.thread_gst.start_sampling()
         # self.thread_gst.start_recording()
 
+    def start_recording(self):
+        self.start_time = time.time()
+        # self.end_time = self.start_time + self.init_running_time
+
+        # self.stop_event.clear()
+        # self.thread_gst.start_sampling()
+        # self.thread_gst.start_recording()
 
     def extend_detection_time(self):
         current_time = time.time()
