@@ -272,7 +272,7 @@ def start_http_server():
                         params['cam_ip'] = event['cameraItem']['localIp']
                         params['cam_uuid'] = event['cameraItem']['uuid']
                         params['cam_name'] = event['cameraItem']['equipmentName']
-                        # params['active_members'] = rtn_active_members
+                        params['active_members'] = None
                         params['face_app'] = face_app
 
                         thread_detectors[event['cameraItem']['localIp']] = fdm.FaceRecognition(params, scanner_output_queue)
