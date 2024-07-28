@@ -58,6 +58,8 @@ class FaceRecognition(threading.Thread):
 
                     if not self.cam_queue.empty():
                         cmd, raw_img, cam_info = self.cam_queue.get(False)
+
+                        logger.info(f"cam_info: {cam_info}, cmd: {cmd}")
                     
                         crt_time = time.time()
 
