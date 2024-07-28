@@ -289,7 +289,7 @@ def start_http_server():
 
                     if thread_gstreamers[event['cameraItem']['localIp']] is not None:
                         thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
-                        set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], 10)
+                        set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], 5)
 
                         if thread_detector is None:
                             params = {}

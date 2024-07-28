@@ -207,7 +207,8 @@ class StreamCapture(threading.Thread):
             while True:
 
                 if self.stop_event.is_set():
-                    time.sleep(0.1)
+                    logger.info(f"{self.name} stop_event.is_set()")
+                    time.sleep(0.5)
                 else:
                     if self.image_arr is not None and self.newImage:
 
