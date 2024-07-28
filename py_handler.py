@@ -181,7 +181,7 @@ def start_http_server():
         
         def do_POST(self):
             global thread_detector
-            
+
             try:
 
                 if self.client_address[0] != '127.0.0.1':
@@ -303,11 +303,13 @@ def start_http_server():
                         self.wfile.write(json.dumps({"message": "Thread" + thread_detector.name + " is already running"}).encode())
  
                     else:
-                        self.send_response(400)
+                        set_detection_timer(10)
+                        
+                        self.send_response(200)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detector.name + " is not running properly"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_detector.name + " is already running"}).encode())
 
-                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                    logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                 elif self.path == '/start':
                     # Process the POST data

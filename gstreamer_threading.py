@@ -208,16 +208,18 @@ class StreamCapture(threading.Thread):
 
                 if self.stop_event.is_set():
                     time.sleep(0.1)
-                    # logger.info(f"{self.name} is in paused mode")
+                    logger.info(f"{self.name} is in paused mode")
                 else:
                     if self.image_arr is not None and self.newImage:
 
                         if not self.cam_queue.full():
+                            logger.info(f"{self.name} cam_queue is not full!!!")
                             self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
                         else:
                             logger.info(f"!! gstreamer cam_queue is full !!")
 
                         self.image_arr = None
+                        self.newImage = False
 
                     message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
