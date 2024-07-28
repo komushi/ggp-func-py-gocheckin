@@ -172,12 +172,13 @@ def stop_http_server():
 def start_http_server():
 
     global httpd
-    global thread_detector
 
     class ReusableTCPServer(socketserver.TCPServer):
         allow_reuse_address = True
 
     class NewHandler(http.server.SimpleHTTPRequestHandler):
+        global thread_detector
+        
         def do_POST(self):
             try:
 
