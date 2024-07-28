@@ -177,9 +177,11 @@ def start_http_server():
         allow_reuse_address = True
 
     class NewHandler(http.server.SimpleHTTPRequestHandler):
-        global thread_detector
+        
         
         def do_POST(self):
+            global thread_detector
+            
             try:
 
                 if self.client_address[0] != '127.0.0.1':
