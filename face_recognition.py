@@ -29,7 +29,7 @@ class FaceRecognition(threading.Thread):
         self.inference_begins_at = 0
         self.face_app = params['face_app']
 
-        if params['active_members'] is not None:
+        if 'active_members' in params:
             self.active_members = params['active_members']
         else:
             self.active_members = None
@@ -60,7 +60,6 @@ class FaceRecognition(threading.Thread):
                         cmd, raw_img, cam_info = self.cam_queue.get(False)
                     
                         crt_time = time.time()
-
 
                         if cmd == gst.StreamCommands.FRAME:
                             if raw_img is not None and self.active_members:
@@ -163,6 +162,7 @@ class FaceRecognition(threading.Thread):
             traceback.print_exc()
     
     def pause_detection(self):
+        logger.info(f"Pause detector {self.name}")
         self.stop_event.set()
 
     def start_detection(self):

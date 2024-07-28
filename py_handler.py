@@ -289,10 +289,12 @@ def start_http_server():
 
                     if thread_detector is None:
                         params = {}
-                        params['active_members'] = None
                         params['face_app'] = face_app
 
                         thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+
+                        fetch_members()
+
                         thread_detector.start()
                         thread_detector.start_detection()
                         set_detection_timer(10)
@@ -300,14 +302,17 @@ def start_http_server():
                         # thread_detector.extend_detection_time()
                         self.send_response(200)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detector.name + " is already running"}).encode())
+                        self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_detector.name }).encode())
  
                     else:
-                        set_detection_timer(10)
+                        fetch_members()
                         
+                        thread_detector.start_detection()
+                        set_detection_timer(10)
+
                         self.send_response(200)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_detector.name + " is already running"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread: " + thread_detector.name + " is already running"}).encode())
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
