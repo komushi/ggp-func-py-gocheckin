@@ -9,6 +9,7 @@ import queue
 import traceback
 import numpy as np
 
+import gstreamer_threading as gst
 import cv2
 
 # Setup logging to stdout
