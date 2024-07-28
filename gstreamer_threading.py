@@ -1,8 +1,11 @@
 import gi
-from gi.repository import Gst
-from gi.repository import GstPbutils
+
 gi.require_version('Gst', '1.0')
 gi.require_version('GstPbutils', '1.0')
+
+from gi.repository import Gst
+from gi.repository import GstPbutils
+
 
 
 import os
@@ -255,6 +258,7 @@ class StreamCapture(threading.Thread):
 
         count += 1
 
+        logger.info(f"start_sampling before get_state")
         state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
         logger.info(f"start_sampling state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
 
@@ -270,6 +274,7 @@ class StreamCapture(threading.Thread):
                 self.start_sampling(count)
 
         if self.handler_id is None:
+            logger.info(f"start_sampling handler_id is None")
             self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
 
         self.stop_event.clear()
