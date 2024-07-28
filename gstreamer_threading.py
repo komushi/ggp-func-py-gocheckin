@@ -208,7 +208,6 @@ class StreamCapture(threading.Thread):
 
                 if self.stop_event.is_set():
                     time.sleep(0.1)
-                    logger.info(f"{self.name} is in paused mode")
                 else:
                     if self.image_arr is not None and self.newImage:
 
@@ -234,13 +233,8 @@ class StreamCapture(threading.Thread):
             logger.info("Pipeline stopped and cleaned up.")
           
 
-    def stop(self):
-        print(f"Stopping {self.name}")
-
-        self.stop_sampling()
-
     def stop_sampling(self):
-        logger.info(f"stop_sampling")
+        logger.info(f"Stop sampling {self.name}")
 
         self.stop_event.set()
 
