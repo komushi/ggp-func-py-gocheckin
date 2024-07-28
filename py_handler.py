@@ -749,7 +749,8 @@ def set_recording_time(thread_gstreamer, delay):
     recording_timer = threading.Timer(delay, thread_gstreamer.stop_recording)
     recording_timer.start()
 
-    recording_link_timer = threading.Timer(delay, thread_gstreamer.unlink_and_remove_splitmuxsink)
+    recording_link_timer = threading.Timer(delay + 1, thread_gstreamer.unlink_and_remove_splitmuxsink)
+    recording_link_timer.start()
 
 def set_sampling_time(thread_gstreamer, delay):
     global detection_timer

@@ -269,19 +269,26 @@ class StreamCapture(threading.Thread):
             self.handler_id = None
 
     def start_sampling(self):
+        logger.info("Start sampling")
 
-        if self.handler_id is None:
-            logger.info(f"start_sampling handler_id is None")
-            self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
+        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
 
-        self.stop_event.clear()
+        if current_state == Gst.State.PLAYING:
+            if self.handler_id is None:
+                logger.info(f"start_sampling handler_id is None")
+                self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
+
+            self.stop_event.clear()
 
     def start_recording(self):
         logger.info("Start recording")
 
-        self.create_and_link_splitmuxsink()
+        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
 
-        self.record_valve.set_property('drop', False)
+        if current_state == Gst.State.PLAYING:
+            self.create_and_link_splitmuxsink()
+
+            self.record_valve.set_property('drop', False)
         
         logger.info("Recording started...")
 
