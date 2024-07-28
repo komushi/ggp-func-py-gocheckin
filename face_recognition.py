@@ -161,7 +161,7 @@ class FaceRecognition(threading.Thread):
             logger.info(e)
             traceback.print_exc()
     
-    def pause_detection(self):
+    def stop_detection(self):
         logger.info(f"Pause detector {self.name}")
         self.stop_event.set()
 

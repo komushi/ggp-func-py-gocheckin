@@ -287,32 +287,34 @@ def start_http_server():
 
                     logger.info(f"/detect camera: {format(event['cameraItem']['localIp'])}")
 
-                    if thread_detector is None:
-                        params = {}
-                        params['face_app'] = face_app
+                    if thread_gstreamers[event['cameraItem']['localIp']] is not None:
+                        thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
+                        set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], 10)
 
-                        thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+                        if thread_detector is None:
+                            params = {}
+                            params['face_app'] = face_app
 
-                        fetch_members()
+                            thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
 
-                        thread_detector.start()
-                        thread_detector.start_detection()
-                        set_detection_timer(10)
+                            fetch_members()
 
-                        # thread_detector.extend_detection_time()
-                        self.send_response(200)
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_detector.name }).encode())
- 
-                    else:
-                        fetch_members()
-                        
-                        thread_detector.start_detection()
-                        set_detection_timer(10)
+                            thread_detector.start()
+                            thread_detector.start_detection()
 
-                        self.send_response(200)
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread: " + thread_detector.name + " is already running"}).encode())
+                            # thread_detector.extend_detection_time()
+                            self.send_response(200)
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_detector.name }).encode())
+    
+                        else:
+                            fetch_members()
+                            
+                            thread_detector.start_detection()
+
+                            self.send_response(200)
+                            self.end_headers()
+                            self.wfile.write(json.dumps({"message": "Thread: " + thread_detector.name + " is already running"}).encode())
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
@@ -348,9 +350,9 @@ def start_http_server():
 
                         thread_gstreamers[event['cameraItem']['localIp']] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
 
-                        # thread_gstreamers[event['cameraItem']['localIp']].thread_gst.pause_sampling()
+                        # thread_gstreamers[event['cameraItem']['localIp']].stop_sampling()
                         thread_gstreamers[event['cameraItem']['localIp']].start()
-                        thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
+                        # thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
                     
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
@@ -707,14 +709,14 @@ def signal_handler(signum, frame):
 
     global thread_detector
     if thread_detector is not None:
-        thread_detector.stop()
+        thread_detector.stop_detection()
         thread_detector.join()
         thread_detector = None
 
     global thread_gstreamers
     for thread_name in thread_gstreamers:
         if thread_gstreamers[thread_name] is not None:
-            thread_gstreamers[thread_name].stop()
+            thread_gstreamers[thread_name].stop_sampling()
             thread_gstreamers[thread_name].join()
             thread_gstreamers[thread_name] = None
     thread_gstreamers = {}
@@ -734,16 +736,14 @@ def signal_handler(signum, frame):
         server_thread = None
     logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
 
-def set_detection_timer(delay):
+def set_sampling_time(thread_gstreamer, delay):
     global detection_timer
     
     if detection_timer:
         detection_timer.cancel()
     
-    detection_timer = threading.Timer(delay, thread_detector.pause_detection)
+    detection_timer = threading.Timer(delay, thread_gstreamer.stop_sampling)
     detection_timer.start()
-
-
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)

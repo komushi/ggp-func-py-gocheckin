@@ -237,19 +237,16 @@ class StreamCapture(threading.Thread):
     def stop(self):
         print(f"Stopping {self.name}")
 
-        self.stop_recording()
+        self.stop_sampling()
 
-        self.stop_event.set()
-
-    def pause_sampling(self):
-        logger.info(f"pause_sampling")
+    def stop_sampling(self):
+        logger.info(f"stop_sampling")
 
         self.stop_event.set()
 
         if self.handler_id is not None:
             self.sink.disconnect(self.handler_id)
             self.handler_id = None
-
 
     def start_sampling(self, count = 0):
         logger.info(f"start_sampling count: {count}")
