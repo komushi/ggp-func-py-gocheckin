@@ -51,7 +51,7 @@ class FaceRecognition(threading.Thread):
 
                 if self.stop_event.is_set():
                     if self.cam_queue.empty():
-                        time.sleep(0.5)
+                        time.sleep(0.2)
                     else:
                         cmd, _, _ = self.cam_queue.get(False)
                 else:
@@ -153,7 +153,7 @@ class FaceRecognition(threading.Thread):
                                                         self.captured_members[memberKey]['similarity'] = sim
                                         
                     else:
-                        time.sleep(0.5)
+                        time.sleep(0.2)
 
                 
         except Exception as e:

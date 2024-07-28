@@ -208,7 +208,7 @@ class StreamCapture(threading.Thread):
 
                 if self.stop_event.is_set():
                     logger.info(f"{self.name} stop_event.is_set()")
-                    time.sleep(0.5)
+                    time.sleep(0.2)
                 else:
                     if self.image_arr is not None and self.newImage:
 
@@ -219,6 +219,8 @@ class StreamCapture(threading.Thread):
 
                         self.image_arr = None
                         self.newImage = False
+
+                        time.sleep(0.2)
 
                     message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
