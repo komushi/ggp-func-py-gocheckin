@@ -129,7 +129,7 @@ class FaceRecognition(threading.Thread):
                                                             "propertyCode": os.environ['PROPERTY_CODE'],
                                                             "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
                                                             "coreName": os.environ['AWS_IOT_THING_NAME'],
-                                                            "equipmentId": cam_info.['cam_uuid'],
+                                                            "equipmentId": cam_info['cam_uuid'],
                                                             "equipmentName": cam_info['cam_name'],
                                                             "cameraIp": cam_info['cam_ip'],
                                                             "recordStart": self.captured_members[memberKey]['recordTime'],
