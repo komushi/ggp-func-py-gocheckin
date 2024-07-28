@@ -154,6 +154,7 @@ def stop_http_server():
 def start_http_server():
 
     global httpd
+    global thread_detectors
 
     class ReusableTCPServer(socketserver.TCPServer):
         allow_reuse_address = True
@@ -166,7 +167,7 @@ def start_http_server():
                     self.send_error(403, "Forbidden: Only localhost allowed")
                     return
 
-                global thread_detectors
+                
 
                 if self.path == '/recognise':
                     self.send_response(200)
