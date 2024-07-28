@@ -207,14 +207,14 @@ class StreamCapture(threading.Thread):
             while True:
 
                 if self.stop_event.is_set():
-                    logger.info(f"{self.name} stop_event.is_set()")
+                    # logger.info(f"{self.name} stop_event.is_set()")
                     time.sleep(0.5)
                 else:
                     if self.image_arr is not None and self.newImage:
 
                         if not self.cam_queue.full():
                             self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
-                            time.sleep(1)
+                            time.sleep(0.2)
                         else:
                             logger.info(f"!! gstreamer cam_queue is full !!")
 
