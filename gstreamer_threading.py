@@ -193,10 +193,12 @@ class StreamCapture(threading.Thread):
 
     def run(self):
         # Start playing
-        ret = self.pipeline.set_state(Gst.State.PLAYING)
-        if ret == Gst.StateChangeReturn.FAILURE:
-            logger.info("Unable to set the pipeline to the playing state.")
-            self.stop_event.set()
+        # ret = self.pipeline.set_state(Gst.State.PLAYING)
+        # if ret == Gst.StateChangeReturn.FAILURE:
+        #     logger.info("Unable to set the pipeline to the playing state.")
+        #     self.stop_event.set()
+
+        self.start_playing()
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
@@ -235,7 +237,28 @@ class StreamCapture(threading.Thread):
         finally:
             self.pipeline.set_state(Gst.State.NULL)
             logger.info("Pipeline stopped and cleaned up.")
-          
+
+    def start_playing(self, count = 0):
+        logger.info(f"start_playing count: {count}")
+
+        if count > 3:
+            return
+
+        count += 1
+
+        logger.info(f"start_playing before get_state")
+        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        logger.info(f"start_playing state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
+
+        if current_state != Gst.State.PLAYING:
+            state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
+            logger.info(f"start_playing state_change_return: {state_change_return}")
+
+            if state_change_return == Gst.StateChangeReturn.FAILURE:
+                logger.info("start_playing Unable to set the pipeline to the playing state.")
+
+                time.sleep(2)
+                self.start_playing(count)          
 
     def stop_sampling(self):
         logger.info(f"Stop sampling {self.name}")
@@ -246,28 +269,7 @@ class StreamCapture(threading.Thread):
             self.sink.disconnect(self.handler_id)
             self.handler_id = None
 
-    def start_sampling(self, count = 0):
-        logger.info(f"start_sampling count: {count}")
-
-        if count > 3:
-            return
-
-        count += 1
-
-        logger.info(f"start_sampling before get_state")
-        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
-        logger.info(f"start_sampling state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
-
-        if current_state != Gst.State.PLAYING:
-            state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.info(f"start_sampling state_change_return: {state_change_return}")
-
-            if state_change_return == Gst.StateChangeReturn.FAILURE:
-                logger.info("start_sampling Unable to set the pipeline to the playing state.")
-                self.stop_event.set()
-
-                time.sleep(2)
-                self.start_sampling(count)
+    def start_sampling(self):
 
         if self.handler_id is None:
             logger.info(f"start_sampling handler_id is None")

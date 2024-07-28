@@ -64,6 +64,8 @@ uploader_app = None
 # Initialize the detectors
 thread_detector = None
 detection_timer = None
+recording_timer = None
+recording_link_timer = None
 
 # Initialize the gstreamers
 thread_gstreamers = {}
@@ -253,31 +255,32 @@ def start_http_server():
 
                     timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
                     timer.start()
-                # elif self.path == '/record':
-                #     # TODO
-                #     # Process the POST data
-                #     content_length = int(self.headers['Content-Length'])
-                #     post_data = self.rfile.read(content_length)
-                #     event = json.loads(post_data)
+                elif self.path == '/record':
+                    # TODO
+                    # Process the POST data
+                    content_length = int(self.headers['Content-Length'])
+                    post_data = self.rfile.read(content_length)
+                    event = json.loads(post_data)
 
-                #     logger.info(f"/record camera: {format(event['cameraItem']['localIp'])}")
+                    logger.info(f"/record camera: {format(event['cameraItem']['localIp'])}")
 
-                #     if event['cameraItem']['localIp'] in thread_detectors and thread_detectors[event['cameraItem']['localIp']] is not None:
-                #         # record 
-                #         thread_detectors[event['cameraItem']['localIp']].start_recording()
+                    if event['cameraItem']['localIp'] in thread_gstreamers and thread_gstreamers[event['cameraItem']['localIp']] is not None:
+                        # record 
+                        thread_gstreamers[event['cameraItem']['localIp']].start_recording()
+                        set_recording_time()
 
-                #         self.send_response(200)
-                #         self.send_header('Content-type', 'application/json')
-                #         self.end_headers()
-                #         self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition Detection " + event['cameraItem']['localIp']}).encode())
+                        self.send_response(200)
+                        self.send_header('Content-type', 'application/json')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition Detection " + event['cameraItem']['localIp']}).encode())
 
-                #         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                #     else:
-                #         self.send_response(400)
-                #         self.end_headers()
-                #         self.wfile.write(json.dumps({"message": "Thread" + thread_detectors[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
+                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                    else:
+                        self.send_response(400)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
 
-                #         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                 elif self.path == '/detect':
                     # Process the POST data
@@ -349,10 +352,7 @@ def start_http_server():
                             params['pipeline_str'] = pipeline_str_h265
 
                         thread_gstreamers[event['cameraItem']['localIp']] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
-
-                        # thread_gstreamers[event['cameraItem']['localIp']].stop_sampling()
                         thread_gstreamers[event['cameraItem']['localIp']].start()
-                        # thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
                     
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
@@ -735,6 +735,21 @@ def signal_handler(signum, frame):
         server_thread.join()  # Wait for the server thread to finish
         server_thread = None
     logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
+
+def set_recording_time(thread_gstreamer, delay):
+    global recording_timer
+    global recording_link_timer
+    
+    if recording_timer:
+        recording_timer.cancel()
+
+    if recording_link_timer:
+        recording_link_timer.cancel()
+    
+    recording_timer = threading.Timer(delay, thread_gstreamer.stop_recording)
+    recording_timer.start()
+
+    recording_link_timer = threading.Timer(delay, thread_gstreamer.unlink_and_remove_splitmuxsink)
 
 def set_sampling_time(thread_gstreamer, delay):
     global detection_timer
