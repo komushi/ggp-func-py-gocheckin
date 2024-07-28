@@ -35,7 +35,7 @@ class FaceRecognition(threading.Thread):
             self.active_members = None
 
         self.captured_members = {}
-
+        self.face_threshold = float(os.environ['FACE_THRESHOLD'])
 
     def run(self):
 
