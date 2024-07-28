@@ -1,4 +1,10 @@
-## cloudwatch log insights query 
+# pylint
+```
+pyenv activate cv311
+pylint <file> or <dir>
+```
+
+# cloudwatch log insights query 
 
 ## 1. To find if there are videos not uploaded
 ### 1-1. Query

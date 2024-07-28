@@ -1,3 +1,10 @@
+import gi
+from gi.repository import Gst
+from gi.repository import GstPbutils
+gi.require_version('Gst', '1.0')
+gi.require_version('GstPbutils', '1.0')
+
+
 import os
 import sys
 import logging
@@ -7,11 +14,6 @@ import numpy as np
 import time
 from datetime import datetime, timedelta, timezone
 
-import gi
-gi.require_version('Gst', '1.0')
-gi.require_version('GstPbutils', '1.0')
-from gi.repository import Gst
-from gi.repository import GstPbutils
 import traceback
 
 # Setup logging to stdout
@@ -45,7 +47,7 @@ class StreamCommands(Enum):
 
 class StreamCapture(threading.Thread):
 
-    def __init__(self, cam_ip, cam_uuid, cam_name, rtsp_src, pipeline_str, cam_queue, scanner_output_queue, framerate):
+    def __init__(self, params, scanner_output_queue, cam_queue):
         """
         Initialize the stream capturing process
         rtsp_src - rstp link of stream
@@ -53,31 +55,20 @@ class StreamCapture(threading.Thread):
         outPipe - this process can send commands outside
         """
 
-        super().__init__(name=f"Thread-Gst-{cam_ip}")
+        super().__init__(name=f"Thread-Gst-{params['cam_ip']}")
 
-        self.rtsp_src = rtsp_src
         self.stop_event = threading.Event()
+
+        # params
         self.cam_queue = cam_queue
         self.scanner_output_queue = scanner_output_queue
-        self.framerate = framerate
-        self.currentState = StreamMode.INIT_STREAM
-        self.pipeline_str = pipeline_str
-        self.pipeline = None
-        self.source = None
-        self.decode = None
-        self.convert = None
-        self.sink = None
-        self.image_arr = None
-        self.newImage = False
-
-        self.num_unexpected_tot = 1000
-        self.unexpected_cnt = 0
-
-        self.cam_ip = cam_ip
-        self.cam_uuid = cam_uuid
-        self.cam_name = cam_name
-
-        self.handler_id = None
+        self.rtsp_src = params['rtsp_src']
+        self.framerate = params['framerate']
+        self.pipeline_str = params['pipeline_str']
+        self.cam_ip = params['cam_ip']
+        self.cam_uuid = params['cam_uuid']
+        self.cam_name = params['cam_name']
+        self.codec = params['codec']
 
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
@@ -165,6 +156,9 @@ class StreamCapture(threading.Thread):
         self.splitmuxsink = None
         self.h264h265_parser = None
 
+        self.image_arr = None
+        self.newImage = False
+        self.handler_id = None
         self.date_folder = None
         self.time_filename = None
         self.ext = ".mp4"
@@ -198,7 +192,7 @@ class StreamCapture(threading.Thread):
         # Start playing
         ret = self.pipeline.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
-            print("Unable to set the pipeline to the playing state.")
+            logger.info("Unable to set the pipeline to the playing state.")
             self.stop_event.set()
 
         # Wait until error or EOS
@@ -216,12 +210,11 @@ class StreamCapture(threading.Thread):
                     if self.image_arr is not None and self.newImage:
 
                         if not self.cam_queue.full():
-                            # print("\r adding to queue of size{}".format(self.cam_queue.qsize()), end='\r')
-                            # print("adding to queue of size")
-                            self.cam_queue.put((StreamCommands.FRAME, self.image_arr), block=False)
+                            self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+                        else:
+                            logger.info(f"!! gstreamer cam_queue is full !!")
 
                         self.image_arr = None
-                        self.unexpected_cnt = 0
 
                     message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
@@ -254,9 +247,28 @@ class StreamCapture(threading.Thread):
             self.handler_id = None
 
 
-    def start_sampling(self):
-        logger.info(f"start_sampling")
-        
+    def start_sampling(self, count = 0):
+        logger.info(f"start_sampling count: {count}")
+
+        if count > 3:
+            return
+
+        count += 1
+
+        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        logger.info(f"start_sampling state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
+
+        if current_state != Gst.State.PLAYING:
+            state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
+            logger.info(f"start_sampling state_change_return: {state_change_return}")
+
+            if state_change_return == Gst.StateChangeReturn.FAILURE:
+                logger.info("start_sampling Unable to set the pipeline to the playing state.")
+                self.stop_event.set()
+
+                time.sleep(2)
+                self.start_sampling(count)
+
         if self.handler_id is None:
             self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
 
