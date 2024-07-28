@@ -248,14 +248,13 @@ class StreamCapture(threading.Thread):
 
         logger.info(f"start_playing before get_state")
         state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
-        logger.info(f"start_playing state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
+        logger.info(f"start_playing get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
 
         if current_state != Gst.State.PLAYING:
             state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.info(f"start_playing state_change_return: {state_change_return}")
+            logger.info(f"start_playing set_state state_change_return: {state_change_return}")
 
-            if state_change_return == Gst.StateChangeReturn.FAILURE:
-                logger.info("start_playing Unable to set the pipeline to the playing state.")
+            if state_change_return != Gst.StateChangeReturn.SUCCESS:
 
                 time.sleep(2)
                 self.start_playing(count)          
