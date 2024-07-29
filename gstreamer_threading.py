@@ -166,6 +166,8 @@ class StreamCapture(threading.Thread):
         self.time_filename = None
         self.ext = ".mp4"
 
+        self.is_playing = False
+
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
@@ -238,39 +240,38 @@ class StreamCapture(threading.Thread):
             self.pipeline.set_state(Gst.State.NULL)
             logger.info("Pipeline stopped and cleaned up.")
 
-    def pipeline_is_playing(self):
+    # def pipeline_is_playing(self):
 
-        logger.info(f"pipeline_is_playing, {self.name} before get_state")
-        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.SECOND)
-        logger.info(f"pipeline_is_playing, {self.name} get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
+    #     logger.info(f"pipeline_is_playing, {self.name} before get_state")
+    #     state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.SECOND)
+    #     logger.info(f"pipeline_is_playing, {self.name} get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
 
-        if state_change_return == Gst.StateChangeReturn.SUCCESS:
-            logger.info(f"Current state: {current_state.value_name}")
-            logger.info(f"Pending state: {pending_state.value_name}")
-            if current_state == Gst.State.PLAYING:
-                return True
-        elif state_change_return == Gst.StateChangeReturn.ASYNC:
-            logger.info("State change is still in progress.")
-        elif state_change_return == Gst.StateChangeReturn.NO_PREROLL:
-            logger.info("Pipeline is in a state where preroll is not possible.")
-        else:
-            logger.info(f"State change failed or returned unexpected value: {state_change_return.value_name}")
+    #     if state_change_return == Gst.StateChangeReturn.SUCCESS:
+    #         logger.info(f"Current state: {current_state.value_name}")
+    #         logger.info(f"Pending state: {pending_state.value_name}")
+    #         if current_state == Gst.State.PLAYING:
+    #             return True
+    #     elif state_change_return == Gst.StateChangeReturn.ASYNC:
+    #         logger.info("State change is still in progress.")
+    #     elif state_change_return == Gst.StateChangeReturn.NO_PREROLL:
+    #         logger.info("Pipeline is in a state where preroll is not possible.")
+    #     else:
+    #         logger.info(f"State change failed or returned unexpected value: {state_change_return.value_name}")
 
-        return False
+    #     return False
 
     def start_playing(self, count = 0):
         logger.info(f"start_playing count: {count}")
         rtn = False
 
-        if count > 3:
+        if count > 10:
             logger.info(f"start_playing, {self.name} ended with {rtn}")
             return
 
         count += 1
         
-
         try:
-            if not self.pipeline_is_playing():
+            if not self.is_playing:
                 null_state_change_return = self.pipeline.set_state(Gst.State.NULL)
                 logger.info(f"start_playing, {self.name} set_state NULL state_change_return: {null_state_change_return}")
 
@@ -306,7 +307,7 @@ class StreamCapture(threading.Thread):
     def start_sampling(self):
         logger.info(f"start_sampling, {self.name} Start sampling...")
 
-        if self.pipeline_is_playing():
+        if self.is_playing:
 
             if self.handler_id is None:
                 logger.info(f"start_sampling, connect new buffer callback")
@@ -323,7 +324,7 @@ class StreamCapture(threading.Thread):
     def start_recording(self):
         logger.info(f"start_recording, {self.name} Start recording...")
 
-        if self.pipeline_is_playing():
+        if self.is_playing:
 
             if self.create_and_link_splitmuxsink():
 
@@ -366,6 +367,12 @@ class StreamCapture(threading.Thread):
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
+
+                if new_state == Gst.State.PLAYING:
+                    self.is_playing = True
+                else:
+                    self.is_playing = False
+
                 logger.info(f"{self.cam_ip} Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
         # elif message.type == Gst.MessageType.WARNING:
         #     logger.info(f"Warning message {message.parse_warning()}： {message.type}.")

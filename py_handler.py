@@ -65,7 +65,6 @@ uploader_app = None
 thread_detector = None
 detection_timer = None
 recording_timer = None
-recording_link_timer = None
 
 # Initialize the gstreamers
 thread_gstreamers = {}
@@ -738,19 +737,12 @@ def signal_handler(signum, frame):
 
 def set_recording_time(thread_gstreamer, delay):
     global recording_timer
-    global recording_link_timer
     
     if recording_timer:
         recording_timer.cancel()
 
-    # if recording_link_timer:
-    #     recording_link_timer.cancel()
-    
     recording_timer = threading.Timer(delay, thread_gstreamer.stop_recording)
     recording_timer.start()
-
-    # recording_link_timer = threading.Timer(delay + 1, thread_gstreamer.unlink_and_remove_splitmuxsink)
-    # recording_link_timer.start()
 
 def set_sampling_time(thread_gstreamer, delay):
     global detection_timer
