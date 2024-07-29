@@ -393,9 +393,6 @@ def start_http_server():
 
                         thread_gstreamers[event['cameraItem']['localIp']] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
                         thread_gstreamers[event['cameraItem']['localIp']].start()
-
-                        stop_sampling_timer = threading.Timer(10, thread_gstreamers[event['cameraItem']['localIp']].stop_sampling)
-                        stop_sampling_timer.start()
                     
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
