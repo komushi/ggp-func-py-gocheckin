@@ -277,11 +277,13 @@ class StreamCapture(threading.Thread):
                 playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
                 logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
-                if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-
+                if playing_state_change_return == Gst.StateChangeReturn.SUCCESS:
+                    logger.info(f"start_playing, {self.name} should be PLAYING now")
+                    return 
+                else:
                     time.sleep(5)
                     self.start_playing(count)
-    
+
         except Exception as e:
             logger.info(f"start_playing, {self.name} exception")
             logger.error(e)
