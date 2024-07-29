@@ -182,17 +182,11 @@ class StreamCapture(threading.Thread):
         return arr
 
     def new_buffer(self, sink, _):
-        logger.info(f"{self.name} !!!!!!!! new_buffer !!!!!")
-        if self.stop_event.is_set():
-            self.image_arr = None
-            self.newImage = False
-            return Gst.FlowReturn.OK
-        else:    
-            sample = sink.emit("pull-sample")
-            arr = self.gst_to_opencv(sample)
-            self.image_arr = arr
-            self.newImage = True
-            return Gst.FlowReturn.OK
+        sample = sink.emit("pull-sample")
+        arr = self.gst_to_opencv(sample)
+        self.image_arr = arr
+        self.newImage = True
+        return Gst.FlowReturn.OK
 
     def run(self):
         # Start playing
@@ -211,6 +205,11 @@ class StreamCapture(threading.Thread):
         try:
             while True:
 
+                message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+
+                if message:
+                    self.on_message(bus, message)
+
                 if self.stop_event.is_set():
                     # logger.info(f"{self.name} stop_event.is_set()")
                     time.sleep(0.5)
@@ -228,10 +227,7 @@ class StreamCapture(threading.Thread):
 
                         
 
-                    message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
-                    if message:
-                        self.on_message(bus, message)
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
