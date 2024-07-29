@@ -262,20 +262,15 @@ class StreamCapture(threading.Thread):
 
     def start_playing(self, count = 0):
         logger.info(f"start_playing, {self.name} count: {count}")
-        rtn = False
 
-        if count > 3:
-            logger.info(f"start_playing, {self.name} ended with {rtn}")
+        if count > 5:
+            logger.info(f"start_playing, {self.name} ended with is_playing: {self.is_playing}, count: {count}")
             return
 
         count += 1
         
         try:
             if not self.is_playing:
-                # null_state_change_return = self.pipeline.set_state(Gst.State.NULL)
-                # logger.info(f"start_playing, {self.name} set_state NULL state_change_return: {null_state_change_return}")
-
-                # time.sleep(1)
 
                 playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
                 logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
@@ -283,17 +278,14 @@ class StreamCapture(threading.Thread):
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
 
                     time.sleep(5)
-                    return self.start_playing(count)
-                else:
-                    rtn = True
-                    return rtn
+                    self.start_playing(count)
+    
         except Exception as e:
             logger.info(f"start_playing, {self.name} exception")
             logger.error(e)
             traceback.print_exc()
             self.pipeline.set_state(Gst.State.NULL)
-        finally:
-            logger.info(f"start_playing, {self.name} ended with {rtn}")
+
         
 
 
