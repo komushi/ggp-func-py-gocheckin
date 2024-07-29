@@ -257,17 +257,27 @@ class StreamCapture(threading.Thread):
 
         count += 1
 
-        if not self.pipeline_is_playing():
-            null_state_change_return = self.pipeline.set_state(Gst.State.NULL)
-            logger.info(f"start_playing, {self.name} set_state NULL state_change_return: {null_state_change_return}")
+        try:
+            if not self.pipeline_is_playing():
+                null_state_change_return = self.pipeline.set_state(Gst.State.NULL)
+                logger.info(f"start_playing, {self.name} set_state NULL state_change_return: {null_state_change_return}")
 
-            playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.info(f"start_playing, {self.name} set_state NULL state_change_return: {playing_state_change_return}")
+                playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
+                logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
-            if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
+                if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
 
-                time.sleep(2)
-                self.start_playing(count)
+                    time.sleep(2)
+                    self.start_playing(count)
+        except Exception as e:
+            logger.info(f"Caught exception during running {self.name}")
+            logger.error(e)
+            traceback.print_exc()
+        finally:
+            self.pipeline.set_state(Gst.State.NULL)
+            logger.info("Pipeline stopped and cleaned up.")
+        
+
 
     def stop_sampling(self):
         logger.info(f"stop_sampling, {self.name} Stop sampling...")
@@ -324,6 +334,8 @@ class StreamCapture(threading.Thread):
         if self.splitmuxsink is not None:
             self.splitmuxsink.send_event(Gst.Event.new_eos())
             logger.info(f"stop_recording, {self.name} End-Of-Stream sent...")
+
+        self.unlink_and_remove_splitmuxsink()
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
