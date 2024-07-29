@@ -260,11 +260,14 @@ class StreamCapture(threading.Thread):
 
     def start_playing(self, count = 0):
         logger.info(f"start_playing count: {count}")
+        rtn = False
 
         if count > 3:
+            logger.info(f"start_playing, {self.name} ended with {rtn}")
             return
 
         count += 1
+        
 
         try:
             if not self.pipeline_is_playing():
@@ -277,14 +280,17 @@ class StreamCapture(threading.Thread):
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
 
                     time.sleep(2)
-                    self.start_playing(count)
+                    return self.start_playing(count)
+                else:
+                    rtn = True
+                    return rtn
         except Exception as e:
-            logger.info(f"Caught exception during running {self.name}")
+            logger.info(f"start_playing, {self.name} exception")
             logger.error(e)
             traceback.print_exc()
-        finally:
             self.pipeline.set_state(Gst.State.NULL)
-            logger.info("Pipeline stopped and cleaned up.")
+        finally:
+            logger.info(f"start_playing, {self.name} ended with {rtn}")
         
 
 
