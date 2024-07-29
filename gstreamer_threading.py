@@ -238,6 +238,17 @@ class StreamCapture(threading.Thread):
             self.pipeline.set_state(Gst.State.NULL)
             logger.info("Pipeline stopped and cleaned up.")
 
+    def pipeline_is_playing(self):
+
+        logger.info(f"pipeline_is_playing before get_state")
+        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        logger.info(f"pipeline_is_playing get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
+
+        if current_state == Gst.State.PLAYING:
+            return True
+        else:
+            return False
+
     def start_playing(self, count = 0):
         logger.info(f"start_playing count: {count}")
 
@@ -250,14 +261,17 @@ class StreamCapture(threading.Thread):
         state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
         logger.info(f"start_playing get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
 
-        if current_state != Gst.State.PLAYING:
-            state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.info(f"start_playing set_state state_change_return: {state_change_return}")
+        if not self.pipeline_is_playing():
+            null_state_change_return = self.pipeline.set_state(Gst.State.NULL)
+            logger.info(f"start_playing set_state NULL state_change_return: {null_state_change_return}")
 
-            if state_change_return != Gst.StateChangeReturn.SUCCESS:
+            playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
+            logger.info(f"start_playing set_state NULL state_change_return: {playing_state_change_return}")
+
+            if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
 
                 time.sleep(2)
-                self.start_playing(count)          
+                self.start_playing(count)
 
     def stop_sampling(self):
         logger.info(f"Stop sampling {self.name}")
@@ -271,26 +285,30 @@ class StreamCapture(threading.Thread):
     def start_sampling(self):
         logger.info("Start sampling")
 
-        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
 
-        if current_state == Gst.State.PLAYING:
+        if self.pipeline_is_playing():
+
             if self.handler_id is None:
                 logger.info(f"start_sampling handler_id is None")
                 self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
 
             self.stop_event.clear()
 
+            logger.info("Sampling started...")
+
+        else:
+            logger.info("Sampling not started...")
+
+
     def start_recording(self):
         logger.info("Start recording")
 
-        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
-
-        if current_state == Gst.State.PLAYING:
-            self.create_and_link_splitmuxsink()
+        if self.create_and_link_splitmuxsink():
 
             self.record_valve.set_property('drop', False)
-        
-        logger.info("Recording started...")
+            logger.info("Recording started...")
+        else:
+            logger.info("Recording not started...")
 
     def stop_recording(self):
         logger.info("Stop recording")
@@ -354,6 +372,11 @@ class StreamCapture(threading.Thread):
                     
 
     def create_and_link_splitmuxsink(self):
+
+        if self.pipeline.get_by_name("splitmuxsink"):
+            logger.info("Splitmuxsink branch is already linked...")
+            return False
+
             
         # Create elements for the splitmuxsink branch
         self.queue = Gst.ElementFactory.make("queue", "record_queue")
@@ -395,8 +418,14 @@ class StreamCapture(threading.Thread):
 
         logging.info("Splitmuxsink branch created and linked")
 
+        return False
+
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):
+        if not self.tee_pad:
+            logging.info("No splitmuxsink branch to unlink")
+            return
+
         # Unlink the tee from the queue
         self.tee_pad.unlink(self.queue.get_static_pad("sink"))
 
@@ -413,5 +442,6 @@ class StreamCapture(threading.Thread):
 
         # Release the tee pad
         self.tee.release_request_pad(self.tee_pad)
+        self.tee_pad = None
 
         logging.info("Splitmuxsink branch unlinked and removed")
