@@ -424,7 +424,7 @@ class StreamCapture(threading.Thread):
 
         logging.info("Splitmuxsink branch created and linked")
 
-        return False
+        return True
 
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):
