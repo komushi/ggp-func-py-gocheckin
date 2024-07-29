@@ -305,7 +305,7 @@ def start_http_server():
                     logger.info(f"/record camera: {format(event['cameraItem']['localIp'])}")
 
                     if event['cameraItem']['localIp'] in thread_gstreamers and thread_gstreamers[event['cameraItem']['localIp']] is not None:
-                        # record 
+                        # record
                         if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
                             set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
 
@@ -393,6 +393,9 @@ def start_http_server():
 
                         thread_gstreamers[event['cameraItem']['localIp']] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
                         thread_gstreamers[event['cameraItem']['localIp']].start()
+
+                        time.sleep(1)
+                        thread_gstreamers[event['cameraItem']['localIp']].stop_sampling()
                     
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')

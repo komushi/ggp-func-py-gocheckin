@@ -200,8 +200,6 @@ class StreamCapture(threading.Thread):
         #     logger.info("Unable to set the pipeline to the playing state.")
         #     self.stop_event.set()
 
-        self.stop_event.set()
-
         self.start_playing()
 
         # Wait until error or EOS
@@ -277,13 +275,11 @@ class StreamCapture(threading.Thread):
                 playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
                 logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
-                if playing_state_change_return == Gst.StateChangeReturn.SUCCESS:
-                    logger.info(f"start_playing, {self.name} should be PLAYING now")
-                    return 
-                else:
+                if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
+
                     time.sleep(5)
                     self.start_playing(count)
-
+    
         except Exception as e:
             logger.info(f"start_playing, {self.name} exception")
             logger.error(e)
@@ -356,8 +352,7 @@ class StreamCapture(threading.Thread):
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
             logger.info("End-Of-Stream reached.")
-            # self.eos_received = True
-            self.stop_event.set()
+            # self.stop_event.set()
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             logger.info(f"Error: {err}, {debug}")
