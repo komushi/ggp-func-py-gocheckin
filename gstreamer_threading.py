@@ -202,7 +202,7 @@ class StreamCapture(threading.Thread):
 
         self.start_playing()
 
-        self.stop_event.set()
+        # self.stop_event.set()
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
@@ -278,9 +278,12 @@ class StreamCapture(threading.Thread):
                 logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-
+                    logger.info(f"start_playing, {self.name} playing_state_change_return is not {Gst.StateChangeReturn.SUCCESS}")
                     time.sleep(5)
                     self.start_playing(count)
+
+                logger.info(f"start_playing, {self.name} return with is_playing: {self.is_playing}, count: {count}")
+                return
     
         except Exception as e:
             logger.info(f"start_playing, {self.name} exception")
