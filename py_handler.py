@@ -254,6 +254,47 @@ def start_http_server():
 
                     timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
                     timer.start()
+                elif self.path == '/detect_record':
+                    # Process the POST data
+                    content_length = int(self.headers['Content-Length'])
+                    post_data = self.rfile.read(content_length)
+                    event = json.loads(post_data)
+
+                    logger.info(f"/detect_record camera: {format(event['cameraItem']['localIp'])}")
+
+                    if thread_gstreamers[event['cameraItem']['localIp']] is not None:
+                        thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
+                        set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
+
+                        if thread_detector is None:
+                            params = {}
+                            params['face_app'] = face_app
+
+                            thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+
+                            fetch_members()
+
+                            thread_detector.start()
+                            thread_detector.start_detection()
+
+                            # thread_detector.extend_detection_time()
+    
+                        else:
+                            fetch_members()
+                            
+                            thread_detector.start_detection()
+
+                        # record 
+                        if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
+                            set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
+
+
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_detector.name }).encode())
+
+
+                    logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
                 elif self.path == '/record':
                     # TODO
                     # Process the POST data
@@ -271,7 +312,7 @@ def start_http_server():
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Started Thread FaceRecognition Detection " + event['cameraItem']['localIp']}).encode())
+                        self.wfile.write(json.dumps({"message": "Started Thread StreamCapture " + event['cameraItem']['localIp']}).encode())
 
                         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
                     else:
