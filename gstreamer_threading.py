@@ -240,9 +240,9 @@ class StreamCapture(threading.Thread):
 
     def pipeline_is_playing(self):
 
-        logger.info(f"pipeline_is_playing before get_state")
+        logger.info(f"pipeline_is_playing, {self.name} before get_state")
         state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
-        logger.info(f"pipeline_is_playing get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
+        logger.info(f"pipeline_is_playing, {self.name} get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
 
         if current_state == Gst.State.PLAYING:
             return True
@@ -257,16 +257,12 @@ class StreamCapture(threading.Thread):
 
         count += 1
 
-        logger.info(f"start_playing before get_state")
-        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
-        logger.info(f"start_playing get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
-
         if not self.pipeline_is_playing():
             null_state_change_return = self.pipeline.set_state(Gst.State.NULL)
-            logger.info(f"start_playing set_state NULL state_change_return: {null_state_change_return}")
+            logger.info(f"start_playing, {self.name} set_state NULL state_change_return: {null_state_change_return}")
 
             playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.info(f"start_playing set_state NULL state_change_return: {playing_state_change_return}")
+            logger.info(f"start_playing, {self.name} set_state NULL state_change_return: {playing_state_change_return}")
 
             if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
 
@@ -274,7 +270,7 @@ class StreamCapture(threading.Thread):
                 self.start_playing(count)
 
     def stop_sampling(self):
-        logger.info(f"Stop sampling {self.name}")
+        logger.info(f"stop_sampling, {self.name} Stop sampling...")
 
         self.stop_event.set()
 
@@ -283,41 +279,51 @@ class StreamCapture(threading.Thread):
             self.handler_id = None
 
     def start_sampling(self):
-        logger.info("Start sampling")
-
+        logger.info(f"start_sampling, {self.name} Start sampling...")
 
         if self.pipeline_is_playing():
 
             if self.handler_id is None:
-                logger.info(f"start_sampling handler_id is None")
+                logger.info(f"start_sampling, connect new buffer callback")
                 self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
 
             self.stop_event.clear()
 
-            logger.info("Sampling started...")
+            logger.info(f"start_sampling, {self.name} Sampling started...")
 
         else:
-            logger.info("Sampling not started...")
+            logger.info(f"start_sampling, {self.name} Sampling not started...")
 
 
     def start_recording(self):
-        logger.info("Start recording")
+        logger.info(f"start_recording, {self.name} Start recording...")
 
-        if self.create_and_link_splitmuxsink():
+        if self.pipeline_is_playing():
 
-            self.record_valve.set_property('drop', False)
-            logger.info("Recording started...")
+            if self.create_and_link_splitmuxsink():
+
+                self.record_valve.set_property('drop', False)
+                logger.info(f"start_recording, {self.name} Start New Recording...")
+
+                return True;
+            else:
+                logger.info(f"start_recording, {self.name} Recording already started!!!")
+                return False;
         else:
-            logger.info("Recording not started...")
+            logger.info(f"start_recording, {self.name} Recording not started!!!")
+            return False;
 
     def stop_recording(self):
-        logger.info("Stop recording")
+        logger.info(f"stop_recording, {self.name} Stop recording...")
 
-        self.record_valve.set_property('drop', True)
+        if self.record_valve is not None:
+            self.record_valve.set_property('drop', True)
+            logger.info(f"stop_recording, {self.name} Dropping record_valve...")
         
         # Send EOS to the recording branch
-        self.splitmuxsink.send_event(Gst.Event.new_eos())
-        logger.info("End-Of-Stream sent...")
+        if self.splitmuxsink is not None:
+            self.splitmuxsink.send_event(Gst.Event.new_eos())
+            logger.info(f"stop_recording, {self.name} End-Of-Stream sent...")
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:

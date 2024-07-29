@@ -266,8 +266,8 @@ def start_http_server():
 
                     if event['cameraItem']['localIp'] in thread_gstreamers and thread_gstreamers[event['cameraItem']['localIp']] is not None:
                         # record 
-                        thread_gstreamers[event['cameraItem']['localIp']].start_recording()
-                        set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], 10)
+                        if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
+                            set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], 10)
 
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
