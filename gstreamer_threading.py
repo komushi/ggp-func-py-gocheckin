@@ -202,8 +202,6 @@ class StreamCapture(threading.Thread):
 
         self.start_playing()
 
-        self.stop_event.set()
-
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
         # bus.add_signal_watch()
