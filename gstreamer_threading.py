@@ -384,7 +384,7 @@ class StreamCapture(threading.Thread):
                     logger.info(f"New file created: {location}")
 
                     duration_timedelta = timedelta(microseconds=int(structure.get_value("running-time")) / 1000)
-                    logger.info(f"New file created running-time: {structure.get_value("running-time")}")
+                    logger.info(f"New file created running-time: {structure.get_value('running-time')}")
                     logger.info(f"New file created duration_timedelta: {duration_timedelta}")
 
                     start_datetime_utc = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y-%m-%d %H:%M:%S")
