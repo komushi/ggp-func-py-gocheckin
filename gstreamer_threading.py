@@ -182,6 +182,7 @@ class StreamCapture(threading.Thread):
         return arr
 
     def new_buffer(self, sink, _):
+        logger.info(f"{self.name} !!!!!!!! new_buffer !!!!!")
         if self.stop_event.is_set():
             self.image_arr = None
             self.newImage = False
