@@ -241,13 +241,22 @@ class StreamCapture(threading.Thread):
     def pipeline_is_playing(self):
 
         logger.info(f"pipeline_is_playing, {self.name} before get_state")
-        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.SECOND)
         logger.info(f"pipeline_is_playing, {self.name} get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
 
-        if current_state == Gst.State.PLAYING:
-            return True
+        if state_change_return == Gst.StateChangeReturn.SUCCESS:
+            logger.info(f"Current state: {current_state.value_name}")
+            logger.info(f"Pending state: {pending_state.value_name}")
+            if current_state == Gst.State.PLAYING:
+                return True
+        elif state_change_return == Gst.StateChangeReturn.ASYNC:
+            logger.info("State change is still in progress.")
+        elif state_change_return == Gst.StateChangeReturn.NO_PREROLL:
+            logger.info("Pipeline is in a state where preroll is not possible.")
         else:
-            return False
+            logger.info(f"State change failed or returned unexpected value: {state_change_return.value_name}")
+
+        return False
 
     def start_playing(self, count = 0):
         logger.info(f"start_playing count: {count}")
