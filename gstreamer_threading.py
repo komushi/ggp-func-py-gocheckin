@@ -195,6 +195,7 @@ class StreamCapture(threading.Thread):
         #     logger.info("Unable to set the pipeline to the playing state.")
         #     self.stop_event.set()
 
+        self.stop_event.set()
         self.start_playing()
 
         # Wait until error or EOS
