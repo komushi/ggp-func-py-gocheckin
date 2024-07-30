@@ -266,27 +266,27 @@ def start_http_server():
                         thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
                         set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
 
-                        if thread_detector is None:
-                            params = {}
-                            params['face_app'] = face_app
+                    if thread_detector is None:
+                        params = {}
+                        params['face_app'] = face_app
 
-                            thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+                        thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
 
-                            fetch_members()
+                        fetch_members()
 
-                            thread_detector.start()
-                            thread_detector.start_detection()
+                        thread_detector.start()
+                        thread_detector.start_detection()
 
-                            # thread_detector.extend_detection_time()
-    
-                        else:
-                            fetch_members()
-                            
-                            thread_detector.start_detection()
+                        # thread_detector.extend_detection_time()
 
-                        # record 
-                        if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
-                            set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
+                    else:
+                        fetch_members()
+                        
+                        thread_detector.start_detection()
+
+                    # record 
+                    if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
+                        set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
 
 
                     self.send_response(200)
