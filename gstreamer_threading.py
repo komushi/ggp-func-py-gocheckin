@@ -190,13 +190,9 @@ class StreamCapture(threading.Thread):
 
     def run(self):
         # Start playing
-        # ret = self.pipeline.set_state(Gst.State.PLAYING)
-        # if ret == Gst.StateChangeReturn.FAILURE:
-        #     logger.info("Unable to set the pipeline to the playing state.")
-        #     self.stop_event.set()
-
         self.stop_event.set()
-        self.start_playing()
+        self.pipeline.set_state(Gst.State.PLAYING)
+        # self.start_playing()
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
