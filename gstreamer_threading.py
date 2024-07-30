@@ -190,7 +190,7 @@ class StreamCapture(threading.Thread):
 
     def run(self):
         # Start playing
-        # self.stop_event.set()
+        self.stop_event.set()
         self.pipeline.set_state(Gst.State.PLAYING)
         # self.start_playing()
 
