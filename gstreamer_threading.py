@@ -195,9 +195,8 @@ class StreamCapture(threading.Thread):
         #     logger.info("Unable to set the pipeline to the playing state.")
         #     self.stop_event.set()
 
-        
-        self.start_playing()
         self.stop_event.set()
+        self.start_playing()
 
         # Wait until error or EOS
         bus = self.pipeline.get_bus()
@@ -206,7 +205,6 @@ class StreamCapture(threading.Thread):
 
         try:
             while True:
-
                 message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
                 if message:
@@ -214,7 +212,7 @@ class StreamCapture(threading.Thread):
 
                 if self.stop_event.is_set():
                     # logger.info(f"{self.name} stop_event.is_set()")
-                    time.sleep(0.5)
+                    time.sleep(0.1)
                 else:
                     if self.image_arr is not None and self.newImage:
 
@@ -226,10 +224,6 @@ class StreamCapture(threading.Thread):
 
                         self.image_arr = None
                         self.newImage = False
-
-                        
-
-
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
