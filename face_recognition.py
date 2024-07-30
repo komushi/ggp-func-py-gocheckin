@@ -63,7 +63,8 @@ class FaceRecognition(threading.Thread):
 
                         if cmd == gst.StreamCommands.FRAME:
                             if raw_img is not None and self.active_members:
-                                if (crt_time - self.inference_begins_at) > 0.5:
+                                # if (crt_time - self.inference_begins_at) > 0.5:
+                                if True:
                                     
                                     self.inference_begins_at = crt_time
                                     faces = self.face_app.get(raw_img)
