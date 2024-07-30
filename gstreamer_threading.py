@@ -206,10 +206,7 @@ class StreamCapture(threading.Thread):
                 if message:
                     self.on_message(bus, message)
 
-                if self.stop_event.is_set():
-                    # logger.info(f"{self.name} stop_event.is_set()")
-                    time.sleep(0.1)
-                else:
+                if not self.stop_event.is_set():
                     if self.image_arr is not None and self.newImage:
 
                         if not self.cam_queue.full():
@@ -220,6 +217,9 @@ class StreamCapture(threading.Thread):
 
                         self.image_arr = None
                         self.newImage = False
+                # else:
+                #     time.sleep(0.1)
+
 
         except Exception as e:
             logger.info(f"Caught exception during running {self.name}")
