@@ -160,8 +160,8 @@ class StreamCapture(threading.Thread):
         self.h264h265_parser = None
 
         self.last_sampling_time = None
-        self.image_arr = None
-        self.newImage = False
+        # self.image_arr = None
+        # self.newImage = False
         self.handler_id = None
         self.date_folder = None
         self.time_filename = None
@@ -184,19 +184,19 @@ class StreamCapture(threading.Thread):
 
     def new_buffer(self, sink, _):
         crt_time = time.time()
-        self.image_arr = None
-        self.newImage = False
+        # self.image_arr = None
+        # self.newImage = False
 
         if not self.stop_event.is_set():
-            if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.5:
+            if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.75:
                 self.last_sampling_time = crt_time
                 sample = sink.emit("pull-sample")
                 arr = self.gst_to_opencv(sample)
-                self.image_arr = arr
-                self.newImage = True
+                # self.image_arr = arr
+                # self.newImage = True
 
                 if not self.cam_queue.full():
-                    self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+                    self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
 
         return Gst.FlowReturn.OK
