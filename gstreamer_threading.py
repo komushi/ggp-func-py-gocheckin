@@ -442,7 +442,7 @@ class StreamCapture(threading.Thread):
         # Set properties
         self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
         self.splitmuxsink.set_property("max-size-time", 20000000000)  # 20 seconds
-        self.splitmuxsink.set_property("async-finalize", True)
+        self.splitmuxsink.set_property("muxer-pad-map", "x-pad-map,video=video_1")
 
         # Add elements to the pipeline
         self.pipeline.add(self.queue)
