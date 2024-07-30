@@ -187,12 +187,16 @@ class StreamCapture(threading.Thread):
         self.image_arr = None
         self.newImage = False
 
-        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.5:
+        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.1:
             self.last_sampling_time = crt_time
             sample = sink.emit("pull-sample")
             arr = self.gst_to_opencv(sample)
             self.image_arr = arr
             self.newImage = True
+
+            if not self.cam_queue.full():
+                self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+
 
         return Gst.FlowReturn.OK
 
@@ -215,20 +219,20 @@ class StreamCapture(threading.Thread):
                     self.on_message(bus, message)
 
 
-                if not self.stop_event.is_set():
-                    if self.image_arr is not None and self.newImage:
+                # if not self.stop_event.is_set():
+                #     if self.image_arr is not None and self.newImage:
 
-                        if not self.cam_queue.full():
-                            self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
-                            # time.sleep(1)
-                        else:
-                            logger.info(f"!! gstreamer cam_queue is full !!")
+                #         if not self.cam_queue.full():
+                #             self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+                #             # time.sleep(1)
+                #         else:
+                #             logger.info(f"!! gstreamer cam_queue is full !!")
 
-                        self.image_arr = None
-                        self.newImage = False
-                else:
-                    if self.is_playing:
-                        time.sleep(0.5)
+                #         self.image_arr = None
+                #         self.newImage = False
+                # else:
+                #     if self.is_playing:
+                #         time.sleep(0.5)
 
 
         except Exception as e:
