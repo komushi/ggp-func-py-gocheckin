@@ -220,7 +220,7 @@ class StreamCapture(threading.Thread):
                         self.newImage = False
                 else:
                     if self.is_playing:
-                        time.sleep(0.1)
+                        time.sleep(0.5)
 
 
         except Exception as e:
