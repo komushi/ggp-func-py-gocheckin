@@ -190,8 +190,8 @@ class StreamCapture(threading.Thread):
 
     def run(self):
         # Start playing
-        self.pipeline.set_state(Gst.State.PLAYING)
         self.stop_event.set()
+        self.pipeline.set_state(Gst.State.PLAYING)
         # self.start_playing()
 
         # Wait until error or EOS
@@ -206,6 +206,7 @@ class StreamCapture(threading.Thread):
                 if message:
                     self.on_message(bus, message)
 
+
                 if not self.stop_event.is_set():
                     if self.image_arr is not None and self.newImage:
 
@@ -217,8 +218,9 @@ class StreamCapture(threading.Thread):
 
                         self.image_arr = None
                         self.newImage = False
-                # else:
-                #     time.sleep(0.1)
+                else:
+                    if self.is_playing:
+                        time.sleep(0.1)
 
 
         except Exception as e:
