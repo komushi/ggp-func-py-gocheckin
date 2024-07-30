@@ -777,6 +777,7 @@ def signal_handler(signum, frame):
     logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
 
 def set_recording_time(thread_gstreamer, delay):
+    logger.info(f'set_recording_time, thread_gstreamer: {thread_gstreamer.name}')
     global recording_timer
     
     if recording_timer:
