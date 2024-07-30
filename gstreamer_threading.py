@@ -190,8 +190,8 @@ class StreamCapture(threading.Thread):
 
     def run(self):
         # Start playing
-        self.stop_event.set()
         self.pipeline.set_state(Gst.State.PLAYING)
+        self.stop_event.set()
         # self.start_playing()
 
         # Wait until error or EOS
