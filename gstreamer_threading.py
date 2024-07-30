@@ -159,6 +159,7 @@ class StreamCapture(threading.Thread):
         self.splitmuxsink = None
         self.h264h265_parser = None
 
+        self.last_sampling_time = None
         self.image_arr = None
         self.newImage = False
         self.handler_id = None
@@ -182,10 +183,17 @@ class StreamCapture(threading.Thread):
         return arr
 
     def new_buffer(self, sink, _):
-        sample = sink.emit("pull-sample")
-        arr = self.gst_to_opencv(sample)
-        self.image_arr = arr
-        self.newImage = True
+        crt_time = time.time()
+        self.image_arr = None
+        self.newImage = False
+
+        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.5:
+            self.last_sampling_time = crt_time
+            sample = sink.emit("pull-sample")
+            arr = self.gst_to_opencv(sample)
+            self.image_arr = arr
+            self.newImage = True
+
         return Gst.FlowReturn.OK
 
     def run(self):
@@ -212,7 +220,7 @@ class StreamCapture(threading.Thread):
 
                         if not self.cam_queue.full():
                             self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
-                            time.sleep(1)
+                            # time.sleep(1)
                         else:
                             logger.info(f"!! gstreamer cam_queue is full !!")
 
