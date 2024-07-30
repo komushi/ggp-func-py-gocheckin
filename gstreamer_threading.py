@@ -187,15 +187,16 @@ class StreamCapture(threading.Thread):
         self.image_arr = None
         self.newImage = False
 
-        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.1:
-            self.last_sampling_time = crt_time
-            sample = sink.emit("pull-sample")
-            arr = self.gst_to_opencv(sample)
-            self.image_arr = arr
-            self.newImage = True
+        if not self.stop_event.is_set():
+            if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.1:
+                self.last_sampling_time = crt_time
+                sample = sink.emit("pull-sample")
+                arr = self.gst_to_opencv(sample)
+                self.image_arr = arr
+                self.newImage = True
 
-            if not self.cam_queue.full():
-                self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+                if not self.cam_queue.full():
+                    self.cam_queue.put((StreamCommands.FRAME, self.image_arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
 
         return Gst.FlowReturn.OK
