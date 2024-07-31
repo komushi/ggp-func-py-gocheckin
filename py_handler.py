@@ -838,13 +838,12 @@ def monitor_stop_event(thread_gstreamer):
     # Restart the thread
     if not thread_gstreamer.is_alive():
         thread_gstreamer = None
-        thread_gstreamers[cam_ip] = thread_gstreamer
+        thread_gstreamers[cam_ip] = None
+        thread_gstreamers[cam_ip] = start_gstreamer_thread(cam_ip=cam_ip)
 
-        thread_gstreamer = start_gstreamer_thread(cam_ip=cam_ip)
-
-        if thread_gstreamer is not None:
+        if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:
-                thread_monitors[cam_ip].join()
+                thread_monitors[cam_ip] = None
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=cam_ip, args=(thread_gstreamer,))
             thread_monitors[cam_ip].start()
 
