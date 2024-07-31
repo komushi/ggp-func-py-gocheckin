@@ -217,6 +217,7 @@ class StreamCapture(threading.Thread):
 
             # Start playing
             if not self.start_playing():
+                logger.info(f"run start_playing result: {False}")
                 self.stop_event.set()
 
             # Wait until error or EOS
@@ -290,9 +291,9 @@ class StreamCapture(threading.Thread):
             logger.info(f"start_playing, {self.name} exception")
             logger.error(e)
             traceback.print_exc()
-        finally:
-            logger.info(f"start_playing, {self.name} return with final result: {False}, count: {count}")
-            return False
+        # finally:
+        #     logger.info(f"start_playing, {self.name} return with final result: {False}, count: {count}")
+        #     return False
 
 
         
