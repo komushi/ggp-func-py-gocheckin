@@ -47,6 +47,16 @@ class StreamCommands(Enum):
     STOP = 8
 
 
+# h264 or h265
+pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay 
+    ! queue ! h264parse ! tee name=t t. ! queue ! avdec_h264 name=m_avdec 
+    ! queue ! videoconvert name=m_videoconvert 
+    ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""    
+
+pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
+    ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
+    ! queue ! videoconvert name=m_videoconvert 
+    ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
 
 class StreamCapture(threading.Thread):
 
@@ -54,7 +64,7 @@ class StreamCapture(threading.Thread):
         """
         Initialize the stream capturing process
         rtsp_src - rstp link of stream
-        stop_event - to send commands to this thread
+        stop_event - to show this thread is stopped
         outPipe - this process can send commands outside
         """
 
@@ -72,6 +82,10 @@ class StreamCapture(threading.Thread):
         self.cam_uuid = params['cam_uuid']
         self.cam_name = params['cam_name']
         self.codec = params['codec']
+        if params['codec'] == 'h264':
+            self.pipeline_str = pipeline_str_h264
+        elif params['codec'] == 'h265':
+            self.pipeline_str = pipeline_str_h265
 
         # Create the empty pipeline
         self.pipeline = Gst.parse_launch(self.pipeline_str)
@@ -149,7 +163,7 @@ class StreamCapture(threading.Thread):
         # if not self.source or not self.sink or not self.pipeline or not self.decode or not self.convert:
         if not self.sink or not self.pipeline or not self.convert:
             print("Not all elements could be created.")
-            self.stop_event.set()
+            # self.stop_event.set()
 
         # Get the tee element
         self.tee = self.pipeline.get_by_name("t")
@@ -187,33 +201,30 @@ class StreamCapture(threading.Thread):
         # self.image_arr = None
         # self.newImage = False
 
-        if not self.stop_event.is_set():
-            if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.75:
-                self.last_sampling_time = crt_time
-                sample = sink.emit("pull-sample")
-                arr = self.gst_to_opencv(sample)
-                # self.image_arr = arr
-                # self.newImage = True
+        # if not self.stop_event.is_set():
+        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.8:
+            self.last_sampling_time = crt_time
+            sample = sink.emit("pull-sample")
+            arr = self.gst_to_opencv(sample)
 
-                if not self.cam_queue.full():
-                    self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+            if not self.cam_queue.full():
+                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
 
         return Gst.FlowReturn.OK
 
     def run(self):
-        # Start playing
-        self.stop_event.set()
-        # self.pipeline.set_state(Gst.State.PLAYING)
-        self.start_playing()
-
-        # Wait until error or EOS
-        bus = self.pipeline.get_bus()
-        # bus.add_signal_watch()
-        # bus.connect("message", self.on_message)
-
         try:
-            while True:
+
+            # Start playing
+            self.start_playing()
+
+            # Wait until error or EOS
+            bus = self.pipeline.get_bus()
+            # bus.add_signal_watch()
+            # bus.connect("message", self.on_message)
+
+            while not self.stop_event.is_set():
                 message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
                 if message:
@@ -294,12 +305,17 @@ class StreamCapture(threading.Thread):
             self.pipeline.set_state(Gst.State.NULL)
 
         
+    def stop(self):
+        self.stop_recording()
 
+        self.stop_sampling()
+
+        self.stop_event.set()
 
     def stop_sampling(self):
         logger.info(f"stop_sampling, {self.name} Stop sampling...")
 
-        self.stop_event.set()
+        # self.stop_event.set()
 
         if self.handler_id is not None:
             self.sink.disconnect(self.handler_id)
@@ -314,7 +330,7 @@ class StreamCapture(threading.Thread):
                 logger.info(f"start_sampling, connect new buffer callback")
                 self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
 
-            self.stop_event.clear()
+            # self.stop_event.clear()
 
             logger.info(f"start_sampling, {self.name} Sampling started...")
 
@@ -362,8 +378,9 @@ class StreamCapture(threading.Thread):
             # self.stop_event.set()
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            logger.info(f"Error: {err}, {debug}")
-            self.stop_event.set()
+            # logger.info(f"Error: {err}, {debug}")
+            # self.stop_event.set()
+            raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()

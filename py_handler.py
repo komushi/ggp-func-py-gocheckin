@@ -69,21 +69,21 @@ recording_timer = None
 # Initialize the gstreamers
 thread_gstreamers = {}
 
+# Initialize the camera_items
+camera_items = {}
+
 # Initialize the scanner_output_queue
 scanner_output_queue = Queue(maxsize=50)
 cam_queue = Queue(maxsize=500)
 
-# h264 or h265
-pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc ! queue ! rtph264depay name=m_rtph264depay 
-    ! queue ! h264parse ! tee name=t t. ! queue ! avdec_h264 name=m_avdec 
-    ! queue ! videoconvert name=m_videoconvert 
-    ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""    
-
-pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc ! queue ! rtph265depay name=m_rtph265depay 
-    ! queue ! h265parse ! tee name=t t. ! queue ! avdec_h265 name=m_avdec 
-    ! queue ! videoconvert name=m_videoconvert 
-    ! queue ! videorate name=m_videorate ! queue ! appsink name=m_appsink"""
-
+# Initialize the DynamoDB resource
+dynamodb = boto3.resource(
+    'dynamodb',
+    endpoint_url=os.environ['DDB_ENDPOINT'],
+    region_name='us-west-1',
+    aws_access_key_id='fakeMyKeyId',
+    aws_secret_access_key='fakeSecretAccessKey'
+)
 
 class FaceAnalysisChild(FaceAnalysis):
     # NOTE: allows setting det_size for each detection call.
@@ -373,40 +373,23 @@ def start_http_server():
 
                     logger.info(f"/start camera: {format(event['cameraItem']['localIp'])}")
 
-                    if event['cameraItem']['localIp'] not in thread_gstreamers or thread_gstreamers[event['cameraItem']['localIp']] is None or not thread_gstreamers[event['cameraItem']['localIp']].is_alive():
+                    if "cameraItem" in event:
+                        thread_gstreamer = start_gstreamer_thread(camera_item=event['cameraItem'])
 
-                        logger.info(f"Starting detector thread for : {event['cameraItem']['localIp']}")
+                        if thread_gstreamer is not None:
+                            if thread_monitors[start_gstreamer_thread['localIp']] is not None:
+                                thread_monitors[start_gstreamer_thread['localIp']].join()
+                            thread_monitors[start_gstreamer_thread['localIp']] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{start_gstreamer_thread['localIp']}", args=(thread_gstreamer,))
+                            thread_monitors[start_gstreamer_thread['localIp']].start()
 
-                        # logger.info(f'Available threads before starting: {", ".join(thread.name for thread in threading.enumerate())}')
-
-                        params = {}
-                        params['rtsp_src'] = f"rtsp://{event['cameraItem']['username']}:{event['cameraItem']['password']}@{event['cameraItem']['localIp']}:{event['cameraItem']['rtsp']['port']}{event['cameraItem']['rtsp']['path']}"
-                        params['codec'] = event['cameraItem']['rtsp']['codec']
-                        params['framerate'] = event['cameraItem']['rtsp']['framerate']
-                        params['cam_ip'] = event['cameraItem']['localIp']
-                        params['cam_uuid'] = event['cameraItem']['uuid']
-                        params['cam_name'] = event['cameraItem']['equipmentName']
-                        if params['codec'] == 'h264':
-                            params['pipeline_str'] = pipeline_str_h264
-                        elif params['codec'] == 'h265':
-                            params['pipeline_str'] = pipeline_str_h265
-
-                        thread_gstreamers[event['cameraItem']['localIp']] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
-                        thread_gstreamers[event['cameraItem']['localIp']].start()
-                    
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
                         self.end_headers()
                         self.wfile.write(json.dumps({"message": "Started Thread Gstreamer " + event['cameraItem']['localIp']}).encode())
-
-                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                    else:                        
-                        # logger.info(f"Detector thread for : {event['cameraItem']['localIp']} is not running properly")
-
+                    else:
                         self.send_response(400)
                         self.end_headers()
                         self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
-
 
                 else:
                     self.send_response(404)
@@ -449,17 +432,32 @@ def start_http_server():
     except Exception as e:
         logger.error(f"Error starting HTTP server: {e}")
 
+def get_camera_item(host_id, cam_uuid):
+
+    # Specify the table name
+    tbl_equipment = os.environ['TBL_EQUIPMENT']
+
+    # Get the table
+    table = dynamodb.Table(tbl_equipment)
+
+    # Retrieve item from the table
+    response = table.get_item(
+        Key={
+            'hostId': host_id,
+            'uuid': cam_uuid
+        }
+    )
+    
+    # Check if the item exists
+    item = response.get('Item')
+    if item:
+        return item
+    else:
+        return None
+
+
 def get_active_reservations():
     logger.info('get_active_reservations in')
-
-    # Initialize the DynamoDB resource
-    dynamodb = boto3.resource(
-        'dynamodb',
-        endpoint_url=os.environ['DDB_ENDPOINT'],
-        region_name='us-west-1',
-        aws_access_key_id='fakeMyKeyId',
-        aws_secret_access_key='fakeSecretAccessKey'
-    )
 
     # Specify the table name
     tbl_reservation = os.environ['TBL_RESERVATION']
@@ -496,14 +494,6 @@ def get_active_reservations():
 def update_member(reservationCode, memberNo):
     logger.info('update_member in')
 
-    # Initialize the DynamoDB resource
-    dynamodb = boto3.resource(
-        'dynamodb',
-        endpoint_url=os.environ['DDB_ENDPOINT'],
-        region_name='us-west-1',
-        aws_access_key_id='fakeMyKeyId',
-        aws_secret_access_key='fakeSecretAccessKey'
-    )
     # Specify the table name
     tbl_member = os.environ['TBL_MEMBER']
 
@@ -533,14 +523,6 @@ def update_member(reservationCode, memberNo):
 def get_active_members():
     logger.info('get_active_members in')
 
-    # Initialize the DynamoDB resource
-    dynamodb = boto3.resource(
-        'dynamodb',
-        endpoint_url=os.environ['DDB_ENDPOINT'],
-        region_name='us-west-1',
-        aws_access_key_id='fakeMyKeyId',
-        aws_secret_access_key='fakeSecretAccessKey'
-    )
     # Specify the table name
     tbl_member = os.environ['TBL_MEMBER']
 
@@ -742,6 +724,64 @@ def start_scheduler_thread():
     scheduler_thread.start()
     logger.info("Scheduler thread started")
 
+def stop_gstreamer_thread(thread_name):
+    logger.info(f"stop_gstreamer_thread, {thread_name} received, shutting down thread_gstreamer.")
+
+    if thread_name in thread_gstreamers:
+        if thread_gstreamers[thread_name] is not None:
+            thread_gstreamers[thread_name].stop()
+            thread_gstreamers[thread_name].join()
+            thread_gstreamers[thread_name] = None
+            logger.info(f"stop_gstreamer_thread, {thread_name} received, thread_gstreamer was just shut down.")
+
+def start_gstreamer_thread(**kwargs):
+
+    logger.info(f"start_gstreamer_thread, Starting with {kwargs} ...")
+    
+    global camera_items
+    global thread_gstreamers
+    camera_item = None
+
+    if "camera_item" in kwargs:
+        camera_item = kwargs['camera_item']
+    elif "host_id" in kwargs and "cam_uuid" in kwargs:
+        get_camera_item(kwargs['host_id'], kwargs['cam_uuid'])
+    elif "cam_ip" in  kwargs and "cam_uuid" in kwargs:
+        camera_item = camera_items[kwargs['cam_ip']]
+    else:
+        logger.info(f"start_gstreamer_thread, failed to start with {kwargs}")
+        return
+
+    if camera_item is not None:
+        camera_items[camera_item['localIp']] = camera_item
+    else:
+        logger.info(f"start_gstreamer_thread, failed to start with {kwargs}")
+        return
+    
+    if camera_item['localIp'] not in thread_gstreamers or thread_gstreamers[camera_item['localIp']] is None or not thread_gstreamers[camera_item['localIp']].is_alive():
+
+        params = {}
+        params['rtsp_src'] = f"rtsp://{camera_item['username']}:{camera_item['password']}@{camera_item['localIp']}:{camera_item['rtsp']['port']}{camera_item['rtsp']['path']}"
+        params['codec'] = camera_item['rtsp']['codec']
+        params['framerate'] = camera_item['rtsp']['framerate']
+        params['cam_ip'] = camera_item['localIp']
+        params['cam_uuid'] = camera_item['uuid']
+        params['cam_name'] = camera_item['equipmentName']
+
+        thread_gstreamers[camera_item['localIp']] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
+        thread_gstreamers[camera_item['localIp']].start()
+
+        logger.info(f"start_gstreamer_thread,  starting with {kwargs}...")
+
+        return thread_gstreamers[camera_item['localIp']]
+    
+    logger.info(f"start_gstreamer_thread, already started with {kwargs}...")
+
+    return
+
+    
+
+
 # Function to handle termination signals
 def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down http server.")
@@ -755,11 +795,15 @@ def signal_handler(signum, frame):
 
     global thread_gstreamers
     for thread_name in thread_gstreamers:
-        if thread_gstreamers[thread_name] is not None:
-            thread_gstreamers[thread_name].stop_sampling()
-            thread_gstreamers[thread_name].join()
-            thread_gstreamers[thread_name] = None
+        stop_gstreamer_thread(thread_name)
     thread_gstreamers = {}
+
+    global thread_monitors
+    for thread in thread_monitors:
+        thread.stop()
+        thread.join()
+        thread = None
+    thread_monitors = {}
 
     global scanner_output_queue
     with scanner_output_queue.mutex:
@@ -775,6 +819,33 @@ def signal_handler(signum, frame):
         server_thread.join()  # Wait for the server thread to finish
         server_thread = None
     logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
+
+def monitor_stop_event(thread_gstreamer):
+    global thread_gstreamers
+    global thread_monitors
+
+    cam_ip = thread_gstreamer.cam_ip
+
+    thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
+    logger.info(f"Monitor: {thread_gstreamer.name} has stopped")
+    thread_gstreamer.join()  # Join the stopped thread
+
+    
+    # Restart the thread
+    if not thread_gstreamer.is_alive():
+        thread_gstreamer = None
+        thread_gstreamers[cam_ip] = thread_gstreamer
+
+        thread_gstreamer = start_gstreamer_thread(cam_ip=cam_ip)
+
+        if thread_gstreamer is not None:
+            if thread_monitors[cam_ip] is not None:
+                thread_monitors[cam_ip].join()
+            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=cam_ip, args=(thread_gstreamer,))
+            thread_monitors[cam_ip].start()
+
+            
+
 
 def set_recording_time(thread_gstreamer, delay):
     logger.info(f'set_recording_time, thread_gstreamer: {thread_gstreamer.name}')
