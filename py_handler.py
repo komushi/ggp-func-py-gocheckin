@@ -759,7 +759,7 @@ def start_gstreamer_thread(**kwargs):
     if camera_item is not None:
         camera_items[camera_item['localIp']] = camera_item
     else:
-        logger.info(f"start_gstreamer_thread, failed to start with {kwargs}")
+        logger.info(f"start_gstreamer_thread, failed to start with {kwargs} because {camera_item} has no {kwargs['cam_ip']}")
         return
     
     if camera_item['localIp'] not in thread_gstreamers or thread_gstreamers[camera_item['localIp']] is None or not thread_gstreamers[camera_item['localIp']].is_alive():
