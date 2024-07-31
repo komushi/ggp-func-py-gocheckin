@@ -77,7 +77,6 @@ class StreamCapture(threading.Thread):
         self.scanner_output_queue = scanner_output_queue
         self.rtsp_src = params['rtsp_src']
         self.framerate = params['framerate']
-        self.pipeline_str = params['pipeline_str']
         self.cam_ip = params['cam_ip']
         self.cam_uuid = params['cam_uuid']
         self.cam_name = params['cam_name']
