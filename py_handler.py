@@ -383,7 +383,7 @@ def start_http_server():
                             if event['cameraItem']['localIp'] in thread_monitors:
                                 if thread_monitors[event['cameraItem']['localIp']] is not None:
                                     thread_monitors[event['cameraItem']['localIp']].join()
-                            thread_monitors[event['cameraItem']['localIp']] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{start_gstreamer_thread['localIp']}", args=(thread_gstreamer,))
+                            thread_monitors[event['cameraItem']['localIp']] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{event['cameraItem']['localIp']}", args=(thread_gstreamer,))
                             thread_monitors[event['cameraItem']['localIp']].start()
 
                         self.send_response(200)
