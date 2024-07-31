@@ -380,8 +380,9 @@ def start_http_server():
                         thread_gstreamer = start_gstreamer_thread(camera_item=event['cameraItem'])
 
                         if thread_gstreamer is not None:
-                            if thread_monitors[event['cameraItem']['localIp']] is not None:
-                                thread_monitors[event['cameraItem']['localIp']].join()
+                            if event['cameraItem']['localIp'] in thread_monitors:
+                                if thread_monitors[event['cameraItem']['localIp']] is not None:
+                                    thread_monitors[event['cameraItem']['localIp']].join()
                             thread_monitors[event['cameraItem']['localIp']] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{start_gstreamer_thread['localIp']}", args=(thread_gstreamer,))
                             thread_monitors[event['cameraItem']['localIp']].start()
 
