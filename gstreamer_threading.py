@@ -263,7 +263,7 @@ class StreamCapture(threading.Thread):
         logger.info(f"start_playing, {self.name} count: {count}")
 
         if count > 5:
-            logger.info(f"start_playing, {self.name} ended with is_playing: {self.is_playing}, count: {count}")
+            logger.info(f"start_playing, {self.name} ended with result is_playing: {self.is_playing}, count: {count}")
             return self.is_playing
 
         count += 1
@@ -277,15 +277,22 @@ class StreamCapture(threading.Thread):
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
                     logger.info(f"start_playing, {self.name} playing_state_change_return is not {Gst.StateChangeReturn.SUCCESS}")
                     time.sleep(5)
-                    self.start_playing(count)                
+                    return self.start_playing(count)
+                else:
+                    logger.info(f"start_playing, {self.name} return with result: {True}, count: {count}")
+                    return True
+
             else:
-                logger.info(f"start_playing, {self.name} return with is_playing: {self.is_playing}, count: {count}")
-                return self.is_playing
+                logger.info(f"start_playing, {self.name} return with result: {True}, count: {count}")
+                return True
     
         except Exception as e:
             logger.info(f"start_playing, {self.name} exception")
             logger.error(e)
             traceback.print_exc()
+        finally:
+            logger.info(f"start_playing, {self.name} return with final result: {False}, count: {count}")
+            return False
 
 
         
