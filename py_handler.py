@@ -72,6 +72,9 @@ thread_gstreamers = {}
 # Initialize the camera_items
 camera_items = {}
 
+# Initialize the camera_items
+thread_monitors = {}
+
 # Initialize the scanner_output_queue
 scanner_output_queue = Queue(maxsize=50)
 cam_queue = Queue(maxsize=500)
