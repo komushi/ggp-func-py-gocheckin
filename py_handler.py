@@ -750,7 +750,7 @@ def start_gstreamer_thread(**kwargs):
         camera_item = kwargs['camera_item']
     elif "host_id" in kwargs and "cam_uuid" in kwargs:
         get_camera_item(kwargs['host_id'], kwargs['cam_uuid'])
-    elif "cam_ip" in  kwargs and "cam_uuid" in kwargs:
+    elif "cam_ip" in kwargs:
         camera_item = camera_items[kwargs['cam_ip']]
     else:
         logger.info(f"start_gstreamer_thread, failed to start with {kwargs}")
