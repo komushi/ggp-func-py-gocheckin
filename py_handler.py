@@ -844,7 +844,7 @@ def monitor_stop_event(thread_gstreamer):
         if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:
                 thread_monitors[cam_ip] = None
-            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=cam_ip, args=(thread_gstreamer,))
+            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
 
             
