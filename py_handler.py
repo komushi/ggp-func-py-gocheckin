@@ -72,7 +72,7 @@ thread_gstreamers = {}
 # Initialize the camera_items
 camera_items = {}
 
-# Initialize the camera_items
+# Initialize the thread_monitors
 thread_monitors = {}
 
 # Initialize the scanner_output_queue
