@@ -252,6 +252,7 @@ class StreamCapture(threading.Thread):
             traceback.print_exc()
         finally:
             self.pipeline.set_state(Gst.State.NULL)
+            self.stop_event.set()
             logger.info("Pipeline stopped and cleaned up.")
 
     # def pipeline_is_playing(self):
