@@ -69,8 +69,8 @@ fields @timestamp, @message
 ### 2-1. Query
 ```
 fields @timestamp, @message
-| filter @message like /Pipeline state changed from/
+| filter @message like /Pipeline state changed from paused to playing/ or @message like /Gst.MessageType.ERROR/
 | display @timestamp, @logStream, @message
-| sort @timestamp asc
+| sort @timestamp desc
 | limit 200
 ```

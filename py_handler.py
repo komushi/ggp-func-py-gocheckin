@@ -298,32 +298,31 @@ def start_http_server():
 
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                elif self.path == '/record':
-                    # TODO
-                    # Process the POST data
-                    content_length = int(self.headers['Content-Length'])
-                    post_data = self.rfile.read(content_length)
-                    event = json.loads(post_data)
+                # elif self.path == '/record':
+                #     # Process the POST data
+                #     content_length = int(self.headers['Content-Length'])
+                #     post_data = self.rfile.read(content_length)
+                #     event = json.loads(post_data)
 
-                    logger.info(f"/record camera: {format(event['cameraItem']['localIp'])}")
+                #     logger.info(f"/record camera: {format(event['cameraItem']['localIp'])}")
 
-                    if event['cameraItem']['localIp'] in thread_gstreamers and thread_gstreamers[event['cameraItem']['localIp']] is not None:
-                        # record
-                        if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
-                            set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
+                #     if event['cameraItem']['localIp'] in thread_gstreamers and thread_gstreamers[event['cameraItem']['localIp']] is not None:
+                #         # record
+                #         if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
+                #             set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
 
-                        self.send_response(200)
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Started Thread StreamCapture " + event['cameraItem']['localIp']}).encode())
+                #         self.send_response(200)
+                #         self.send_header('Content-type', 'application/json')
+                #         self.end_headers()
+                #         self.wfile.write(json.dumps({"message": "Started Thread StreamCapture " + event['cameraItem']['localIp']}).encode())
 
-                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                    else:
-                        self.send_response(400)
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
+                #         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                #     else:
+                #         self.send_response(400)
+                #         self.end_headers()
+                #         self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
 
-                        logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                #         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                 elif self.path == '/detect':
                     # Process the POST data
