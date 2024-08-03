@@ -31,22 +31,7 @@ import numpy as np
 import boto3
 from boto3.dynamodb.conditions import  Attr
 
-
-def list_sys_folders():
-    sys_path = '/sys'
-    try:
-        # List all directories under /sys
-        sys_folders = [f for f in os.listdir(sys_path) if os.path.isdir(os.path.join(sys_path, f))]
-        return sys_folders
-    except Exception as e:
-        return str(e)
-
-os.makedirs('/sys/devices/system/cpu', exist_ok=True)
-
-folders = list_sys_folders()
-print("Folders under /sys:", folders)
-
-# from insightface.app import FaceAnalysis
+from insightface.app import FaceAnalysis
 import face_recognition as fdm
 
 import gstreamer_threading as gst
