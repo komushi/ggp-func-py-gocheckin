@@ -31,13 +31,20 @@ import numpy as np
 import boto3
 from boto3.dynamodb.conditions import  Attr
 
-import onnxruntime as ort
 
-# Configure ONNX Runtime logger
-ort.set_default_logger_severity(4)  # Set logger severity to WARNING
+def list_sys_folders():
+    sys_path = '/sys'
+    try:
+        # List all directories under /sys
+        sys_folders = [f for f in os.listdir(sys_path) if os.path.isdir(os.path.join(sys_path, f))]
+        return sys_folders
+    except Exception as e:
+        return str(e)
+    
+folders = list_sys_folders()
+print("Folders under /sys:", folders)
 
-
-from insightface.app import FaceAnalysis
+# from insightface.app import FaceAnalysis
 import face_recognition as fdm
 
 import gstreamer_threading as gst
