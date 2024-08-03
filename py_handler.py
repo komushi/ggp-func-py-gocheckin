@@ -31,7 +31,7 @@ import numpy as np
 import boto3
 from boto3.dynamodb.conditions import  Attr
 
-from insightface.app import FaceAnalysis
+# from insightface.app import FaceAnalysis
 import face_recognition as fdm
 
 import gstreamer_threading as gst
