@@ -88,16 +88,7 @@ dynamodb = boto3.resource(
     aws_secret_access_key='fakeSecretAccessKey'
 )
 
-class FaceAnalysisChild(FaceAnalysis):
-    # NOTE: allows setting det_size for each detection call.
-    # the model allows it but the wrapping code from insightface
-    # doesn't show it, and people end up loading duplicate models
-    # for different sizes where there is absolutely no need to
-    def get(self, img, max_num=0, det_size=(640, 640)):
-        if det_size is not None:
-            self.det_model.input_size = det_size
 
-        return super().get(img, max_num)
 
 def function_handler(event, context):
 
@@ -134,6 +125,17 @@ def init_uploader_app():
             )
 
 def init_face_app(model='buffalo_sc'):
+    class FaceAnalysisChild(FaceAnalysis):
+        # NOTE: allows setting det_size for each detection call.
+        # the model allows it but the wrapping code from insightface
+        # doesn't show it, and people end up loading duplicate models
+        # for different sizes where there is absolutely no need to
+        def get(self, img, max_num=0, det_size=(640, 640)):
+            if det_size is not None:
+                self.det_model.input_size = det_size
+
+            return super().get(img, max_num)
+
     global face_app
 
     logger.info(f"Initializing with Model Name: {model}")
@@ -873,7 +875,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
-init_face_app()
+# init_face_app()
 
 # Start the HTTP server thread
 start_server_thread()
