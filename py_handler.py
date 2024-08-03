@@ -40,7 +40,9 @@ def list_sys_folders():
         return sys_folders
     except Exception as e:
         return str(e)
-    
+
+os.makedirs('/sys/devices/system/cpu', exist_ok=True)
+
 folders = list_sys_folders()
 print("Folders under /sys:", folders)
 
