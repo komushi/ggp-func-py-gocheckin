@@ -125,7 +125,7 @@ class StreamCapture(threading.Thread):
         #framerate parameters
         self.framerate_ctr = self.pipeline.get_by_name('m_videorate')
         self.framerate_ctr.set_property('max-rate', self.framerate/1)
-        self.framerate_ctr.set_property('drop-only', 'true')
+        # self.framerate_ctr.set_property('drop-only', 'true')
 
         # sink params
         self.sink = self.pipeline.get_by_name('m_appsink')
