@@ -201,7 +201,7 @@ class StreamCapture(threading.Thread):
         # self.newImage = False
 
         # if not self.stop_event.is_set():
-        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.25:
+        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.5:
             self.last_sampling_time = crt_time
             sample = sink.emit("pull-sample")
             arr = self.gst_to_opencv(sample)
