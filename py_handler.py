@@ -31,7 +31,13 @@ import numpy as np
 import boto3
 from boto3.dynamodb.conditions import  Attr
 
-# from insightface.app import FaceAnalysis
+import onnxruntime as ort
+
+# Configure ONNX Runtime logger
+ort.set_default_logger_severity(4)  # Set logger severity to WARNING
+
+
+from insightface.app import FaceAnalysis
 import face_recognition as fdm
 
 import gstreamer_threading as gst
@@ -873,7 +879,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
-# init_face_app()
+init_face_app()
 
 # Start the HTTP server thread
 start_server_thread()
