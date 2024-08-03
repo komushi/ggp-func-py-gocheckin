@@ -873,7 +873,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
-init_face_app()
+# init_face_app()
 
 # Start the HTTP server thread
 start_server_thread()
