@@ -238,7 +238,7 @@ def start_http_server():
                     # print('event[faceEmbedding]:')
                     # print(type(event['faceEmbedding']))
 
-                    bbox = reference_faces[0].bbox.astype(np.int).flatten()
+                    bbox = reference_faces[0].bbox.astype(int).flatten()
                     cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
 
                     # Convert the image to bytes
