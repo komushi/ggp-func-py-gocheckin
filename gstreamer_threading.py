@@ -240,26 +240,6 @@ class StreamCapture(threading.Thread):
             self.stop_event.set()
             logger.info("Pipeline stopped and cleaned up.")
 
-    # def pipeline_is_playing(self):
-
-    #     logger.info(f"pipeline_is_playing, {self.name} before get_state")
-    #     state_change_return, current_state, pending_state = self.pipeline.get_state(Gst.SECOND)
-    #     logger.info(f"pipeline_is_playing, {self.name} get_state state_change_return: {state_change_return}, current_state: {current_state}, pending_state: {pending_state}")
-
-    #     if state_change_return == Gst.StateChangeReturn.SUCCESS:
-    #         logger.info(f"Current state: {current_state.value_name}")
-    #         logger.info(f"Pending state: {pending_state.value_name}")
-    #         if current_state == Gst.State.PLAYING:
-    #             return True
-    #     elif state_change_return == Gst.StateChangeReturn.ASYNC:
-    #         logger.info("State change is still in progress.")
-    #     elif state_change_return == Gst.StateChangeReturn.NO_PREROLL:
-    #         logger.info("Pipeline is in a state where preroll is not possible.")
-    #     else:
-    #         logger.info(f"State change failed or returned unexpected value: {state_change_return.value_name}")
-
-    #     return False
-
     def start_playing(self, count = 0, playing = False):
         logger.info(f"start_playing, {self.name} count: {count} playing: {playing}")
 
@@ -400,8 +380,10 @@ class StreamCapture(threading.Thread):
                     
                     logger.info(f"New file created: {location}")
 
-                    duration_timedelta = timedelta(microseconds=int(structure.get_value("running-time")) / 1000)
-                    logger.info(f"New file created running-time: {structure.get_value('running-time')}")
+                    # duration_timedelta = timedelta(microseconds=int(structure.get_value("running-time")) / 1000)
+                    running_time = structure.get_value("running-time")
+                    duration_timedelta = timedelta(seconds=running_time / Gst.SECOND)
+                    logger.info(f"New file created running-time: {running_time}")
                     logger.info(f"New file created duration_timedelta: {duration_timedelta}")
 
                     start_datetime_utc = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y-%m-%d %H:%M:%S")
@@ -451,7 +433,7 @@ class StreamCapture(threading.Thread):
 
         # Set properties
         self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
-        self.splitmuxsink.set_property("max-size-time", 30000000000)  # 60 seconds
+        self.splitmuxsink.set_property("max-size-time", 30000000000)  # 30 seconds
         if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
             self.splitmuxsink.set_property("async-finalize", True)
 
