@@ -375,6 +375,11 @@ class StreamCapture(threading.Thread):
                 if action == "splitmuxsink-fragment-opened":
                     location = structure.get_string("location")
                     logger.info(f"New file being created: {location}")
+
+                    now = datetime.now(timezone.utc)
+                    self.date_folder = now.strftime("%Y-%m-%d")
+                    self.time_filename = now.strftime("%H:%M:%S")
+                    
                 elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
                     
