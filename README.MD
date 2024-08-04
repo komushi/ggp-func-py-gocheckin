@@ -73,4 +73,20 @@ fields @timestamp, @message
 | display @timestamp, @logStream, @message
 | sort @timestamp desc
 | limit 200
+
+fields @timestamp, @message
+| filter @message like /Monitor:/ or @message like /Gst.MessageType.ERROR/ or @message like /Pipeline state changed from paused to playing/
+| display @timestamp, @logStream, @message
+| sort @timestamp asc
+| limit 200
+```
+
+## 3. To find if there are rtsp seek issues
+### 3-1. Query
+```
+fields @timestamp, @message
+| filter @message like /Downstream is not seekable/
+| display @timestamp, @logStream, @message
+| sort @timestamp desc
+| limit 200
 ```

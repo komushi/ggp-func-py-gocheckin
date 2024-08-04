@@ -100,7 +100,7 @@ class StreamCapture(threading.Thread):
             self.source.set_property('tcp-timeout', 2000000)
             self.source.set_property('buffer-mode', 1)            
 
-            # if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
+        if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
             self.source.set_property("onvif-mode", True)
             self.source.set_property("onvif-rate-control", False)
             self.source.set_property('is-live', True)
@@ -451,7 +451,9 @@ class StreamCapture(threading.Thread):
 
         # Set properties
         self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
-        self.splitmuxsink.set_property("max-size-time", 60000000000)  # 60 seconds
+        self.splitmuxsink.set_property("max-size-time", 30000000000)  # 60 seconds
+        if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
+            self.splitmuxsink.set_property("async-finalize", True)
 
         # Add elements to the pipeline
         self.pipeline.add(self.queue)
