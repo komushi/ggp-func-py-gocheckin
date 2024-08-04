@@ -674,9 +674,8 @@ def fetch_scanner_output_queue():
 
                 elif message['type'] == 'video_clipped':
                     local_file_path = message['payload']['local_file_path']
-
-                    video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['payload']['cam_ip']}/{message['payload']['date_folder']}/{message['payload']['time_filename']}{message['payload']['ext']}"""
-                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{message['payload']['cam_ip']}/{message['payload']['date_folder']}/{message['payload']['time_filename']}{message['payload']['ext']}"""
+                    video_key = message['payload']['video_key']
+                    object_key = message['payload']['object_key']
 
                     uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 

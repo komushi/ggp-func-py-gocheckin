@@ -173,11 +173,8 @@ class StreamCapture(threading.Thread):
         self.h264h265_parser = None
 
         self.last_sampling_time = None
-        # self.image_arr = None
-        # self.newImage = False
         self.handler_id = None
-        self.date_folder = None
-        self.time_filename = None
+        self.start_datetime_utc = None
         self.ext = ".mp4"
 
         self.is_playing = False
@@ -373,19 +370,25 @@ class StreamCapture(threading.Thread):
                 action = structure.get_name()
                 # logger.info(f"New action detected: {action}")
                 if action == "splitmuxsink-fragment-opened":
-                    location = structure.get_string("location")
-                    logger.info(f"New file being created: {location}")
-
-                    self.start_datetime_utc = datetime.now(timezone.utc)
-                    self.date_folder = self.start_datetime_utc.strftime("%Y-%m-%d")
-                    self.time_filename = self.start_datetime_utc.strftime("%H:%M:%S")
                     
+                    self.start_datetime_utc = datetime.now(timezone.utc)
+
+                    location = structure.get_string("location")
+                    logger.info(f"New video file being created at local_file_path {location}")
+
                 elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
-                    
-                    logger.info(f"New file created: {location}")
 
                     if not self.scanner_output_queue.full():
+                        date_folder = self.start_datetime_utc.strftime("%Y-%m-%d")
+                        time_filename = self.start_datetime_utc.strftime("%H:%M:%S")
+                        
+                        video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{self.ext}"""
+
+                        object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{self.ext}"""
+
+                        logger.info(f"New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{self.ext}")
+
                         self.scanner_output_queue.put({
                             "type": "video_clipped",
                             "payload": {
@@ -393,15 +396,15 @@ class StreamCapture(threading.Thread):
                                 "cam_ip": self.cam_ip,
                                 "cam_uuid": self.cam_uuid,
                                 "cam_name": self.cam_name,
-                                "date_folder": self.date_folder,
-                                "time_filename": self.time_filename,
+                                "video_key": video_key,
+                                "object_key": object_key,
                                 "ext": self.ext,
                                 "local_file_path": location,
                                 "start_datetime": self.start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                                 "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                             }
                         }, block=False)
-                        logger.info(f"Sending video_clipped for video file: {self.time_filename}")
+                        logger.info(f"Sending video_clipped for video file: {location}")
                     
 
     def create_and_link_splitmuxsink(self):
@@ -410,6 +413,9 @@ class StreamCapture(threading.Thread):
             logger.info("Splitmuxsink branch is already linked...")
             return False
 
+        date_folder = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        logger.info(f"create_and_link_splitmuxsink for date_folder: {date_folder}")
             
         # Create elements for the splitmuxsink branch
         self.queue = Gst.ElementFactory.make("queue", "record_queue")
@@ -419,16 +425,13 @@ class StreamCapture(threading.Thread):
         elif self.rtph264depay is not None:
             self.h264h265_parser = Gst.ElementFactory.make("h264parse", "record_h264parse")
         self.splitmuxsink = Gst.ElementFactory.make("splitmuxsink", "splitmuxsink")
-        
-        now = datetime.now(timezone.utc)
-        self.date_folder = now.strftime("%Y-%m-%d")
-        self.time_filename = now.strftime("%H:%M:%S")
 
-        if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder)):
-            os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder))
+
+        if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder)):
+            os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
 
         # Set properties
-        self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, self.date_folder, self.time_filename + self.ext))
+        self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, "video%02d" + self.ext))
         self.splitmuxsink.set_property("max-size-time", 30000000000)  # 30 seconds
         if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
             self.splitmuxsink.set_property("async-finalize", True)

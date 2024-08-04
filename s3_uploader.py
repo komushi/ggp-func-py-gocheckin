@@ -168,9 +168,9 @@ class S3Uploader():
             
             if response.status_code == 200:
                 os.remove(local_file_path)
-                print(f"File {local_file_path} uploaded and removed successfully")
+                print(f"File {local_file_path} uploaded as object_key: {object_key} and removed successfully")
             else:
-                print(f"Failed to upload file: {response.status_code}")
+                print(f"Failed to upload object_key: {object_key}, {local_file_path}, status: {response.status_code}")
         except Exception as e:
             print(f"Error: {e}")
     
