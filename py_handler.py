@@ -261,11 +261,14 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
-                    logger.info(f"/detect_record camera: {format(event['cameraItem']['localIp'])}")
+                    cam_ip = event['cam_ip']
 
-                    if thread_gstreamers[event['cameraItem']['localIp']] is not None:
-                        thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
-                        set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
+                    logger.info(f"/detect_record camera: {cam_ip}")
+
+                    if cam_ip in thread_gstreamers:
+                        if thread_gstreamers[cam_ip] is not None:
+                            thread_gstreamers[cam_ip].start_sampling()
+                            set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
                     if thread_detector is None:
                         params = {}
@@ -286,8 +289,9 @@ def start_http_server():
                         thread_detector.start_detection()
 
                     # record 
-                    if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
-                        set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
+                    if cam_ip in thread_gstreamers:
+                        if thread_gstreamers[cam_ip].start_recording():
+                            set_recording_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
 
                     self.send_response(200)
@@ -322,44 +326,44 @@ def start_http_server():
 
                 #         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                elif self.path == '/detect':
-                    # Process the POST data
-                    content_length = int(self.headers['Content-Length'])
-                    post_data = self.rfile.read(content_length)
-                    event = json.loads(post_data)
+                # elif self.path == '/detect':
+                #     # Process the POST data
+                #     content_length = int(self.headers['Content-Length'])
+                #     post_data = self.rfile.read(content_length)
+                #     event = json.loads(post_data)
 
-                    logger.info(f"/detect camera: {format(event['cameraItem']['localIp'])}")
+                #     logger.info(f"/detect camera: {format(event['cameraItem']['localIp'])}")
 
-                    if thread_gstreamers[event['cameraItem']['localIp']] is not None:
-                        thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
-                        set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
+                #     if thread_gstreamers[event['cameraItem']['localIp']] is not None:
+                #         thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
+                #         set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
 
-                        if thread_detector is None:
-                            params = {}
-                            params['face_app'] = face_app
+                #         if thread_detector is None:
+                #             params = {}
+                #             params['face_app'] = face_app
 
-                            thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+                #             thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
 
-                            fetch_members()
+                #             fetch_members()
 
-                            thread_detector.start()
-                            thread_detector.start_detection()
+                #             thread_detector.start()
+                #             thread_detector.start_detection()
 
-                            # thread_detector.extend_detection_time()
-                            self.send_response(200)
-                            self.end_headers()
-                            self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_detector.name }).encode())
+                #             # thread_detector.extend_detection_time()
+                #             self.send_response(200)
+                #             self.end_headers()
+                #             self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_detector.name }).encode())
     
-                        else:
-                            fetch_members()
+                #         else:
+                #             fetch_members()
                             
-                            thread_detector.start_detection()
+                #             thread_detector.start_detection()
 
-                            self.send_response(200)
-                            self.end_headers()
-                            self.wfile.write(json.dumps({"message": "Thread: " + thread_detector.name + " is already running"}).encode())
+                #             self.send_response(200)
+                #             self.end_headers()
+                #             self.wfile.write(json.dumps({"message": "Thread: " + thread_detector.name + " is already running"}).encode())
 
-                    logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
+                #     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                 elif self.path == '/start':
                     # Process the POST data
