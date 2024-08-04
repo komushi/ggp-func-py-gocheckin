@@ -201,7 +201,7 @@ class StreamCapture(threading.Thread):
         # self.newImage = False
 
         # if not self.stop_event.is_set():
-        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.5:
+        if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.75:
             self.last_sampling_time = crt_time
             sample = sink.emit("pull-sample")
             arr = self.gst_to_opencv(sample)
@@ -376,23 +376,14 @@ class StreamCapture(threading.Thread):
                     location = structure.get_string("location")
                     logger.info(f"New file being created: {location}")
 
-                    now = datetime.now(timezone.utc)
-                    self.date_folder = now.strftime("%Y-%m-%d")
-                    self.time_filename = now.strftime("%H:%M:%S")
+                    self.start_datetime_utc = datetime.now(timezone.utc)
+                    self.date_folder = self.start_datetime_utc.strftime("%Y-%m-%d")
+                    self.time_filename = self.start_datetime_utc.strftime("%H:%M:%S")
                     
                 elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
                     
                     logger.info(f"New file created: {location}")
-
-                    # duration_timedelta = timedelta(microseconds=int(structure.get_value("running-time")) / 1000)
-                    running_time = structure.get_value("running-time")
-                    duration_timedelta = timedelta(seconds=running_time / Gst.SECOND)
-                    logger.info(f"New file created running-time: {running_time}")
-                    logger.info(f"New file created duration_timedelta: {duration_timedelta}")
-
-                    start_datetime_utc = datetime.strptime(f"{self.date_folder} {self.time_filename}", "%Y-%m-%d %H:%M:%S")
-                    end_datetime_utc = start_datetime_utc + duration_timedelta
 
                     if not self.scanner_output_queue.full():
                         self.scanner_output_queue.put({
@@ -406,8 +397,8 @@ class StreamCapture(threading.Thread):
                                 "time_filename": self.time_filename,
                                 "ext": self.ext,
                                 "local_file_path": location,
-                                "start_datetime": start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-                                "end_datetime": end_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                "start_datetime": self.start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                             }
                         }, block=False)
                         logger.info(f"Sending video_clipped for video file: {self.time_filename}")
