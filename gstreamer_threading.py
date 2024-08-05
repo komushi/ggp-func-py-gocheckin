@@ -361,8 +361,8 @@ class StreamCapture(threading.Thread):
                     self.is_playing = False
 
                 logger.info(f"{self.cam_ip} Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
-        # elif message.type == Gst.MessageType.WARNING:
-        #     logger.info(f"Warning message {message.parse_warning()}： {message.type}.")
+        elif message.type == Gst.MessageType.WARNING:
+            logger.info(f"Warning message {message.parse_warning()}： {message.type} at {self.cam_ip}.")
         elif message.type == Gst.MessageType.ELEMENT:
             structure = message.get_structure()
             # logger.info(f"New ELEMENT detected: {structure.get_name()}")
