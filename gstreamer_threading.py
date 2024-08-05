@@ -475,9 +475,9 @@ class StreamCapture(threading.Thread):
         queue_pad = self.queue.get_static_pad("sink")
         self.tee_pad.link(queue_pad)
 
-        self.pipeline.set_state(Gst.State.PLAYING)
-
         self.send_keyframe_request()
+
+        self.pipeline.set_state(Gst.State.PLAYING)
 
         logging.info("Splitmuxsink branch created and linked")
 
