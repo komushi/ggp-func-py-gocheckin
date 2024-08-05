@@ -268,12 +268,13 @@ def start_http_server():
 
                     logger.info(f"/detect_record camera: {cam_ip}")
 
-                    if cam_ip in thread_gstreamers:
-                        if thread_gstreamers[cam_ip] is not None:
-                            thread_gstreamers[cam_ip].start_sampling()
-                            set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
-
+                    # detect
                     if camera_item is not None and camera_item['isDetecting']:
+                        if cam_ip in thread_gstreamers:
+                            if thread_gstreamers[cam_ip] is not None:
+                                thread_gstreamers[cam_ip].start_sampling()
+                                set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
+
                         if thread_detector is None:
                             params = {}
                             params['face_app'] = face_app
