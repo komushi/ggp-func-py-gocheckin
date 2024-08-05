@@ -475,6 +475,8 @@ class StreamCapture(threading.Thread):
         queue_pad = self.queue.get_static_pad("sink")
         self.tee_pad.link(queue_pad)
 
+        self.tee_pad.set_state(Gst.State.PLAYING)
+
         # self.pipeline.set_state(Gst.State.PLAYING)
 
         # self.send_keyframe_request()
