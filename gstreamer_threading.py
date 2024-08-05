@@ -185,7 +185,7 @@ class StreamCapture(threading.Thread):
         self.tee = self.pipeline.get_by_name("t")
         self.tee_pad = None
         self.queue = None
-        # self.record_valve = None
+        self.record_valve = None
         self.splitmuxsink = None
         self.h264h265_parser = None
 
@@ -335,7 +335,7 @@ class StreamCapture(threading.Thread):
 
             if self.create_and_link_splitmuxsink():
 
-                # self.record_valve.set_property('drop', False)
+                self.record_valve.set_property('drop', False)
                 logger.info(f"start_recording, {self.name} Start New Recording...")
 
                 return True;
@@ -349,9 +349,9 @@ class StreamCapture(threading.Thread):
     def stop_recording(self):
         logger.info(f"stop_recording, {self.name} Stop recording...")
 
-        # if self.record_valve is not None:
-        #     self.record_valve.set_property('drop', True)
-        #     logger.info(f"stop_recording, {self.name} Dropping record_valve...")
+        if self.record_valve is not None:
+            self.record_valve.set_property('drop', True)
+            logger.info(f"stop_recording, {self.name} Dropping record_valve...")
         
         # Send EOS to the recording branch
         if self.splitmuxsink is not None:
@@ -441,7 +441,7 @@ class StreamCapture(threading.Thread):
         # self.queue.set_property("max-size-time", 0)
         # self.queue.set_property("max-size-bytes", 0)  # 10 MB buffer size
 
-        # self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
+        self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
 
         if self.rtph265depay is not None:
             self.h264h265_parser = Gst.ElementFactory.make("h265parse", "record_h265parse")
@@ -461,14 +461,13 @@ class StreamCapture(threading.Thread):
 
         # Add elements to the pipeline
         self.pipeline.add(self.queue)
-        # self.pipeline.add(self.record_valve)
+        self.pipeline.add(self.record_valve)
         self.pipeline.add(self.h264h265_parser)
         self.pipeline.add(self.splitmuxsink)
 
         # Link the elements together
-        # self.queue.link(self.record_valve)
-        # self.record_valve.link(self.h264h265_parser)
-        self.queue.link(self.h264h265_parser)
+        self.queue.link(self.record_valve)
+        self.record_valve.link(self.h264h265_parser)
         self.h264h265_parser.link(self.splitmuxsink)
 
         # Link the tee to the queue
@@ -479,8 +478,6 @@ class StreamCapture(threading.Thread):
         self.pipeline.set_state(Gst.State.PLAYING)
 
         # self.send_keyframe_request()
-
-        # self.record_valve.set_property('drop', False)
 
         logging.info("Splitmuxsink branch created and linked")
 
@@ -501,17 +498,18 @@ class StreamCapture(threading.Thread):
 
         # Unlink the tee from the queue
         self.tee_pad.unlink(self.queue.get_static_pad("sink"))
-        self.queue.unlink(self.h264h265_parser)
+        self.queue.unlink(self.record_valve)
+        self.record_valve.unlink(self.h264h265_parser)
         self.h264h265_parser.unlink(self.splitmuxsink)
 
         self.queue.set_state(Gst.State.NULL)
-        # self.record_valve.set_state(Gst.State.NULL)
+        self.record_valve.set_state(Gst.State.NULL)
         self.h264h265_parser.set_state(Gst.State.NULL)
         self.splitmuxsink.set_state(Gst.State.NULL)
 
         # Remove the elements from the pipeline
         self.pipeline.remove(self.queue)
-        # self.pipeline.remove(self.record_valve)
+        self.pipeline.remove(self.record_valve)
         self.pipeline.remove(self.h264h265_parser)
         self.pipeline.remove(self.splitmuxsink)
 

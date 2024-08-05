@@ -300,7 +300,7 @@ def start_http_server():
 
                     self.send_response(200)
                     self.end_headers()
-                    self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_gstreamers[cam_ip].name }).encode())
+                    self.wfile.write(json.dumps({"message": f"Starting Thread: {cam_ip}"}).encode())
 
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
