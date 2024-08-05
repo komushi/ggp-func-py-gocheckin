@@ -6,7 +6,7 @@ gi.require_version('GstPbutils', '1.0')
 from gi.repository import Gst
 from gi.repository import GstPbutils
 
-
+import uuid
 
 import os
 import sys
@@ -435,8 +435,9 @@ class StreamCapture(threading.Thread):
             return False
 
         date_folder = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        file_name = str(uuid.uuid4())[:8]
 
-        logger.info(f"create_and_link_splitmuxsink for date_folder: {date_folder}")
+        logger.info(f"create_and_link_splitmuxsink for date_folder: {date_folder}, file_name: {file_name + self.ext} ")
             
         # Create elements for the splitmuxsink branch
         self.queue = Gst.ElementFactory.make("queue", "record_queue")
@@ -457,7 +458,7 @@ class StreamCapture(threading.Thread):
             os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
 
         # Set properties
-        self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, "video%02d" + self.ext))
+        self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, file_name + self.ext))
         self.splitmuxsink.set_property("max-size-time", 20000000000)  # 20 seconds
         if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
             self.splitmuxsink.set_property("async-finalize", True)
