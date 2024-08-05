@@ -452,6 +452,12 @@ class StreamCapture(threading.Thread):
         queue_pad = self.queue.get_static_pad("sink")
         self.tee_pad.link(queue_pad)
 
+        event = Gst.Event.new_custom(Gst.EventType.CUSTOM_DOWNSTREAM, Gst.Structure.new_empty("GstForceKeyUnit"))
+        if self.rtph265depay is not None:
+            self.rtph265depay.send_event(event)
+        elif self.rtph264depay is not None:
+            self.rtph264depay.send_event(event)
+
         self.pipeline.set_state(Gst.State.PLAYING)
 
         logging.info("Splitmuxsink branch created and linked")
