@@ -475,17 +475,20 @@ class StreamCapture(threading.Thread):
         queue_pad = self.queue.get_static_pad("sink")
         self.tee_pad.link(queue_pad)
 
+        self.pipeline.set_state(Gst.State.PLAYING)
+
+        self.send_keyframe_request()
+
+        logging.info("Splitmuxsink branch created and linked")
+
+        return True
+
+    def send_keyframe_request(self):
         event = Gst.Event.new_custom(Gst.EventType.CUSTOM_DOWNSTREAM, Gst.Structure.new_empty("GstForceKeyUnit"))
         if self.rtph265depay is not None:
             self.rtph265depay.send_event(event)
         elif self.rtph264depay is not None:
             self.rtph264depay.send_event(event)
-
-        self.pipeline.set_state(Gst.State.PLAYING)
-
-        logging.info("Splitmuxsink branch created and linked")
-
-        return True
 
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):
