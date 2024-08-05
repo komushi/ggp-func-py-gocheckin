@@ -420,6 +420,10 @@ class StreamCapture(threading.Thread):
         # Create elements for the splitmuxsink branch
         self.queue = Gst.ElementFactory.make("queue", "record_queue")
         self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
+        self.queue.set_property("max-size-buffers", 0)
+        self.queue.set_property("max-size-time", 0)
+        self.queue.set_property("max-size-bytes", 1048576)  # 1 MB buffer size
+
         if self.rtph265depay is not None:
             self.h264h265_parser = Gst.ElementFactory.make("h265parse", "record_h265parse")
         elif self.rtph264depay is not None:
@@ -432,7 +436,7 @@ class StreamCapture(threading.Thread):
 
         # Set properties
         self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, "video%02d" + self.ext))
-        self.splitmuxsink.set_property("max-size-time", 30000000000)  # 30 seconds
+        self.splitmuxsink.set_property("max-size-time", 20000000000)  # 20 seconds
         if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
             self.splitmuxsink.set_property("async-finalize", True)
 
