@@ -48,21 +48,36 @@ class StreamCommands(Enum):
 
 
 # h264 or h265
+# pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph264depay name=m_rtph264depay 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! h264parse ! tee name=t t. 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h264 name=m_avdec 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""    
+
+# pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph265depay name=m_rtph265depay 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! h265parse ! tee name=t t. 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h265 name=m_avdec 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""
 pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph264depay name=m_rtph264depay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! h264parse ! tee name=t t. 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h264 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""    
+    ! queue ! rtph264depay name=m_rtph264depay 
+    ! queue ! h264parse ! tee name=t t. 
+    ! queue ! avdec_h264 name=m_avdec 
+    ! queue ! videoconvert name=m_videoconvert 
+    ! queue ! videorate name=m_videorate 
+    ! queue ! appsink name=m_appsink"""    
 
 pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph265depay name=m_rtph265depay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! h265parse ! tee name=t t. 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h265 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""
+    ! queue ! rtph265depay name=m_rtph265depay 
+    ! queue ! h265parse ! tee name=t t. 
+    ! queue ! avdec_h265 name=m_avdec 
+    ! queue ! videoconvert name=m_videoconvert 
+    ! queue ! videorate name=m_videorate 
+    ! queue ! appsink name=m_appsink"""
 
 class StreamCapture(threading.Thread):
 
@@ -425,9 +440,9 @@ class StreamCapture(threading.Thread):
             
         # Create elements for the splitmuxsink branch
         self.queue = Gst.ElementFactory.make("queue", "record_queue")
-        self.queue.set_property("max-size-buffers", 0)
-        self.queue.set_property("max-size-time", 0)
-        self.queue.set_property("max-size-bytes", 10485760)  # 10 MB buffer size
+        # self.queue.set_property("max-size-buffers", 0)
+        # self.queue.set_property("max-size-time", 0)
+        # self.queue.set_property("max-size-bytes", 10485760)  # 10 MB buffer size
 
         self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
 
