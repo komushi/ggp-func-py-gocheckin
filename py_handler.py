@@ -807,7 +807,6 @@ def signal_handler(signum, frame):
 
     global thread_monitors
     for thread in thread_monitors:
-        thread.stop()
         thread.join()
         thread = None
     thread_monitors = {}

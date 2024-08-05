@@ -477,9 +477,9 @@ class StreamCapture(threading.Thread):
 
         self.pipeline.set_state(Gst.State.PLAYING)
 
-        self.record_valve.set_property('drop', False)
-
         self.send_keyframe_request()
+
+        self.record_valve.set_property('drop', False)
 
         logging.info("Splitmuxsink branch created and linked")
 
