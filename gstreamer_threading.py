@@ -335,7 +335,7 @@ class StreamCapture(threading.Thread):
 
             if self.create_and_link_splitmuxsink():
 
-                self.record_valve.set_property('drop', False)
+                # self.record_valve.set_property('drop', False)
                 logger.info(f"start_recording, {self.name} Start New Recording...")
 
                 return True;
@@ -475,11 +475,11 @@ class StreamCapture(threading.Thread):
         queue_pad = self.queue.get_static_pad("sink")
         self.tee_pad.link(queue_pad)
 
-        self.tee_pad.set_state(Gst.State.PLAYING)
+        self.pipeline.set_state(Gst.State.PLAYING)
 
-        # self.pipeline.set_state(Gst.State.PLAYING)
+        self.record_valve.set_property('drop', False)
 
-        # self.send_keyframe_request()
+        self.send_keyframe_request()
 
         logging.info("Splitmuxsink branch created and linked")
 
