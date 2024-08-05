@@ -262,6 +262,9 @@ def start_http_server():
                     event = json.loads(post_data)
 
                     cam_ip = event['cam_ip']
+                    camera_item = None
+                    if cam_ip in camera_items:
+                        camera_item = camera_items[cam_ip]
 
                     logger.info(f"/detect_record camera: {cam_ip}")
 
@@ -270,29 +273,29 @@ def start_http_server():
                             thread_gstreamers[cam_ip].start_sampling()
                             set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
-                    if thread_detector is None:
-                        params = {}
-                        params['face_app'] = face_app
+                    if camera_item is not None and camera_item.isDetecting:
+                        if thread_detector is None:
+                            params = {}
+                            params['face_app'] = face_app
 
-                        thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+                            thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
 
-                        fetch_members()
+                            fetch_members()
 
-                        thread_detector.start()
-                        thread_detector.start_detection()
+                            thread_detector.start()
+                            thread_detector.start_detection()
 
-                        # thread_detector.extend_detection_time()
+                            # thread_detector.extend_detection_time()
 
-                    else:
-                        fetch_members()
-                        
-                        thread_detector.start_detection()
+                        else:
+                            fetch_members()
+                            thread_detector.start_detection()
 
                     # record 
-                    if cam_ip in thread_gstreamers:
-                        if thread_gstreamers[cam_ip].start_recording():
-                            set_recording_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
-
+                    if camera_item is not None and camera_item.isRecording:
+                        if cam_ip in thread_gstreamers:
+                            if thread_gstreamers[cam_ip].start_recording():
+                                set_recording_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
                     self.send_response(200)
                     self.end_headers()
