@@ -478,7 +478,7 @@ class StreamCapture(threading.Thread):
 
         self.pipeline.set_state(Gst.State.PLAYING)
 
-        # self.send_keyframe_request()
+        self.send_keyframe_request()
 
         # self.record_valve.set_property('drop', False)
 

@@ -806,7 +806,8 @@ def signal_handler(signum, frame):
     thread_gstreamers = {}
 
     global thread_monitors
-    for thread in thread_monitors:
+    for thread in thread_monitors.values():
+        thread
         thread.join()
         thread = None
     thread_monitors = {}
