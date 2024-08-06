@@ -9,6 +9,7 @@ import http.client
 import ssl
 import json
 import logging
+import sys
 
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
