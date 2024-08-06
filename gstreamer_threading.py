@@ -358,8 +358,6 @@ class StreamCapture(threading.Thread):
             self.splitmuxsink.send_event(Gst.Event.new_eos())
             logger.info(f"stop_recording, {self.name} End-Of-Stream sent...")
 
-        time.sleep(1)
-
         self.unlink_and_remove_splitmuxsink()
 
     def on_message(self, bus, message):
@@ -501,6 +499,8 @@ class StreamCapture(threading.Thread):
         if self.splitmuxsink is None:
             logging.warning("unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
             return
+        
+        time.sleep(1)
 
         # Set elements to NULL state before unlinking
         self.splitmuxsink.set_state(Gst.State.NULL)
