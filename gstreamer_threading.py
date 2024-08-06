@@ -50,7 +50,7 @@ class StreamCommands(Enum):
 # h264 or h265
 pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph264depay name=m_rtph264depay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! h264parse ! tee name=t t. 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! capsfilter caps=video/x-h264 ! h264parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h264 name=m_avdec 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
@@ -58,7 +58,7 @@ pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc
 
 pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph265depay name=m_rtph265depay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! h265parse ! tee name=t t. 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! capsfilter caps=video/x-h265 ! h265parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h265 name=m_avdec 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
