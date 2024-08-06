@@ -8,6 +8,11 @@ import requests
 import http.client
 import ssl
 import json
+import logging
+
+# Setup logging to stdout
+logger = logging.getLogger(__name__)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 class S3Uploader():
     def __init__(self, cred_provider_host, cred_provider_path, bucket_name, expires_in=3600):
@@ -168,9 +173,9 @@ class S3Uploader():
             
             if response.status_code == 200:
                 os.remove(local_file_path)
-                print(f"File {local_file_path} uploaded as object_key: {object_key} and removed successfully")
+                logger.info(f"put_object, File {local_file_path} uploaded as object_key: {object_key} and removed successfully")
             else:
-                print(f"Failed to upload object_key: {object_key}, {local_file_path}, status: {response.status_code}")
+                logger.error(f"put_object, Failed to upload object_key: {object_key}, {local_file_path}, status: {response.status_code}")
         except Exception as e:
             print(f"Error: {e}")
     

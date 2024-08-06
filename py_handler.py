@@ -592,26 +592,26 @@ def fetch_members(forced=False):
     current_date = datetime.now().date()
 
     if forced is True:
-        logger.info('fetch_members init')
+        # logger.info('fetch_members init')
         active_members = get_active_members()
         last_fetch_time = current_date
-        logger.info('fetch_members done')
+        # logger.info('fetch_members done')
     else:
         if not active_members:
-            logger.info('fetch_members init')
+            # logger.info('fetch_members init')
             active_members = get_active_members()
             last_fetch_time = current_date
-            logger.info('fetch_members done')
+            # logger.info('fetch_members done')
         else:
             if last_fetch_time is None or last_fetch_time < current_date:
-                logger.info('fetch_members update')
+                # logger.info('fetch_members update')
                 active_members = get_active_members()
                 last_fetch_time = current_date
-            else:
-                logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
+            # else:
+            #     logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
 
     if thread_detector != None:
-        logger.info(f"Set active_members to thread_detector")
+        logger.info(f"fetch_members, Set active_members to thread_detector")
         thread_detector.active_members = active_members
         
         

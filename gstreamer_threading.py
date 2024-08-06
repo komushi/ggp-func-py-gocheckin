@@ -230,7 +230,7 @@ class StreamCapture(threading.Thread):
 
             # Start playing
             if not self.start_playing():
-                logger.info(f"run start_playing result: {False}")
+                # logger.info(f"run start_playing result: {False}")
                 self.stop_event.set()
 
             # Wait until error or EOS
@@ -245,7 +245,7 @@ class StreamCapture(threading.Thread):
                     self.on_message(bus, message)
 
         except Exception as e:
-            logger.info(f"Caught exception during running {self.name}")
+            logger.error(f"Caught exception during running {self.name}")
             logger.error(e)
             traceback.print_exc()
         finally:
@@ -257,7 +257,7 @@ class StreamCapture(threading.Thread):
         logger.info(f"start_playing, {self.name} count: {count} playing: {playing}")
 
         if count > 5:
-            logger.info(f"start_playing, {self.name} count ended with result playing: {playing}, count: {count}")
+            logger.warning(f"start_playing, {self.name} count ended with result playing: {playing}, count: {count}")
             return playing
         else:
             if playing:
@@ -269,22 +269,23 @@ class StreamCapture(threading.Thread):
             if not self.is_playing:
 
                 playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-                logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
+                # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-                    logger.info(f"start_playing, {self.name} playing_state_change_return is not {Gst.StateChangeReturn.SUCCESS}")
-                    time.sleep(5)
+                    interval = 1
+                    logger.warning(f"start_playing, {self.name} playing_state_change_return is not SUCCESS, sleeping for {interval} second...")
+                    time.sleep(interval)
                     return self.start_playing(count)
                 else:
-                    logger.info(f"start_playing, {self.name} playing_state_change_return is {Gst.StateChangeReturn.SUCCESS}; return with playing: {True}, count: {count}")
+                    logger.info(f"start_playing, {self.name} return with playing: {True}, count: {count}")
                     return True
 
             else:
-                logger.info(f"start_playing, {self.name} return with result is_playing: {True}, count: {count}")
+                logger.warning(f"start_playing, {self.name} return with not playing, count: {count}")
                 return True
     
         except Exception as e:
-            logger.info(f"start_playing, {self.name} exception")
+            logger.error(f"start_playing, {self.name} exception")
             logger.error(e)
             traceback.print_exc()
             return False
@@ -302,7 +303,7 @@ class StreamCapture(threading.Thread):
         self.stop_event.set()
 
     def stop_sampling(self):
-        logger.info(f"stop_sampling, {self.name} Stop sampling...")
+        logger.info(f"stop_sampling, Stop sampling with {self.name}")
 
         # self.stop_event.set()
 
@@ -316,15 +317,15 @@ class StreamCapture(threading.Thread):
         if self.is_playing:
 
             if self.handler_id is None:
-                logger.info(f"start_sampling, connect new buffer callback")
+                # logger.info(f"start_sampling, connect new buffer callback")
                 self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
+            else:
+                logger.warning(f"start_sampling, Sampling already started with {self.name}")
 
             # self.stop_event.clear()
 
-            logger.info(f"start_sampling, {self.name} Sampling started...")
-
         else:
-            logger.info(f"start_sampling, {self.name} Sampling not started...")
+            logger.info(f"start_sampling, Sampling not started as {self.name} is not playing.")
 
 
     def start_recording(self):
@@ -335,35 +336,35 @@ class StreamCapture(threading.Thread):
             if self.create_and_link_splitmuxsink():
 
                 self.record_valve.set_property('drop', False)
-                logger.info(f"start_recording, {self.name} Start New Recording...")
+                # logger.info(f"start_recording, {self.name} Start New Recording...")
 
                 return True;
             else:
-                logger.info(f"start_recording, {self.name} Recording already started!!!")
+                logger.warning(f"start_recording, Recording already started with {self.name}")
                 return False;
         else:
-            logger.info(f"start_recording, {self.name} Recording not started!!!")
+            logger.info(f"start_recording, Recording not started as {self.name} is not playing")
             return False;
 
     def stop_recording(self):
-        logger.info(f"stop_recording, {self.name} Stop recording...")
+        logger.info(f"stop_recording, Stop recording with {self.name}")
 
         if self.record_valve is not None:
             self.record_valve.set_property('drop', True)
-            logger.info(f"stop_recording, {self.name} Dropping record_valve...")
+            # logger.info(f"stop_recording, {self.name} Dropping record_valve...")
         
         # Send EOS to the recording branch
         if self.splitmuxsink is not None:
             self.splitmuxsink.send_event(Gst.Event.new_eos())
             logger.info(f"stop_recording, {self.name} End-Of-Stream sent...")
 
-        time.sleep(1)
+        time.sleep(0.05)
 
         self.unlink_and_remove_splitmuxsink()
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
-            logger.info("End-Of-Stream reached.")
+            logger.warning("End-Of-Stream reached.")
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
@@ -378,7 +379,7 @@ class StreamCapture(threading.Thread):
 
                 logger.info(f"{self.cam_ip} Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
         elif message.type == Gst.MessageType.WARNING:
-            logger.info(f"Warning message {message.parse_warning()}： {message.type} at {self.cam_ip}.")
+            logger.warning(f"Warning message {message.parse_warning()}： {message.type} at {self.cam_ip}.")
         elif message.type == Gst.MessageType.ELEMENT:
             structure = message.get_structure()
             # logger.info(f"New ELEMENT detected: {structure.get_name()}")
@@ -390,7 +391,7 @@ class StreamCapture(threading.Thread):
                     self.start_datetime_utc = datetime.now(timezone.utc)
 
                     location = structure.get_string("location")
-                    logger.info(f"New video file being created at local_file_path {location}")
+                    logger.info(f"splitmuxsink-fragment-opened, New video file being created at local_file_path {location}")
 
                 elif action == "splitmuxsink-fragment-closed":
                     location = structure.get_string("location")
@@ -403,7 +404,7 @@ class StreamCapture(threading.Thread):
 
                         object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{self.ext}"""
 
-                        logger.info(f"New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{self.ext}")
+                        logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{self.ext}")
 
                         self.scanner_output_queue.put({
                             "type": "video_clipped",
@@ -420,19 +421,19 @@ class StreamCapture(threading.Thread):
                                 "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                             }
                         }, block=False)
-                        logger.info(f"Sending video_clipped for video file: {location}")
+                        # logger.info(f"Sending video_clipped for video file: {location}")
                     
 
     def create_and_link_splitmuxsink(self):
 
         if self.pipeline.get_by_name("splitmuxsink"):
-            logger.info("Splitmuxsink branch is already linked...")
+            logger.warning("create_and_link_splitmuxsink, Splitmuxsink branch is already linked...")
             return False
 
         date_folder = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         file_name = str(uuid.uuid4())[:8]
 
-        logger.info(f"create_and_link_splitmuxsink for date_folder: {date_folder}, file_name: {file_name + self.ext} ")
+        # logger.info(f"create_and_link_splitmuxsink for date_folder: {date_folder}, file_name: {file_name + self.ext} ")
             
         # Create elements for the splitmuxsink branch
         self.queue = Gst.ElementFactory.make("queue", "record_queue")
@@ -484,7 +485,7 @@ class StreamCapture(threading.Thread):
 
         self.send_keyframe_request()
 
-        logging.info("Splitmuxsink branch created and linked")
+        logging.info("create_and_link_splitmuxsink, Splitmuxsink branch created and linked")
 
         return True
 
@@ -500,7 +501,7 @@ class StreamCapture(threading.Thread):
         tee_pad = self.tee.get_request_pad("src_%u")
 
         if tee_pad is None:
-            logging.info("No splitmuxsink branch to unlink")
+            logging.warning("unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
             return
 
         # Set elements to NULL state before unlinking
@@ -523,5 +524,10 @@ class StreamCapture(threading.Thread):
         self.pipeline.remove(self.h264h265_parser)
         self.pipeline.remove(self.record_valve)
         self.pipeline.remove(self.queue)
+
+        self.splitmuxsink = None
+        self.h264h265_parser = None
+        self.record_valve = None
+        self.queue = None
         
-        logging.info("Splitmuxsink branch unlinked and removed")
+        logging.info("unlink_and_remove_splitmuxsink, Splitmuxsink branch unlinked and removed")
