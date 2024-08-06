@@ -64,7 +64,8 @@ uploader_app = None
 # Initialize the detectors
 thread_detector = None
 detection_timer = None
-recording_timer = None
+# recording_timer = None
+recording_timers = {}
 
 # Initialize the gstreamers
 thread_gstreamers = {}
@@ -296,7 +297,7 @@ def start_http_server():
                     if camera_item is not None and camera_item['isRecording']:
                         if cam_ip in thread_gstreamers:
                             if thread_gstreamers[cam_ip].start_recording():
-                                set_recording_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
+                                set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
 
                     self.send_response(200)
                     self.end_headers()
@@ -854,15 +855,16 @@ def monitor_stop_event(thread_gstreamer):
             
 
 
-def set_recording_time(thread_gstreamer, delay):
-    logger.info(f'set_recording_time, thread_gstreamer: {thread_gstreamer.name}')
-    global recording_timer
-    
-    if recording_timer:
-        recording_timer.cancel()
+def set_recording_time(cam_ip, delay):
+    logger.info(f'set_recording_time, cam_ip: {cam_ip}')
+    global recording_timers
 
-    recording_timer = threading.Timer(delay, thread_gstreamer.stop_recording)
-    recording_timer.start()
+    if cam_ip in recording_timers:
+        if recording_timers[cam_ip]:
+            recording_timers[cam_ip].cancel()
+
+    recording_timers[cam_ip] = threading.Timer(delay, thread_gstreamers[cam_ip].stop_recording)
+    recording_timers[cam_ip].start()
 
 def set_sampling_time(thread_gstreamer, delay):
     global detection_timer
