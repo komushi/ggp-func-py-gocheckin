@@ -358,7 +358,7 @@ class StreamCapture(threading.Thread):
             self.splitmuxsink.send_event(Gst.Event.new_eos())
             logger.info(f"stop_recording, {self.name} End-Of-Stream sent...")
 
-        time.sleep(0.05)
+        time.sleep(1)
 
         self.unlink_and_remove_splitmuxsink()
 
@@ -498,9 +498,7 @@ class StreamCapture(threading.Thread):
 
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):
-        tee_pad = self.tee.get_request_pad("src_%u")
-
-        if tee_pad is None:
+        if self.splitmuxsink is None:
             logging.warning("unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
             return
 
@@ -514,6 +512,7 @@ class StreamCapture(threading.Thread):
         self.h264h265_parser.unlink(self.splitmuxsink)
         self.record_valve.unlink(self.h264h265_parser)
         self.queue.unlink(self.record_valve)
+        tee_pad = self.tee.get_request_pad("src_%u")
         tee_pad.unlink(self.queue.get_static_pad("sink"))
 
         # Release the tee pad
