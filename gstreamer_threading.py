@@ -479,7 +479,7 @@ class StreamCapture(threading.Thread):
         self.record_valve.link(self.h264h265_parser)
         self.h264h265_parser.link(self.splitmuxsink)
 
-        self.pipeline.set_state(Gst.State.READY)
+        # self.pipeline.set_state(Gst.State.READY)
         self.pipeline.set_state(Gst.State.PLAYING)
 
         self.send_keyframe_request()
