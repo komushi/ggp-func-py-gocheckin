@@ -183,7 +183,6 @@ class StreamCapture(threading.Thread):
 
         # Get the tee element
         self.tee = self.pipeline.get_by_name("t")
-        self.tee_pad = None
         self.queue = None
         self.record_valve = None
         self.splitmuxsink = None
@@ -465,19 +464,25 @@ class StreamCapture(threading.Thread):
         self.pipeline.add(self.h264h265_parser)
         self.pipeline.add(self.splitmuxsink)
 
+        self.queue.sync_state_with_parent()
+        self.record_valve.sync_state_with_parent()
+        self.h264h265_parser.sync_state_with_parent()
+        self.splitmuxsink.sync_state_with_parent()
+
+        # Link the tee to the queue
+        tee_pad = self.tee.get_request_pad("src_%u")
+        queue_pad = self.queue.get_static_pad("sink")
+        tee_pad.link(queue_pad)
+
         # Link the elements together
         self.queue.link(self.record_valve)
         self.record_valve.link(self.h264h265_parser)
         self.h264h265_parser.link(self.splitmuxsink)
 
-        # Link the tee to the queue
-        self.tee_pad = self.tee.get_request_pad("src_%u")
-        queue_pad = self.queue.get_static_pad("sink")
-        self.tee_pad.link(queue_pad)
+        self.pipeline.set_state(Gst.State.READY)
+        self.pipeline.set_state(Gst.State.PLAYING)
 
         self.send_keyframe_request()
-
-        self.pipeline.set_state(Gst.State.PLAYING)
 
         logging.info("Splitmuxsink branch created and linked")
 
@@ -492,29 +497,31 @@ class StreamCapture(threading.Thread):
 
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):
-        if not self.tee_pad:
+        tee_pad = self.tee.get_request_pad("src_%u")
+
+        if tee_pad is None:
             logging.info("No splitmuxsink branch to unlink")
             return
 
-        # Unlink the tee from the queue
-        self.tee_pad.unlink(self.queue.get_static_pad("sink"))
-        self.queue.unlink(self.record_valve)
-        self.record_valve.unlink(self.h264h265_parser)
-        self.h264h265_parser.unlink(self.splitmuxsink)
-
-        self.queue.set_state(Gst.State.NULL)
-        self.record_valve.set_state(Gst.State.NULL)
-        self.h264h265_parser.set_state(Gst.State.NULL)
+        # Set elements to NULL state before unlinking
         self.splitmuxsink.set_state(Gst.State.NULL)
+        self.h264h265_parser.set_state(Gst.State.NULL)
+        self.record_valve.set_state(Gst.State.NULL)
+        self.queue.set_state(Gst.State.NULL)
 
-        # Remove the elements from the pipeline
-        self.pipeline.remove(self.queue)
-        self.pipeline.remove(self.record_valve)
-        self.pipeline.remove(self.h264h265_parser)
-        self.pipeline.remove(self.splitmuxsink)
+        # Unlink the tee from the queue
+        self.h264h265_parser.unlink(self.splitmuxsink)
+        self.record_valve.unlink(self.h264h265_parser)
+        self.queue.unlink(self.record_valve)
+        tee_pad.unlink(self.queue.get_static_pad("sink"))
 
         # Release the tee pad
-        self.tee.release_request_pad(self.tee_pad)
-        self.tee_pad = None
+        self.tee.release_request_pad(tee_pad)
 
+        # Remove the elements from the pipeline
+        self.pipeline.remove(self.splitmuxsink)
+        self.pipeline.remove(self.h264h265_parser)
+        self.pipeline.remove(self.record_valve)
+        self.pipeline.remove(self.queue)
+        
         logging.info("Splitmuxsink branch unlinked and removed")
