@@ -284,6 +284,7 @@ def start_http_server():
 
                             fetch_members()
 
+                            thread_detector.captured_members = {}
                             thread_detector.start()
                             thread_detector.start_detection()
 
@@ -291,6 +292,7 @@ def start_http_server():
 
                         else:
                             fetch_members()
+                            thread_detector.captured_members = {}
                             thread_detector.start_detection()
 
                     # record 
