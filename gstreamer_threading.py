@@ -394,7 +394,7 @@ class StreamCapture(threading.Thread):
                 elif action == "splitmuxsink-fragment-closed":
                     end_datetime_utc = datetime.now(timezone.utc)
 
-                    if end_datetime_utc - self.start_datetime_utc <= timedelta(seconds==2):
+                    if end_datetime_utc - self.start_datetime_utc <= timedelta(seconds=2):
                         raise ValueError(f"{self.cam_ip} splitmuxsink-fragment-closed is too close to splitmuxsink-fragment-opened")
 
                     location = structure.get_string("location")
