@@ -48,36 +48,36 @@ class StreamCommands(Enum):
 
 
 # h264 or h265
-pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph264depay name=m_rtph264depay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! capsfilter caps=video/x-h264 ! h264parse ! tee name=t t. 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h264 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""    
-
-pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph265depay name=m_rtph265depay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! capsfilter caps=video/x-h265 ! h265parse ! tee name=t t. 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h265 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""
 # pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
-#     ! queue ! rtph264depay name=m_rtph264depay 
-#     ! queue ! h264parse ! tee name=t t. 
-#     ! queue ! avdec_h264 name=m_avdec 
-#     ! queue ! videoconvert name=m_videoconvert 
-#     ! queue ! videorate name=m_videorate 
-#     ! queue ! appsink name=m_appsink"""    
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph264depay name=m_rtph264depay 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! capsfilter caps=video/x-h264 ! h264parse ! tee name=t t. 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h264 name=m_avdec 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""    
 
 # pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-#     ! queue ! rtph265depay name=m_rtph265depay 
-#     ! queue ! h265parse ! tee name=t t. 
-#     ! queue ! avdec_h265 name=m_avdec 
-#     ! queue ! videoconvert name=m_videoconvert 
-#     ! queue ! videorate name=m_videorate 
-#     ! queue ! appsink name=m_appsink"""
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! rtph265depay name=m_rtph265depay 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! capsfilter caps=video/x-h265 ! h265parse ! tee name=t t. 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! avdec_h265 name=m_avdec 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videoconvert name=m_videoconvert 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! videorate name=m_videorate 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=10485760 ! appsink name=m_appsink"""
+pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
+    ! queue ! rtph264depay name=m_rtph264depay 
+    ! queue ! h264parse ! tee name=t t. 
+    ! queue ! avdec_h264 name=m_avdec 
+    ! queue ! videoconvert name=m_videoconvert 
+    ! queue ! videorate name=m_videorate 
+    ! queue ! appsink name=m_appsink"""    
+
+pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
+    ! queue ! rtph265depay name=m_rtph265depay 
+    ! queue ! h265parse ! tee name=t t. 
+    ! queue ! avdec_h265 name=m_avdec 
+    ! queue ! videoconvert name=m_videoconvert 
+    ! queue ! videorate name=m_videorate 
+    ! queue ! appsink name=m_appsink"""
 
 class StreamCapture(threading.Thread):
 
@@ -392,6 +392,11 @@ class StreamCapture(threading.Thread):
                     logger.info(f"splitmuxsink-fragment-opened, New video file being created at local_file_path {location}")
 
                 elif action == "splitmuxsink-fragment-closed":
+                    end_datetime_utc = datetime.now(timezone.utc)
+
+                    if end_datetime_utc - self.start_datetime_utc <= timedelta(hours=2):
+                        raise ValueError(f"{self.cam_ip} splitmuxsink-fragment-closed is too close to splitmuxsink-fragment-opened")
+
                     location = structure.get_string("location")
 
                     if not self.scanner_output_queue.full():
