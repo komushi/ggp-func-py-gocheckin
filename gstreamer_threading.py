@@ -50,7 +50,7 @@ class StreamCommands(Enum):
 
 # h264 or h265
 pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtph264depay ! 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtph264depay
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h264parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h264 name=m_avdec 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
@@ -58,7 +58,7 @@ pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""    
 
 pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay !
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
