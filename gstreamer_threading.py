@@ -442,9 +442,9 @@ class StreamCapture(threading.Thread):
             
         # Create elements for the splitmuxsink branch
         self.queue = Gst.ElementFactory.make("queue", "record_queue")
-        # self.queue.set_property("max-size-buffers", 0)
-        # self.queue.set_property("max-size-time", 0)
-        # self.queue.set_property("max-size-bytes", 10485760)  # 1 MB buffer size
+        self.queue.set_property("max-size-buffers", 0)
+        self.queue.set_property("max-size-time", 0)
+        self.queue.set_property("max-size-bytes", 10485760)  # 1 MB buffer size
 
         self.record_valve = Gst.ElementFactory.make("valve", "record_valve")
 
