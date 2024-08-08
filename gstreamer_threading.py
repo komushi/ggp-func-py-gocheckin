@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 Gst.init(None)
+Gst.debug_set_default_threshold(Gst.DebugLevel.DEBUG)
 
 '''Konwn issues
 
@@ -122,9 +123,9 @@ class StreamCapture(threading.Thread):
             self.source.set_property('buffer-mode', 1)            
 
         # if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
-        self.source.set_property("onvif-mode", True)
-        self.source.set_property("onvif-rate-control", False)
-        self.source.set_property('is-live', True)
+        # self.source.set_property("onvif-mode", True)
+        # self.source.set_property("onvif-rate-control", False)
+        # self.source.set_property('is-live', True)
 
         # rtph264depay
         self.rtph264depay = self.pipeline.get_by_name('m_rtph264depay')
@@ -372,7 +373,7 @@ class StreamCapture(threading.Thread):
 
                 if new_state == Gst.State.PLAYING:
                     self.is_playing = True
-                    self.send_keyframe_request()
+                    # self.send_keyframe_request()
                 else:
                     self.is_playing = False
 
@@ -461,7 +462,7 @@ class StreamCapture(threading.Thread):
         self.splitmuxsink.set_property("location", os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, file_name + self.ext))
         self.splitmuxsink.set_property("max-size-time", 20000000000)  # 20 seconds
         # if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
-        self.splitmuxsink.set_property("async-finalize", True)
+        # self.splitmuxsink.set_property("async-finalize", True)
 
         # Add elements to the pipeline
         self.pipeline.add(self.queue)
