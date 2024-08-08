@@ -489,7 +489,7 @@ class StreamCapture(threading.Thread):
         # self.pipeline.set_state(Gst.State.READY)
         self.pipeline.set_state(Gst.State.PLAYING)
 
-        # self.send_keyframe_request()
+        self.send_keyframe_request()
 
         logging.info("create_and_link_splitmuxsink, Splitmuxsink branch created and linked")
 
