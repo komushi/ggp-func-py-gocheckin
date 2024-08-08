@@ -123,9 +123,10 @@ class StreamCapture(threading.Thread):
             self.source.set_property('buffer-mode', 1)            
 
         # if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
-        # self.source.set_property("onvif-mode", True)
-        # self.source.set_property("onvif-rate-control", False)
+        self.source.set_property("onvif-mode", True)
+        self.source.set_property("onvif-rate-control", False)
         self.source.set_property('is-live', True)
+        self.source.set_property('do-timestamp', True)
 
         # rtph264depay
         self.rtph264depay = self.pipeline.get_by_name('m_rtph264depay')
