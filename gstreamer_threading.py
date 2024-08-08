@@ -373,7 +373,10 @@ class StreamCapture(threading.Thread):
 
                 if new_state == Gst.State.PLAYING:
                     self.is_playing = True
-                    # self.send_keyframe_request()
+
+                    time.sleep(1)
+
+                    self.send_keyframe_request()
                 else:
                     self.is_playing = False
 
