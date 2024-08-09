@@ -273,7 +273,7 @@ class StreamCapture(threading.Thread):
                 # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-                    interval = 1
+                    interval = 10
                     logger.warning(f"start_playing, {self.name} playing_state_change_return is not SUCCESS, sleeping for {interval} second...")
                     time.sleep(interval)
                     return self.start_playing(count)
