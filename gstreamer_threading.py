@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 Gst.init(None)
-Gst.debug_set_default_threshold(Gst.DebugLevel.WARNING)
+Gst.debug_set_default_threshold(Gst.DebugLevel.ERROR)
 
 '''Konwn issues
 

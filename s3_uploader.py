@@ -10,6 +10,7 @@ import ssl
 import json
 import logging
 import sys
+import traceback
 
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
@@ -163,7 +164,7 @@ class S3Uploader():
     
     def put_object(self, object_key, local_file_path):
         try:
-            # print(f"put_object object_key: {object_key}")
+            logger.info(f"put_object, in local_file_path: {local_file_path}, object_key: {object_key}")
             
             self.get_temporary_credentials()
 
@@ -178,5 +179,6 @@ class S3Uploader():
             else:
                 logger.error(f"put_object, Failed to upload object_key: {object_key}, {local_file_path}, status: {response.status_code}")
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"put_object, Exception: {e}")
+            traceback.print_exc()
     
