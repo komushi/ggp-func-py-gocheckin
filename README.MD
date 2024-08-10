@@ -44,3 +44,32 @@ fields @timestamp, @message
 | sort @timestamp desc
 | limit 200
 ```
+
+## 4. Check pipeline state
+### 4-1. Query Check when state changes recently
+```
+fields @timestamp, @message
+| filter @message like /192.168.11.206 Pipeline state changed from/
+| display @timestamp, @logStream, @message
+| sort @timestamp desc
+| limit 200
+```
+
+
+### 4-2. Query Check when start_playing happened
+```
+fields @timestamp, @message
+| filter @message like /start_playing, Thread-Gst-192.168.11.206 return with playing: True/
+| display @timestamp, @logStream, @message
+| sort @timestamp desc
+| limit 200
+```
+
+### 4-3. Query Check when start_playing execution history
+```
+fields @timestamp, @message
+| filter @message like /start_playing, Thread-Gst-192.168.11.206 count ended with result playing:/
+| display @timestamp, @logStream, @message
+| sort @timestamp desc
+| limit 200
+```
