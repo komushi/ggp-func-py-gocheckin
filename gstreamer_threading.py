@@ -304,29 +304,30 @@ class StreamCapture(threading.Thread):
         self.stop_event.set()
 
     def stop_sampling(self):
-        logger.info(f"stop_sampling, Stop sampling with {self.name}")
-
-        # self.stop_event.set()
+        # logger.info(f"stop_sampling, Stop sampling with {self.name}")
 
         if self.handler_id is not None:
+            logger.info(f"stop_sampling, Stop sampling with {self.name} handler_id: {self.handler_id}")
             self.sink.disconnect(self.handler_id)
             self.handler_id = None
+        else:
+            logger.info(f"stop_sampling, handler_id is already None")
 
     def start_sampling(self):
-        logger.info(f"start_sampling, {self.name} Start sampling...")
+        # logger.info(f"start_sampling, {self.name} Start sampling...")
 
         if self.is_playing:
 
             if self.handler_id is None:
-                # logger.info(f"start_sampling, connect new buffer callback")
+                
                 self.handler_id = self.sink.connect("new-sample", self.new_buffer, self.sink)
+                logger.info(f"start_sampling, connect new buffer with hanlder_id: {self.handler_id}")
             else:
                 logger.warning(f"start_sampling, Sampling already started with {self.name}")
 
-            # self.stop_event.clear()
 
         else:
-            logger.info(f"start_sampling, Sampling not started as {self.name} is not playing.")
+            logger.info(f"start_sampling, Sampling not started, {self.name} is not playing.")
 
 
     def start_recording(self):
