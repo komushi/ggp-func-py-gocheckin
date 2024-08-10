@@ -45,7 +45,7 @@ fields @timestamp, @message
 | limit 200
 ```
 
-## 4. Check pipeline state
+## 4. Check pipeline PLAYING state
 ### 4-1. Query Check when state changes recently
 ```
 fields @timestamp, @message
