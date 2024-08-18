@@ -25,6 +25,15 @@ fields @timestamp, @message
 | limit 200
 ```
 
+### 1-3. Query
+```
+fields @timestamp, @message
+| filter @message like /Name or service not known/
+| display @timestamp, @logStream, @message
+| sort @timestamp desc
+| limit 200
+```
+
 ## 2. To find if there are "file too close issue"
 ### 2-1. Query
 ```
@@ -73,3 +82,5 @@ fields @timestamp, @message
 | sort @timestamp desc
 | limit 200
 ```
+
+## 5.
