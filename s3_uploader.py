@@ -18,6 +18,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 class S3Uploader():
     def __init__(self, cred_provider_host, cred_provider_path, bucket_name, expires_in=3600):
+        logger.info(f"S3Uploader init, cred_provider_host: {cred_provider_host} cred_provider_path: {cred_provider_path} bucket_name: {bucket_name}")
+
         self.cred_provider_host = cred_provider_host
         self.cred_provider_path = cred_provider_path
         self.expires_in = expires_in
