@@ -593,7 +593,7 @@ def fetch_scanner_output_queue():
     while True:
         try:
             message = None
-            if not scanner_output_queue.cam_queue.empty():
+            if not scanner_output_queue.empty():
                 message = scanner_output_queue.get_nowait()    
             # message = scanner_output_queue.get_nowait()
             logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
