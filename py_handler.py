@@ -405,10 +405,10 @@ def start_http_server():
 def query_camera_item(host_id, cam_ip):
 
     # Specify the table name
-    tbl_equipment = os.environ['TBL_EQUIPMENT']
+    tbl_asset = os.environ['TBL_ASSET']
 
     # Get the table
-    table = dynamodb.Table(tbl_equipment)
+    table = dynamodb.Table(tbl_asset)
 
     # Retrieve item from the table
     response = table.query(
@@ -427,10 +427,10 @@ def query_camera_item(host_id, cam_ip):
 def get_camera_item(host_id, cam_uuid):
 
     # Specify the table name
-    tbl_equipment = os.environ['TBL_EQUIPMENT']
+    tbl_asset = os.environ['TBL_ASSET']
 
     # Get the table
-    table = dynamodb.Table(tbl_equipment)
+    table = dynamodb.Table(tbl_asset)
 
     # Retrieve item from the table
     response = table.get_item(
