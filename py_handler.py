@@ -263,114 +263,58 @@ def start_http_server():
                     event = json.loads(post_data)
 
                     cam_ip = event['cam_ip']
+                    
+                    logger.info(f"/detect_record cam_ip: {cam_ip}")
+
                     camera_item = None
                     if cam_ip in camera_items:
                         camera_item = camera_items[cam_ip]
 
-                    logger.info(f"/detect_record camera: {cam_ip}")
+                    if camera_item is None:
+                        logger.error(f"/detect_record camera_item {cam_ip} is None")
 
-                    # detect
-                    if camera_item is not None and camera_item['isDetecting']:
-                        if cam_ip in thread_gstreamers:
-                            if thread_gstreamers[cam_ip] is not None:
-                                thread_gstreamers[cam_ip].start_sampling()
-                                set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
+                        self.send_response(400)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": f"Not Starting Thread: {cam_ip}"}).encode())
+                    else:
 
-                        if thread_detector is None:
-                            params = {}
-                            params['face_app'] = face_app
+                        # detect
+                        if camera_item['isDetecting']:
+                            if cam_ip in thread_gstreamers:
+                                if thread_gstreamers[cam_ip] is not None:
+                                    thread_gstreamers[cam_ip].start_sampling()
+                                    set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
-                            thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+                            if thread_detector is None:
+                                params = {}
+                                params['face_app'] = face_app
 
-                            fetch_members()
+                                thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
 
-                            thread_detector.captured_members = {}
-                            thread_detector.start()
-                            thread_detector.start_detection()
+                                fetch_members()
 
-                            # thread_detector.extend_detection_time()
+                                thread_detector.captured_members = {}
+                                thread_detector.start()
+                                thread_detector.start_detection()
 
-                        else:
-                            fetch_members()
-                            thread_detector.captured_members = {}
-                            thread_detector.start_detection()
+                                # thread_detector.extend_detection_time()
 
-                    # record 
-                    if camera_item is not None and camera_item['isRecording']:
-                        if cam_ip in thread_gstreamers:
-                            if thread_gstreamers[cam_ip].start_recording():
-                                set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
+                            else:
+                                fetch_members()
+                                thread_detector.captured_members = {}
+                                thread_detector.start_detection()
 
-                    self.send_response(200)
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"message": f"Starting Thread: {cam_ip}"}).encode())
+                        # record 
+                        if camera_item['isRecording']:
+                            if cam_ip in thread_gstreamers:
+                                if thread_gstreamers[cam_ip].start_recording():
+                                    set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
 
+                        self.send_response(200)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": f"Starting Thread: {cam_ip}"}).encode())
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                # elif self.path == '/record':
-                #     # Process the POST data
-                #     content_length = int(self.headers['Content-Length'])
-                #     post_data = self.rfile.read(content_length)
-                #     event = json.loads(post_data)
-
-                #     logger.info(f"/record camera: {format(event['cameraItem']['localIp'])}")
-
-                #     if event['cameraItem']['localIp'] in thread_gstreamers and thread_gstreamers[event['cameraItem']['localIp']] is not None:
-                #         # record
-                #         if thread_gstreamers[event['cameraItem']['localIp']].start_recording():
-                #             set_recording_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
-
-                #         self.send_response(200)
-                #         self.send_header('Content-type', 'application/json')
-                #         self.end_headers()
-                #         self.wfile.write(json.dumps({"message": "Started Thread StreamCapture " + event['cameraItem']['localIp']}).encode())
-
-                #         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-                #     else:
-                #         self.send_response(400)
-                #         self.end_headers()
-                #         self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
-
-                #         logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-
-                # elif self.path == '/detect':
-                #     # Process the POST data
-                #     content_length = int(self.headers['Content-Length'])
-                #     post_data = self.rfile.read(content_length)
-                #     event = json.loads(post_data)
-
-                #     logger.info(f"/detect camera: {format(event['cameraItem']['localIp'])}")
-
-                #     if thread_gstreamers[event['cameraItem']['localIp']] is not None:
-                #         thread_gstreamers[event['cameraItem']['localIp']].start_sampling()
-                #         set_sampling_time(thread_gstreamers[event['cameraItem']['localIp']], int(os.environ['INIT_RUNNING_TIME']))
-
-                #         if thread_detector is None:
-                #             params = {}
-                #             params['face_app'] = face_app
-
-                #             thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
-
-                #             fetch_members()
-
-                #             thread_detector.start()
-                #             thread_detector.start_detection()
-
-                #             # thread_detector.extend_detection_time()
-                #             self.send_response(200)
-                #             self.end_headers()
-                #             self.wfile.write(json.dumps({"message": "Starting Thread:" + thread_detector.name }).encode())
-    
-                #         else:
-                #             fetch_members()
-                            
-                #             thread_detector.start_detection()
-
-                #             self.send_response(200)
-                #             self.end_headers()
-                #             self.wfile.write(json.dumps({"message": "Thread: " + thread_detector.name + " is already running"}).encode())
-
-                #     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
                 elif self.path == '/start':
                     # Process the POST data
@@ -747,7 +691,7 @@ def stop_gstreamer_thread(thread_name):
 
 def start_gstreamer_thread(**kwargs):
 
-    logger.info(f"start_gstreamer_thread, Starting with {kwargs} ...")
+    logger.info(f"start_gstreamer_thread, in with {kwargs} ...")
     
     global camera_items
     global thread_gstreamers
@@ -782,7 +726,7 @@ def start_gstreamer_thread(**kwargs):
         thread_gstreamers[camera_item['localIp']] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
         thread_gstreamers[camera_item['localIp']].start()
 
-        logger.info(f"start_gstreamer_thread,  starting with {kwargs}...")
+        logger.info(f"start_gstreamer_thread, starting with {kwargs}...")
 
         return thread_gstreamers[camera_item['localIp']]
     
@@ -838,7 +782,7 @@ def monitor_stop_event(thread_gstreamer):
     cam_ip = thread_gstreamer.cam_ip
 
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
-    logger.info(f"Monitor: {thread_gstreamer.name} has stopped")
+    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
     thread_gstreamer.join()  # Join the stopped thread
 
     

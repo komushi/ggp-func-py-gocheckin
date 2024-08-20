@@ -230,35 +230,40 @@ class StreamCapture(threading.Thread):
         try:
 
             # Start playing
-            if not self.start_playing():
-                # logger.info(f"run start_playing result: {False}")
+            if self.start_playing():
+                logger.info(f"{self.cam_ip} StreamCapture run, start_playing result: {True}")
+
+                # Wait until error or EOS
+                bus = self.pipeline.get_bus()
+                # bus.add_signal_watch()
+                # bus.connect("message", self.on_message)
+
+                while not self.stop_event.is_set():
+                    message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+
+                    if message:
+                        self.on_message(bus, message)
+            else:
+                logger.error(f"{self.cam_ip} StreamCapture run, Not started as start_playing result: {False}")
+                self.pipeline.set_state(Gst.State.NULL)
                 self.stop_event.set()
 
-            # Wait until error or EOS
-            bus = self.pipeline.get_bus()
-            # bus.add_signal_watch()
-            # bus.connect("message", self.on_message)
-
-            while not self.stop_event.is_set():
-                message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
-
-                if message:
-                    self.on_message(bus, message)
-
         except Exception as e:
-            logger.error(f"Caught exception during running {self.name}")
-            logger.error(e)
+            logger.error(f"{self.cam_ip} StreamCapture run, Exception during running, Error: {e}")
             traceback.print_exc()
-        finally:
             self.pipeline.set_state(Gst.State.NULL)
             self.stop_event.set()
-            logger.info("Pipeline stopped and cleaned up.")
+        # finally:
+        #     self.pipeline.set_state(Gst.State.NULL)
+        #     self.stop_event.set()
+        #     logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up")
 
     def start_playing(self, count = 0, playing = False):
-        logger.info(f"start_playing, {self.name} count: {count} playing: {playing}")
+        logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
+        interval = 30
 
-        if count > 5:
-            logger.warning(f"start_playing, {self.name} count ended with result playing: {playing}, count: {count}")
+        if count > 2:
+            logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
             return playing
         else:
             if playing:
@@ -273,21 +278,19 @@ class StreamCapture(threading.Thread):
                 # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-                    interval = 10
-                    logger.warning(f"start_playing, {self.name} playing_state_change_return is not SUCCESS, sleeping for {interval} second...")
+                    logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is not SUCCESS, sleeping for {interval} second...")
                     time.sleep(interval)
                     return self.start_playing(count)
                 else:
-                    logger.info(f"start_playing, {self.name} return with playing: {True}, count: {count}")
+                    logger.info(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
                     return True
 
             else:
-                logger.warning(f"start_playing, {self.name} return with not playing, count: {count}")
+                logger.warning(f"{self.cam_ip} start_playing, return with already playing, count: {count}")
                 return True
     
         except Exception as e:
-            logger.error(f"start_playing, {self.name} exception")
-            logger.error(e)
+            logger.error(f"{self.cam_ip} start_playing, Exception during running, Error: {e}")
             traceback.print_exc()
             return False
         # finally:
