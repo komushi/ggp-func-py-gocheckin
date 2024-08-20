@@ -29,7 +29,7 @@ import PIL.Image
 import numpy as np
 
 import boto3
-from boto3.dynamodb.conditions import  Attr
+from boto3.dynamodb.conditions import Attr, Key
 
 from insightface.app import FaceAnalysis
 import face_recognition as fdm
@@ -175,6 +175,7 @@ def stop_http_server():
 def start_http_server():
 
     global httpd
+    global thread_monitors
 
     class ReusableTCPServer(socketserver.TCPServer):
         allow_reuse_address = True
@@ -271,12 +272,20 @@ def start_http_server():
                         camera_item = camera_items[cam_ip]
 
                     if camera_item is None:
-                        logger.error(f"/detect_record camera_item {cam_ip} is None")
+                        logger.info(f"/detect_record camera_item {cam_ip} is None, start_gstreamer_thread")
 
-                        self.send_response(400)
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": f"Not Starting Thread: {cam_ip}"}).encode())
-                    else:
+                        thread_gstreamer = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
+
+                        if thread_gstreamer is not None:
+                            if event['cameraItem']['localIp'] in thread_monitors:
+                                if thread_monitors[event['cameraItem']['localIp']] is not None:
+                                    thread_monitors[event['cameraItem']['localIp']].join()
+                            thread_monitors[event['cameraItem']['localIp']] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{event['cameraItem']['localIp']}", args=(thread_gstreamer,))
+                            thread_monitors[event['cameraItem']['localIp']].start()
+
+
+
+                    if camera_item is not None:
 
                         # detect
                         if camera_item['isDetecting']:
@@ -313,6 +322,11 @@ def start_http_server():
                         self.send_response(200)
                         self.end_headers()
                         self.wfile.write(json.dumps({"message": f"Starting Thread: {cam_ip}"}).encode())
+
+                    else:
+                        self.send_response(200)
+                        self.end_headers()
+                        self.wfile.write(json.dumps({"message": f"Not Starting Thread: {cam_ip}"}).encode())
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
@@ -387,6 +401,28 @@ def start_http_server():
         httpd.serve_forever()
     except Exception as e:
         logger.error(f"Error starting HTTP server: {e}")
+
+def query_camera_item(host_id, cam_ip):
+
+    # Specify the table name
+    tbl_equipment = os.environ['TBL_EQUIPMENT']
+
+    # Get the table
+    table = dynamodb.Table(tbl_equipment)
+
+    # Retrieve item from the table
+    response = table.query(
+        KeyConditionExpression=Key('hostId').eq(host_id),
+        FilterExpression=Attr('localIP').eq(cam_ip)
+    )
+    
+    # Print the items returned by the query
+    camera_item = response.get('Items', [None])[0]
+
+    logger.info(f'query_camera_item out {camera_item}')
+
+    return camera_item
+
 
 def get_camera_item(host_id, cam_uuid):
 
@@ -710,9 +746,9 @@ def start_gstreamer_thread(**kwargs):
     if "camera_item" in kwargs:
         camera_item = kwargs['camera_item']
     elif "host_id" in kwargs and "cam_uuid" in kwargs:
-        get_camera_item(kwargs['host_id'], kwargs['cam_uuid'])
-    elif "cam_ip" in kwargs:
-        camera_item = camera_items[kwargs['cam_ip']]
+        camera_item = get_camera_item(kwargs['host_id'], kwargs['cam_uuid'])
+    elif "cam_ip" in kwargs and "host_id" in kwargs:
+        camera_item = query_camera_item(kwargs['host_id'], kwargs['cam_ip'])
     else:
         logger.info(f"start_gstreamer_thread, failed to start with {kwargs}")
         return
@@ -800,7 +836,7 @@ def monitor_stop_event(thread_gstreamer):
     if not thread_gstreamer.is_alive():
         thread_gstreamer = None
         thread_gstreamers[cam_ip] = None
-        thread_gstreamers[cam_ip] = start_gstreamer_thread(cam_ip=cam_ip)
+        thread_gstreamers[cam_ip] = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
         if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:

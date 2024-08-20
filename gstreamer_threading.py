@@ -260,9 +260,9 @@ class StreamCapture(threading.Thread):
 
     def start_playing(self, count = 0, playing = False):
         logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
-        interval = 20
+        interval = 5
 
-        if count > 1:
+        if count >= 1:
             logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
             return playing
         else:
@@ -278,7 +278,7 @@ class StreamCapture(threading.Thread):
                 # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-                    logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is not SUCCESS, sleeping for {interval} second...")
+                    logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
                     time.sleep(interval)
                     return self.start_playing(count)
                 else:
