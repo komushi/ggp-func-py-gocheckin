@@ -657,7 +657,7 @@ def fetch_scanner_output_queue():
                         payload=json.dumps(payload)
                     )
 
-        except:
+        except Exception as e:
             logger.error(f"fetch_scanner_output_queue, Exception during running, Error: {e}")
             traceback.print_exc()
             pass
