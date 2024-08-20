@@ -592,10 +592,13 @@ def start_scheduler():
 def fetch_scanner_output_queue():
     while True:
         try:
-            message = scanner_output_queue.get_nowait()
+            message = None
+            if not scanner_output_queue.cam_queue.empty():
+                message = scanner_output_queue.get_nowait()    
+            # message = scanner_output_queue.get_nowait()
             logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
             
-            if 'type' in message:
+            if not message is None and 'type' in message:
                 if message['type'] == 'guest_detected':
                     if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message):
                         local_file_path = message['local_file_path']
