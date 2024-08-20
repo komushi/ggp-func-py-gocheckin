@@ -604,6 +604,8 @@ def fetch_scanner_output_queue():
 
                         uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
 
+                        logger.info(f"fetch_scanner_output_queue, guest_detected with IoT Publish snapshot_payload: {snapshot_payload}")
+
                         iotClient.publish(
                             topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
                             payload=json.dumps(snapshot_payload)
@@ -617,6 +619,8 @@ def fetch_scanner_output_queue():
 
                             timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
                             timer.start()
+
+                            logger.info(f"fetch_scanner_output_queue, member_detected with IoT Publish payload: {message['payload']}")
 
                             iotClient.publish(
                                 topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
@@ -646,12 +650,16 @@ def fetch_scanner_output_queue():
                         "snapshotKey": ''
                     }
 
+                    logger.info(f"fetch_scanner_output_queue, video_clipped with IoT Publish payload: {payload}")
+
                     iotClient.publish(
                         topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
                         payload=json.dumps(payload)
                     )
 
-        except Empty:
+        except:
+            logger.error(f"fetch_scanner_output_queue, Exception during running, Error: {e}")
+            traceback.print_exc()
             pass
         time.sleep(1)
 
@@ -795,6 +803,7 @@ def monitor_stop_event(thread_gstreamer):
         if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:
                 thread_monitors[cam_ip] = None
+            logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} restarting")
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
 
