@@ -260,9 +260,9 @@ class StreamCapture(threading.Thread):
 
     def start_playing(self, count = 0, playing = False):
         logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
-        interval = 5
+        interval = 10
 
-        if count >= 1:
+        if count > 3:
             logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
             return playing
         else:
