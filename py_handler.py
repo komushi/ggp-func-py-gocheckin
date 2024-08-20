@@ -404,6 +404,8 @@ def start_http_server():
 
 def query_camera_item(host_id, cam_ip):
 
+    logger.info(f"start_gstreamer_thread, in with {host_id} {cam_ip} ...")
+
     # Specify the table name
     tbl_asset = os.environ['TBL_ASSET']
 
@@ -413,7 +415,7 @@ def query_camera_item(host_id, cam_ip):
     # Retrieve item from the table
     response = table.query(
         KeyConditionExpression=Key('hostId').eq(host_id),
-        FilterExpression=Attr('localIP').eq(cam_ip)
+        FilterExpression=Attr('localIp').eq(cam_ip)
     )
     
     # Print the items returned by the query
