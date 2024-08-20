@@ -595,8 +595,7 @@ def fetch_scanner_output_queue():
             message = None
             if not scanner_output_queue.empty():
                 message = scanner_output_queue.get_nowait()    
-            # message = scanner_output_queue.get_nowait()
-            logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
+                # logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
             
             if not message is None and 'type' in message:
                 if message['type'] == 'guest_detected':
@@ -806,7 +805,7 @@ def monitor_stop_event(thread_gstreamer):
         if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:
                 thread_monitors[cam_ip] = None
-            logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} restarting")
+            logger.info(f"{cam_ip} monitor_stop_event restarting")
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
 
