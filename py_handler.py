@@ -277,6 +277,8 @@ def start_http_server():
 
                     thread_gstreamer = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
+                    logger.info(f"{cam_ip} /detect_record thread_gstreamer: {thread_gstreamer}")
+
                     if thread_gstreamer is not None:
                         if cam_ip in thread_monitors:
                             if thread_monitors[cam_ip] is not None:
@@ -837,8 +839,10 @@ def start_gstreamer_thread(host_id, cam_ip):
         logger.info(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
         return
     
-    if cam_ip not in thread_gstreamers or thread_gstreamers[cam_ip] is None or not thread_gstreamers[cam_ip].is_alive():
-
+    if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip].is_alive():
+        logger.info(f"{cam_ip} start_gstreamer_thread, already started")
+        return thread_gstreamers[cam_ip]
+    else:
         params = {}
         params['rtsp_src'] = f"rtsp://{camera_item['username']}:{camera_item['password']}@{cam_ip}:{camera_item['rtsp']['port']}{camera_item['rtsp']['path']}"
         params['codec'] = camera_item['rtsp']['codec']
@@ -852,14 +856,7 @@ def start_gstreamer_thread(host_id, cam_ip):
 
         logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
 
-        # return thread_gstreamers[camera_item['localIp']]
-    else:
-        logger.info(f"{cam_ip} start_gstreamer_thread, already started")
-
-    return thread_gstreamers[cam_ip]
-
-    
-
+        return thread_gstreamers[cam_ip]
 
 # Function to handle termination signals
 def signal_handler(signum, frame):
