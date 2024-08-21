@@ -156,11 +156,11 @@ def read_picture_from_url(url):
     
     return image_bgr, image
 
-def set_host_info_to_env(host_info):
-    os.environ['HOST_ID'] = host_info['hostId']
-    os.environ['IDENTITY_ID'] = host_info['identityId']
-    os.environ['PROPERTY_CODE'] = host_info['propertyCode']
-    os.environ['CRED_PROVIDER_HOST'] = host_info['credProviderHost']
+# def set_host_info_to_env(host_info):
+#     os.environ['HOST_ID'] = host_info['hostId']
+#     os.environ['IDENTITY_ID'] = host_info['identityId']
+#     os.environ['PROPERTY_CODE'] = host_info['propertyCode']
+#     os.environ['CRED_PROVIDER_HOST'] = host_info['credProviderHost']
     
 
 def stop_http_server():
@@ -336,14 +336,14 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
                     event = json.loads(post_data)
 
-                    if 'hostInfo' in event:
-                        set_host_info_to_env(event['hostInfo'])
-                        init_uploader_app()
+                    # if 'hostInfo' in event:
+                    #     set_host_info_to_env(event['hostInfo'])
+                    #     init_uploader_app()
 
-                    logger.info(f"/start camera: {format(event['cameraItem']['localIp'])}")
+                    logger.info(f"/start camera: {event['cam_ip']}")
 
                     if "cameraItem" in event:
-                        thread_gstreamer = start_gstreamer_thread(camera_item=event['cameraItem'])
+                        thread_gstreamer = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=event['cam_ip'])
 
                         if thread_gstreamer is not None:
                             if event['cameraItem']['localIp'] in thread_monitors:
@@ -402,9 +402,53 @@ def start_http_server():
     except Exception as e:
         logger.error(f"Error starting HTTP server: {e}")
 
+
+def get_host_item():
+    logger.info('get_host_item in')
+
+    # Specify the table name
+    tbl_host = os.environ['TBL_HOST']
+
+    # Get the table
+    table = dynamodb.Table(tbl_host)
+
+    # Scan the table with the filter expression
+    response = table.scan()
+
+    # Get the items from the response
+    items = response.get('Items', [])
+
+    if len(items) > 0:
+        return items[0]
+    else:
+        return None
+    
+def get_property_item(host_id):
+    logger.info('get_property_item in')
+
+    # Specify the table name
+    tbl_asset = os.environ['TBL_ASSET']
+
+    # Get the table
+    table = dynamodb.Table(tbl_asset)
+
+    # Retrieve item from the table
+    response = table.query(
+        KeyConditionExpression=Key('hostId').eq(host_id),
+        FilterExpression=Attr('category').eq("PROPERTY")
+    )
+
+    # Get the items from the response
+    items = response.get('Items', [])
+
+    if len(items) > 0:
+        return items[0]
+    else:
+        return None
+
 def query_camera_item(host_id, cam_ip):
 
-    logger.info(f"start_gstreamer_thread, in with {host_id} {cam_ip} ...")
+    logger.info(f"query_camera_item, in with {host_id} {cam_ip} ...")
 
     # Specify the table name
     tbl_asset = os.environ['TBL_ASSET']
@@ -599,7 +643,34 @@ def fetch_members(forced=False):
         thread_detector.active_members = active_members
         
         
-def claim_scanner_once():
+def initialize_env_var():
+    try:
+        host_item = get_host_item()
+
+        if host_item is not None:
+            property_item = get_property_item(host_item['hostId'])
+
+            if property_item is not None:
+                os.environ['HOST_ID'] = host_item['hostId']
+                os.environ['IDENTITY_ID'] = host_item['identityId']
+                os.environ['PROPERTY_CODE'] = property_item['propertyCode']
+                os.environ['CRED_PROVIDER_HOST'] = host_item['credProviderHost']
+            else:
+                raise ValueError("property_item is None")
+        else:
+            raise ValueError("host_item is None")
+                
+
+        # Reschedule the initialization function for every 5 minutes (300 seconds)
+        threading.Timer(300, initialize_env_var).start()
+    except Exception as e:
+        # Log the exception
+        logger.error(f"initialize_env_var error: {e}", exc_info=True)
+        
+        # Exit the script
+        sys.exit(1)
+
+def claim_scanner():
     data = {
         "equipmentId": os.environ['AWS_IOT_THING_NAME'],
         "equipmentName": os.environ['AWS_IOT_THING_NAME'],
@@ -611,21 +682,9 @@ def claim_scanner_once():
         payload=json.dumps(data)
     )
 
+    # Reschedule the claim scanner function for every 30 minutes (1800 seconds)
+    threading.Timer(1800, claim_scanner).start()
 
-def claim_scanner():
-    claim_scanner_once()
-
-    # Reschedule the function
-    scheduler.enter(1800, 1, claim_scanner)
-
-# Function to start the scheduler
-def start_scheduler():
-
-    claim_scanner_once()
-    # Schedule the first call to my_function
-    scheduler.enter(1800, 1, claim_scanner)
-    # Start the scheduler
-    scheduler.run()
 
 def fetch_scanner_output_queue():
     while True:
@@ -721,11 +780,18 @@ def start_scanner_output_queue_thread():
     scheduler_thread.start()
     logger.info("Scanner Output Queue thread started")
 
-# scheduler
-def start_scheduler_thread():
-    scheduler_thread = threading.Thread(target=start_scheduler, name="Thread-Scheduler")
-    scheduler_thread.start()
-    logger.info("Scheduler thread started")
+
+# Function to start the scheduler threads
+def start_scheduler_threads():
+    # Start the initialization thread first
+    initialization_thread = threading.Thread(target=initialize_env_var, name="Thread-Initialization")
+    initialization_thread.start()
+    logger.info("Initialization thread started")
+
+    # Start the claim scanner thread after the initialization
+    claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
+    claim_scanner_thread.start()
+    logger.info("Claim scanner thread started")
 
 def stop_gstreamer_thread(thread_name):
     logger.info(f"stop_gstreamer_thread, {thread_name} received, shutting down thread_gstreamer.")
@@ -745,9 +811,7 @@ def start_gstreamer_thread(**kwargs):
     global thread_gstreamers
     camera_item = None
 
-    if "camera_item" in kwargs:
-        camera_item = kwargs['camera_item']
-    elif "host_id" in kwargs and "cam_uuid" in kwargs:
+    if "host_id" in kwargs and "cam_uuid" in kwargs:
         camera_item = get_camera_item(kwargs['host_id'], kwargs['cam_uuid'])
     elif "cam_ip" in kwargs and "host_id" in kwargs:
         camera_item = query_camera_item(kwargs['host_id'], kwargs['cam_ip'])
@@ -874,14 +938,17 @@ def set_sampling_time(thread_gstreamer, delay):
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
+# Start the scheduler threads
+start_scheduler_threads()
+
 # Init face_app
 init_face_app()
 
+# Init face_app
+init_uploader_app()
+
 # Start the HTTP server thread
 start_server_thread()
-
-# Start the scheduler thread
-start_scheduler_thread()
 
 # Start scanner_output_queue thread
 start_scanner_output_queue_thread()
