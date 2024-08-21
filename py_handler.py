@@ -280,10 +280,17 @@ def start_http_server():
                     logger.info(f"{cam_ip} /detect_record thread_gstreamer: {thread_gstreamer}")
 
                     if thread_gstreamer is not None:
+                        logger.info(f"{cam_ip} /detect_record thread_gstreamer 1 ")
                         if cam_ip in thread_monitors:
+                            logger.info(f"{cam_ip} /detect_record thread_gstreamer 2 ")
                             if thread_monitors[cam_ip] is not None:
+                                logger.info(f"{cam_ip} /detect_record thread_gstreamer 3 ")
                                 thread_monitors[cam_ip].join()
+                                logger.info(f"{cam_ip} /detect_record thread_gstreamer 4 ")
+
+                        logger.info(f"{cam_ip} /detect_record thread_gstreamer 5 ")
                         thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+                        logger.info(f"{cam_ip} /detect_record thread_gstreamer 6 ")
                         thread_monitors[cam_ip].start()
 
                         logger.info(f"{cam_ip} /detect_record thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
