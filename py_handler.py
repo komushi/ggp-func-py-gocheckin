@@ -672,7 +672,7 @@ def initialize_env_var():
                 
 
         # Reschedule the initialization function for every 5 minutes (300 seconds)
-        threading.Timer(300, initialize_env_var).start()
+        threading.Timer(1800, initialize_env_var).start()
 
         logger.info('initialize_env_var out')
     except Exception as e:
