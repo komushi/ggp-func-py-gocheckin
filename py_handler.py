@@ -277,11 +277,11 @@ def start_http_server():
                         thread_gstreamer = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
                         if thread_gstreamer is not None:
-                            if event['cameraItem']['localIp'] in thread_monitors:
-                                if thread_monitors[event['cameraItem']['localIp']] is not None:
-                                    thread_monitors[event['cameraItem']['localIp']].join()
-                            thread_monitors[event['cameraItem']['localIp']] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{event['cameraItem']['localIp']}", args=(thread_gstreamer,))
-                            thread_monitors[event['cameraItem']['localIp']].start()
+                            if cam_ip in thread_monitors:
+                                if thread_monitors[cam_ip] is not None:
+                                    thread_monitors[cam_ip].join()
+                            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+                            thread_monitors[cam_ip].start()
 
 
 
@@ -342,24 +342,26 @@ def start_http_server():
 
                     logger.info(f"/start camera: {event['cam_ip']}")
 
+                    cam_ip = event['cam_ip']
+
                     if "cameraItem" in event:
                         thread_gstreamer = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=event['cam_ip'])
 
                         if thread_gstreamer is not None:
-                            if event['cameraItem']['localIp'] in thread_monitors:
-                                if thread_monitors[event['cameraItem']['localIp']] is not None:
-                                    thread_monitors[event['cameraItem']['localIp']].join()
-                            thread_monitors[event['cameraItem']['localIp']] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{event['cameraItem']['localIp']}", args=(thread_gstreamer,))
-                            thread_monitors[event['cameraItem']['localIp']].start()
+                            if cam_ip in thread_monitors:
+                                if thread_monitors[cam_ip] is not None:
+                                    thread_monitors[cam_ip].join()
+                            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+                            thread_monitors[cam_ip].start()
 
                         self.send_response(200)
                         self.send_header('Content-type', 'application/json')
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Started Thread Gstreamer " + event['cameraItem']['localIp']}).encode())
+                        self.wfile.write(json.dumps({"message": "Started Thread Gstreamer " + cam_ip}).encode())
                     else:
                         self.send_response(400)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[event['cameraItem']['localIp']].name + " is not running properly"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[cam_ip].name + " is not running properly"}).encode())
 
                 else:
                     self.send_response(404)
