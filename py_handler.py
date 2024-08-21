@@ -818,7 +818,10 @@ def start_gstreamer_thread(host_id, cam_ip):
     
     global camera_items
     global thread_gstreamers
-    camera_item = camera_items[cam_ip]
+    camera_item = None
+
+    if cam_ip in camera_items:
+        camera_item = camera_items[cam_ip]
 
     if camera_item is None:
         camera_item = query_camera_item(host_id, cam_ip)        
