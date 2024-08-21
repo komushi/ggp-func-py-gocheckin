@@ -282,9 +282,12 @@ def start_http_server():
                         thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
                         thread_monitors[cam_ip].start()
 
+                        logger.info(f"{cam_ip} /detect_record thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
                         if thread_gstreamer.is_playing:
 
                             camera_item = camera_items[cam_ip]
+
+                            logger.info(f"{cam_ip} /detect_record camera_item: {camera_item}")
 
                             # detect
                             if camera_item['isDetecting']:
@@ -894,6 +897,8 @@ def signal_handler(signum, frame):
     logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
 
 def monitor_stop_event(thread_gstreamer):
+    logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event in")
+    
     global thread_gstreamers
     global thread_monitors
 
