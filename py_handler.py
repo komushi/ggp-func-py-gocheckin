@@ -275,30 +275,21 @@ def start_http_server():
 
                     # if camera_item is None:
 
-                    thread_gstreamer = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
-
-                    logger.info(f"{cam_ip} /detect_record thread_gstreamer: {thread_gstreamer}")
+                    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
                     if thread_gstreamer is not None:
-                        logger.info(f"{cam_ip} /detect_record thread_gstreamer 1 ")
-                        if cam_ip in thread_monitors:
-                            logger.info(f"{cam_ip} /detect_record thread_gstreamer 2 ")
-                            if thread_monitors[cam_ip] is not None:
-                                logger.info(f"{cam_ip} /detect_record thread_gstreamer 3 ")
-                                thread_monitors[cam_ip].join()
-                                logger.info(f"{cam_ip} /detect_record thread_gstreamer 4 ")
+                        if is_new_gst_thread:
+                            if cam_ip in thread_monitors:
+                                if thread_monitors[cam_ip] is not None:
+                                    thread_monitors[cam_ip].join()
 
-                        logger.info(f"{cam_ip} /detect_record thread_gstreamer 5 ")
-                        thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
-                        logger.info(f"{cam_ip} /detect_record thread_gstreamer 6 ")
-                        thread_monitors[cam_ip].start()
+                            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+                            thread_monitors[cam_ip].start()
 
                         logger.info(f"{cam_ip} /detect_record thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
                         if thread_gstreamer.is_playing:
 
                             camera_item = camera_items[cam_ip]
-
-                            logger.info(f"{cam_ip} /detect_record camera_item: {camera_item}")
 
                             # detect
                             if camera_item['isDetecting']:
@@ -361,7 +352,7 @@ def start_http_server():
                     if 'cam_ip' in event:
                         cam_ip = event['cam_ip']
 
-                        thread_gstreamer = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
+                        thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
                         if thread_gstreamer is not None:
                             if cam_ip in thread_monitors:
@@ -848,7 +839,7 @@ def start_gstreamer_thread(host_id, cam_ip):
     
     if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip].is_alive():
         logger.info(f"{cam_ip} start_gstreamer_thread, already started")
-        return thread_gstreamers[cam_ip]
+        return thread_gstreamers[cam_ip], False
     else:
         params = {}
         params['rtsp_src'] = f"rtsp://{camera_item['username']}:{camera_item['password']}@{cam_ip}:{camera_item['rtsp']['port']}{camera_item['rtsp']['path']}"
@@ -863,7 +854,7 @@ def start_gstreamer_thread(host_id, cam_ip):
 
         logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
 
-        return thread_gstreamers[cam_ip]
+        return thread_gstreamers[cam_ip], True
 
 # Function to handle termination signals
 def signal_handler(signum, frame):
@@ -922,7 +913,7 @@ def monitor_stop_event(thread_gstreamer):
     if not thread_gstreamer.is_alive() and not shutting_down:
         thread_gstreamer = None
         thread_gstreamers[cam_ip] = None
-        thread_gstreamers[cam_ip] = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
+        thread_gstreamers[cam_ip], _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
         if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:
