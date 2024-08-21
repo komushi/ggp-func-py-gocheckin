@@ -644,6 +644,8 @@ def fetch_members(forced=False):
         
         
 def initialize_env_var():
+    logger.info('initialize_env_var in')
+
     try:
         host_item = get_host_item()
 
@@ -663,6 +665,8 @@ def initialize_env_var():
 
         # Reschedule the initialization function for every 5 minutes (300 seconds)
         threading.Timer(300, initialize_env_var).start()
+
+        logger.info('initialize_env_var out')
     except Exception as e:
         # Log the exception
         logger.error(f"initialize_env_var error: {e}", exc_info=True)
