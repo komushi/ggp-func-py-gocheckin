@@ -361,7 +361,7 @@ def start_http_server():
                     else:
                         self.send_response(400)
                         self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread" + thread_gstreamers[cam_ip].name + " is not running properly"}).encode())
+                        self.wfile.write(json.dumps({"message": "Thread Gstreamer " + cam_ip + " is not running properly"}).encode())
 
                 else:
                     self.send_response(404)
