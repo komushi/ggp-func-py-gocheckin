@@ -43,6 +43,8 @@ iotClient = greengrasssdk.client("iot-data")
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
+shutting_down = False
+
 # Initialize the http server
 server_thread = None
 httpd = None
@@ -864,6 +866,9 @@ def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down http server.")
     # logger.info(f'Available threads before shutting down server: {", ".join(thread.name for thread in threading.enumerate())}')
 
+    global shutting_down
+    shutting_down = True
+
     global thread_detector
     if thread_detector is not None:
         thread_detector.stop_detection()
@@ -910,7 +915,7 @@ def monitor_stop_event(thread_gstreamer):
 
     
     # Restart the thread
-    if not thread_gstreamer.is_alive():
+    if not thread_gstreamer.is_alive() and not shutting_down:
         thread_gstreamer = None
         thread_gstreamers[cam_ip] = None
         thread_gstreamers[cam_ip] = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)

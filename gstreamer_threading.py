@@ -306,6 +306,8 @@ class StreamCapture(threading.Thread):
 
         self.stop_event.set()
 
+        self.pipeline.set_state(Gst.State.NULL)
+
     def stop_sampling(self):
         # logger.info(f"stop_sampling, Stop sampling with {self.name}")
 
