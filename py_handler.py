@@ -837,24 +837,26 @@ def start_gstreamer_thread(host_id, cam_ip):
         logger.info(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
         return
     
-    if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip].is_alive():
-        logger.info(f"{cam_ip} start_gstreamer_thread, already started")
-        return thread_gstreamers[cam_ip], False
-    else:
-        params = {}
-        params['rtsp_src'] = f"rtsp://{camera_item['username']}:{camera_item['password']}@{cam_ip}:{camera_item['rtsp']['port']}{camera_item['rtsp']['path']}"
-        params['codec'] = camera_item['rtsp']['codec']
-        params['framerate'] = camera_item['rtsp']['framerate']
-        params['cam_ip'] = cam_ip
-        params['cam_uuid'] = camera_item['uuid']
-        params['cam_name'] = camera_item['equipmentName']
+    if cam_ip in thread_gstreamers:
+        if thread_gstreamers[cam_ip] is not None:
+            if thread_gstreamers[cam_ip].is_alive():
+                logger.info(f"{cam_ip} start_gstreamer_thread, already started")
+                return thread_gstreamers[cam_ip], False
+    
+    params = {}
+    params['rtsp_src'] = f"rtsp://{camera_item['username']}:{camera_item['password']}@{cam_ip}:{camera_item['rtsp']['port']}{camera_item['rtsp']['path']}"
+    params['codec'] = camera_item['rtsp']['codec']
+    params['framerate'] = camera_item['rtsp']['framerate']
+    params['cam_ip'] = cam_ip
+    params['cam_uuid'] = camera_item['uuid']
+    params['cam_name'] = camera_item['equipmentName']
 
-        thread_gstreamers[cam_ip] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
-        thread_gstreamers[cam_ip].start()
+    thread_gstreamers[cam_ip] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
+    thread_gstreamers[cam_ip].start()
 
-        logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
+    logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
 
-        return thread_gstreamers[cam_ip], True
+    return thread_gstreamers[cam_ip], True
 
 # Function to handle termination signals
 def signal_handler(signum, frame):
