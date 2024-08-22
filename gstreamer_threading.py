@@ -198,7 +198,7 @@ class StreamCapture(threading.Thread):
 
         rtpbin = self.pipeline.get_by_name("m_rtpbin")
 
-        rtpbin.connect("pad-added", pad_added_handler)
+        rtpbin.connect("pad-added", self.pad_added_handler)
 
 
     def pad_added_handler(self, rtpbin, new_pad):
