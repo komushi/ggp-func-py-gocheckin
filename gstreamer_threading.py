@@ -274,7 +274,7 @@ class StreamCapture(threading.Thread):
         try:
             if not self.is_playing:
 
-                self.pipeline.set_state(Gst.State.PAUSED)
+                self.pipeline.set_state(Gst.State.NULL)
                 playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
                 # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
