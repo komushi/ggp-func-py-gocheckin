@@ -141,6 +141,32 @@ def init_face_app(model='buffalo_sc'):
     face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
+def init_gst_apps():
+    global camera_items
+
+    camera_items = query_camera_items(os.environ['HOST_ID'])
+    
+    for camera_item in camera_items:
+        cam_ip = camera_item['localIp']
+        init_gst_app(os.environ['HOST_ID'], cam_ip)
+
+def init_gst_app(host_id, cam_ip):
+    global thread_monitors
+
+    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip)
+
+    if thread_gstreamer is not None:
+        if is_new_gst_thread:
+            if cam_ip in thread_monitors:
+                if thread_monitors[cam_ip] is not None:
+                    thread_monitors[cam_ip].join()
+
+            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+            thread_monitors[cam_ip].start()
+
+    return thread_gstreamer
+
+
 def read_picture_from_url(url):
 
     # Download the image
@@ -157,13 +183,6 @@ def read_picture_from_url(url):
     image_bgr = image_array[:, :, [2, 1, 0]]
     
     return image_bgr, image
-
-# def set_host_info_to_env(host_info):
-#     os.environ['HOST_ID'] = host_info['hostId']
-#     os.environ['IDENTITY_ID'] = host_info['identityId']
-#     os.environ['PROPERTY_CODE'] = host_info['propertyCode']
-#     os.environ['CRED_PROVIDER_HOST'] = host_info['credProviderHost']
-    
 
 def stop_http_server():
     global httpd
@@ -269,22 +288,11 @@ def start_http_server():
                     
                     logger.info(f"/detect_record cam_ip: {cam_ip}")
 
-                    # camera_item = None
-                    # if cam_ip in camera_items:
-                    #     camera_item = camera_items[cam_ip]
+                    # thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
-                    # if camera_item is None:
-
-                    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
+                    thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
 
                     if thread_gstreamer is not None:
-                        if is_new_gst_thread:
-                            if cam_ip in thread_monitors:
-                                if thread_monitors[cam_ip] is not None:
-                                    thread_monitors[cam_ip].join()
-
-                            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
-                            thread_monitors[cam_ip].start()
 
                         logger.info(f"{cam_ip} /detect_record thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
                         if thread_gstreamer.is_playing:
@@ -340,36 +348,36 @@ def start_http_server():
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
 
-                elif self.path == '/start':
-                    # Process the POST data
-                    content_length = int(self.headers['Content-Length'])
-                    post_data = self.rfile.read(content_length)
-                    event = json.loads(post_data)
+                # elif self.path == '/start':
+                #     # Process the POST data
+                #     content_length = int(self.headers['Content-Length'])
+                #     post_data = self.rfile.read(content_length)
+                #     event = json.loads(post_data)
 
-                    logger.info(f"/start camera: {event}")
+                #     logger.info(f"/start camera: {event}")
 
-                    cam_ip = None
-                    if 'cam_ip' in event:
-                        cam_ip = event['cam_ip']
+                #     cam_ip = None
+                #     if 'cam_ip' in event:
+                #         cam_ip = event['cam_ip']
 
-                        thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
+                #         thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
-                        if thread_gstreamer is not None:
-                            if cam_ip in thread_monitors:
-                                if thread_monitors[cam_ip] is not None:
-                                    thread_monitors[cam_ip].join()
-                            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
-                            thread_monitors[cam_ip].start()
+                #         if thread_gstreamer is not None:
+                #             if cam_ip in thread_monitors:
+                #                 if thread_monitors[cam_ip] is not None:
+                #                     thread_monitors[cam_ip].join()
+                #             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+                #             thread_monitors[cam_ip].start()
 
-                        self.send_response(200)
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Started Thread Gstreamer " + cam_ip}).encode())
-                    else:
-                        self.send_response(200)
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": "Thread Gstreamer " + cam_ip + " is not running properly"}).encode())
+                #         self.send_response(200)
+                #         self.send_header('Content-type', 'application/json')
+                #         self.end_headers()
+                #         self.wfile.write(json.dumps({"message": "Started Thread Gstreamer " + cam_ip}).encode())
+                #     else:
+                #         self.send_response(200)
+                #         self.send_header('Content-type', 'application/json')
+                #         self.end_headers()
+                #         self.wfile.write(json.dumps({"message": "Thread Gstreamer " + cam_ip + " is not running properly"}).encode())
 
                 else:
                     self.send_response(404)
@@ -479,6 +487,27 @@ def query_camera_item(host_id, cam_ip):
 
     return camera_item
 
+def query_camera_items(host_id):
+
+    logger.info(f"query_camera_items, in with {host_id} ...")
+
+    # Specify the table name
+    tbl_asset = os.environ['TBL_ASSET']
+
+    # Get the table
+    table = dynamodb.Table(tbl_asset)
+
+    # Retrieve item from the table
+    response = table.query(
+        KeyConditionExpression=Key('hostId').eq(host_id)
+    )
+    
+    # Print the items returned by the query
+    camera_items = response.get('Items', [None])
+
+    logger.info(f'query_camera_items out {camera_items}')
+
+    return camera_items
 
 # def get_camera_item(host_id, cam_uuid):
 
@@ -957,7 +986,10 @@ start_scheduler_threads()
 # Init face_app
 init_face_app()
 
-# Init face_app
+# Init gst_apps
+init_gst_apps()
+
+# Init uploader_app
 init_uploader_app()
 
 # Start the HTTP server thread
