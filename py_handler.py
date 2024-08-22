@@ -142,15 +142,22 @@ def init_face_app(model='buffalo_sc'):
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
 def init_gst_apps():
+    logger.info(f"init_gst_apps in")
+
     global camera_items
 
-    camera_items = query_camera_items(os.environ['HOST_ID'])
+    camera_item_list = query_camera_items(os.environ['HOST_ID'])
     
-    for camera_item in camera_items:
+    for camera_item in camera_item_list:
         cam_ip = camera_item['localIp']
+        camera_items[cam_ip] = camera_item
         init_gst_app(os.environ['HOST_ID'], cam_ip)
 
+    logger.info(f"init_gst_apps out")
+
 def init_gst_app(host_id, cam_ip):
+    logger.info(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
+
     global thread_monitors
 
     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip)
@@ -163,6 +170,8 @@ def init_gst_app(host_id, cam_ip):
 
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
             thread_monitors[cam_ip].start()
+
+    logger.info(f"init_gst_app out thread_gstreamer: {thread_gstreamer}")
 
     return thread_gstreamer
 
