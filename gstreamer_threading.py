@@ -275,14 +275,13 @@ class StreamCapture(threading.Thread):
 
     def start_playing(self, count = 0, playing = False):
         logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
-        interval = 5
+        interval = 10
 
         if count > 3:
             logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
             return playing
         else:
             if playing:
-                logger.info(f"{self.cam_ip} start_playing, return with start playing, count: {count}")
                 return playing
 
         count += 1
@@ -290,20 +289,13 @@ class StreamCapture(threading.Thread):
         try:
             if not self.is_playing:
 
-                self.pipeline.set_state(Gst.State.NULL)
                 playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
                 # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
 
                 if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
                     logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
-
                     time.sleep(interval)
-
-                    if self.is_playing:
-                        return True
-                    else:
-                        self.pipeline.set_state(Gst.State.NULL)
-                        return self.start_playing(count)
+                    return self.start_playing(count)
                 else:
                     logger.info(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
                     return True
@@ -316,9 +308,50 @@ class StreamCapture(threading.Thread):
             logger.error(f"{self.cam_ip} start_playing, Exception during running, Error: {e}")
             traceback.print_exc()
             return False
-        # finally:
-        #     logger.info(f"start_playing, {self.name} return with final result: {False}, count: {count}")
-        #     return False
+
+    # def start_playing(self, count = 0, playing = False):
+    #     logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
+    #     interval = 5
+
+    #     if count > 3:
+    #         logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
+    #         return playing
+    #     else:
+    #         if playing:
+    #             logger.info(f"{self.cam_ip} start_playing, return with start playing, count: {count}")
+    #             return playing
+
+    #     count += 1
+        
+    #     try:
+    #         if not self.is_playing:
+
+    #             self.pipeline.set_state(Gst.State.NULL)
+    #             playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
+    #             # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
+
+    #             if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
+    #                 logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
+
+    #                 time.sleep(interval)
+
+    #                 if self.is_playing:
+    #                     return True
+    #                 else:
+    #                     self.pipeline.set_state(Gst.State.NULL)
+    #                     return self.start_playing(count)
+    #             else:
+    #                 logger.info(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
+    #                 return True
+
+    #         else:
+    #             logger.warning(f"{self.cam_ip} start_playing, return with already playing, count: {count}")
+    #             return True
+    
+    #     except Exception as e:
+    #         logger.error(f"{self.cam_ip} start_playing, Exception during running, Error: {e}")
+    #         traceback.print_exc()
+    #         return False
 
 
         
