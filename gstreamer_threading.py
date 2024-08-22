@@ -58,7 +58,7 @@ pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""    
 
 pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-    ! rtpjitterbuffer ! rtpbin name=m_rtpbin ! rtph265depay name=m_rtph265depay
+    ! rtpjitterbuffer ! rtpbin name=m_rtpbin ! rtph265depay name=m_rtph265depay ! capsfilter caps="video/x-h265"
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
@@ -275,9 +275,9 @@ class StreamCapture(threading.Thread):
 
     def start_playing(self, count = 0, playing = False):
         logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
-        interval = 30
+        interval = 5
 
-        if count > 1:
+        if count > 3:
             logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
             return playing
         else:
