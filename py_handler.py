@@ -733,6 +733,7 @@ def initialize_env_var():
         sys.exit(1)
 
 def claim_cameras():
+    logger.info(f"claim_cameras in")
     for thread_gstreamer in thread_gstreamers:
         if thread_gstreamer.is_playing:
             data = {
@@ -745,6 +746,7 @@ def claim_cameras():
                 topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
                 payload=json.dumps(data)
             )
+            logger.info(f"claim_cameras published {data}")
 
     # Reschedule the claim cameras function for every 5 minutes (300 seconds)
     timer = threading.Timer(10, claim_cameras).start()
