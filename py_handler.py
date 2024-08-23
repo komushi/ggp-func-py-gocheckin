@@ -734,7 +734,7 @@ def initialize_env_var():
 
 def claim_cameras():
     logger.info(f"claim_cameras in")
-    for thread_gstreamer in thread_gstreamers:
+    for thread_gstreamer in thread_gstreamers.items():
         if thread_gstreamer.is_playing:
             data = {
                 "uuid": thread_gstreamer.cam_uuid,
