@@ -235,7 +235,9 @@ def start_http_server():
                         logger.info('/recognise POST finished with fetch_members only')
 
                         timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
+                        timer.name = "Thread-FetchMembers"
                         timer.start()
+                        timer.join()
 
                         return
 
@@ -247,7 +249,9 @@ def start_http_server():
                         logger.info('/recognise POST finished with fetch_members only')
 
                         timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
+                        timer.name = "Thread-FetchMembers"
                         timer.start()
+                        timer.join()
 
                         return
 
@@ -286,7 +290,10 @@ def start_http_server():
                     logger.info('/recognise POST finished')
 
                     timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
+                    timer.name = "Thread-FetchMembers"
                     timer.start()
+                    timer.join()
+
                 elif self.path == '/detect_record':
                     # Process the POST data
                     content_length = int(self.headers['Content-Length'])
@@ -711,10 +718,12 @@ def initialize_env_var():
         else:
             raise ValueError("host_item is None")
                 
-
         # Reschedule the initialization function for every 5 minutes (300 seconds)
-        threading.Timer(1800, initialize_env_var).start()
-
+        timer = threading.Timer(1800, initialize_env_var).start()
+        timer.name = "Thread-Initializer"
+        timer.start()
+        timer.join()
+        
         logger.info('initialize_env_var out')
     except Exception as e:
         # Log the exception
@@ -736,8 +745,10 @@ def claim_scanner():
     )
 
     # Reschedule the claim scanner function for every 30 minutes (1800 seconds)
-    threading.Timer(1800, claim_scanner).start()
-
+    timer = threading.Timer(1800, claim_scanner).start()
+    timer.name = "Thread-ClaimScanner"
+    timer.start()
+    timer.join()
 
 def fetch_scanner_output_queue():
     while True:
@@ -770,7 +781,9 @@ def fetch_scanner_output_queue():
                             update_member(message['payload']['reservationCode'], message['payload']['memberNo'])
 
                             timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
+                            timer.name = "Thread-FetchMembers"
                             timer.start()
+                            timer.join()
 
                             logger.info(f"fetch_scanner_output_queue, member_detected with IoT Publish payload: {message['payload']}")
 
@@ -976,6 +989,8 @@ def set_recording_time(cam_ip, delay):
 
     recording_timers[cam_ip] = threading.Timer(delay, thread_gstreamers[cam_ip].stop_recording)
     recording_timers[cam_ip].start()
+    recording_timers[cam_ip].name = f"Thread-RecordingStopper-{cam_ip}"
+    recording_timers[cam_ip].join()
 
 def set_sampling_time(thread_gstreamer, delay):
     global detection_timer
@@ -985,6 +1000,9 @@ def set_sampling_time(thread_gstreamer, delay):
     
     detection_timer = threading.Timer(delay, thread_gstreamer.stop_sampling)
     detection_timer.start()
+    detection_timer.name = f"Thread-SamplingStopper-{thread_gstreamer.cam_ip}"
+    detection_timer.join()
+
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)
