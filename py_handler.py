@@ -719,7 +719,7 @@ def initialize_env_var():
             raise ValueError("host_item is None")
                 
         # Reschedule the initialization function for every 5 minutes (300 seconds)
-        timer = threading.Timer(1800, initialize_env_var).start()
+        timer = threading.Timer(1800, initialize_env_var)
         timer.name = "Thread-Initializer-Timer"
         timer.start()
         timer.join()
@@ -751,7 +751,7 @@ def claim_cameras():
                 logger.info(f"claim_cameras published {data}")
 
     # Reschedule the claim cameras function for every 5 minutes (300 seconds)
-    timer = threading.Timer(10, claim_cameras)
+    timer = threading.Timer(60, claim_cameras)
     timer.name = "Thread-ClaimCameras-Timer"
     timer.start()
     timer.join()
