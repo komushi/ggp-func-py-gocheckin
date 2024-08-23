@@ -58,7 +58,8 @@ pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""    
 
 pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-    ! rtpjitterbuffer ! rtpbin name=m_rtpbin ! rtph265depay name=m_rtph265depay ! capsfilter caps="video/x-h265"
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
+    ! capsfilter caps="video/x-h265" 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
@@ -196,21 +197,21 @@ class StreamCapture(threading.Thread):
 
         self.is_playing = False
 
-        rtpbin = self.pipeline.get_by_name("m_rtpbin")
+    #     rtpbin = self.pipeline.get_by_name("m_rtpbin")
 
-        rtpbin.connect("pad-added", self.pad_added_handler)
+    #     rtpbin.connect("pad-added", self.pad_added_handler)
 
 
-    def pad_added_handler(self, rtpbin, new_pad):
-        logger.info(f"New pad {new_pad.get_name()} from {rtpbin.get_name()}")
+    # def pad_added_handler(self, rtpbin, new_pad):
+    #     logger.info(f"New pad {new_pad.get_name()} from {rtpbin.get_name()}")
 
-        if new_pad.get_name().startswith("recv_rtp_src_"):
-            # Get the depayloader
-            depay = self.pipeline.get_by_name("m_rtph265depay")
+    #     if new_pad.get_name().startswith("recv_rtp_src_"):
+    #         # Get the depayloader
+    #         depay = self.pipeline.get_by_name("m_rtph265depay")
 
-            # Link the new pad to the depayloader
-            sink_pad = depay.get_static_pad("sink")
-            new_pad.link(sink_pad)
+    #         # Link the new pad to the depayloader
+    #         sink_pad = depay.get_static_pad("sink")
+    #         new_pad.link(sink_pad)
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
