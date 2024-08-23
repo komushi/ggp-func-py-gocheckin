@@ -486,10 +486,7 @@ def query_camera_item(host_id, cam_ip):
     # Retrieve item from the table
     response = table.query(
         KeyConditionExpression=Key('hostId').eq(host_id),
-        FilterExpression=(
-            Attr('category').eq('CAMERA') &
-            (Attr('isDetecting').eq(True) | Attr('isRecording').eq(True))
-        )
+        FilterExpression=Attr('category').eq('CAMERA') & Attr('localIp').eq(cam_ip)
     )
     
     # Print the items returned by the query
@@ -512,7 +509,7 @@ def query_camera_items(host_id):
     # Retrieve item from the table
     response = table.query(
         KeyConditionExpression=Key('hostId').eq(host_id),
-        FilterExpression=Attr('category').eq('CAMERA')
+        FilterExpression=Attr('category').eq('CAMERA') & (Attr('isDetecting').eq(True) | Attr('isRecording').eq(True))
     )
     
     # Print the items returned by the query
