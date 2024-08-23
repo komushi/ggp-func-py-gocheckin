@@ -1,7 +1,7 @@
 import signal
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
 import os
 
@@ -720,7 +720,7 @@ def initialize_env_var():
                 
         # Reschedule the initialization function for every 5 minutes (300 seconds)
         timer = threading.Timer(1800, initialize_env_var).start()
-        timer.name = "Thread-Initializer"
+        timer.name = "Thread-Initializer-Timer"
         timer.start()
         timer.join()
         
@@ -731,6 +731,26 @@ def initialize_env_var():
         
         # Exit the script
         sys.exit(1)
+
+def claim_cameras():
+    for thread_gstreamer in thread_gstreamers:
+        if thread_gstreamer.is_playing:
+            data = {
+                "uuid": thread_gstreamer.cam_uuid,
+                "hostId": os.environ['HOST_ID'],
+                "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+            }
+
+            iotClient.publish(
+                topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+                payload=json.dumps(data)
+            )
+
+    # Reschedule the claim cameras function for every 5 minutes (300 seconds)
+    timer = threading.Timer(10, claim_cameras).start()
+    timer.name = "Thread-ClaimCameras-Timer"
+    timer.start()
+    timer.join()
 
 def claim_scanner():
     data = {
@@ -744,11 +764,11 @@ def claim_scanner():
         payload=json.dumps(data)
     )
 
-    # Reschedule the claim scanner function for every 30 minutes (1800 seconds)
-    timer = threading.Timer(1800, claim_scanner).start()
-    timer.name = "Thread-ClaimScanner"
-    timer.start()
-    timer.join()
+    # # Reschedule the claim scanner function for every 30 minutes (1800 seconds)
+    # timer = threading.Timer(1800, claim_scanner).start()
+    # timer.name = "Thread-ClaimScanner-Timer"
+    # timer.start()
+    # timer.join()
 
 def fetch_scanner_output_queue():
     while True:
@@ -850,7 +870,7 @@ def start_scanner_output_queue_thread():
 # Function to start the scheduler threads
 def start_scheduler_threads():
     # Start the initialization thread first
-    initialization_thread = threading.Thread(target=initialize_env_var, name="Thread-Initialization")
+    initialization_thread = threading.Thread(target=initialize_env_var, name="Thread-Initializer")
     initialization_thread.start()
     logger.info("Initialization thread started")
 
@@ -858,6 +878,11 @@ def start_scheduler_threads():
     claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
     claim_scanner_thread.start()
     logger.info("Claim scanner thread started")
+
+    claim_cameras_thread = threading.Thread(target=claim_cameras, name="Thread-ClaimCameras")
+    claim_cameras_thread.start()
+    logger.info("Claim scanner thread started")
+    
 
 def stop_gstreamer_thread(thread_name):
     logger.info(f"stop_gstreamer_thread, {thread_name} received, shutting down thread_gstreamer.")
