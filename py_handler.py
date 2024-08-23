@@ -734,19 +734,21 @@ def initialize_env_var():
 
 def claim_cameras():
     logger.info(f"claim_cameras in")
-    for thread_gstreamer in thread_gstreamers.items():
-        if thread_gstreamer.is_playing:
-            data = {
-                "uuid": thread_gstreamer.cam_uuid,
-                "hostId": os.environ['HOST_ID'],
-                "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-            }
+    for thread_name in thread_gstreamers:
+        thread_gstreamer = thread_gstreamers[thread_name]
+        if thread_gstreamer is not None:
+            if thread_gstreamer.is_playing:
+                data = {
+                    "uuid": thread_gstreamer.cam_uuid,
+                    "hostId": os.environ['HOST_ID'],
+                    "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+                }
 
-            iotClient.publish(
-                topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
-                payload=json.dumps(data)
-            )
-            logger.info(f"claim_cameras published {data}")
+                iotClient.publish(
+                    topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+                    payload=json.dumps(data)
+                )
+                logger.info(f"claim_cameras published {data}")
 
     # Reschedule the claim cameras function for every 5 minutes (300 seconds)
     timer = threading.Timer(10, claim_cameras).start()
