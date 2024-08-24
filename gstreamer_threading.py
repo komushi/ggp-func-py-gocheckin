@@ -433,15 +433,18 @@ class StreamCapture(threading.Thread):
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
 
+                logger.info(f"{self.cam_ip} Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
+
                 if new_state == Gst.State.PLAYING:
                     self.is_playing = True
-
-                    # self.send_keyframe_request()
-                else:
-                    if new_state != old_state:
-                        self.is_playing = False
-
-                logger.info(f"{self.cam_ip} Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
+                    return
+                
+                if new_state == old_state:
+                    if new_state == Gst.State.PAUSED:
+                        return
+                    
+                self.is_playing = False
+                
         elif message.type == Gst.MessageType.WARNING:
             logger.warning(f"Warning message {message.parse_warning()}： {message.type} at {self.cam_ip}.")
         elif message.type == Gst.MessageType.ELEMENT:
