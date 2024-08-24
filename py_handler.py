@@ -727,12 +727,12 @@ def initialize_env_var():
             raise ValueError("host_item is None")
                 
         # Reschedule the initialization function for every 5 minutes (300 seconds)
-        timer = threading.Timer(1800, initialize_env_var)
+        timer = threading.Timer(300, initialize_env_var)
         timer.name = "Thread-Initializer-Timer"
         timer.start()
-        timer.join()
+        # timer.join()
         
-        logger.info('initialize_env_var out')
+        logger.info(f"initialize_env_var out HOST_ID:{os.environ['HOST_ID']} IDENTITY_ID:{os.environ['IDENTITY_ID']} PROPERTY_CODE{os.environ['PROPERTY_CODE']} CRED_PROVIDER_HOST{os.environ['CRED_PROVIDER_HOST']}")
     except Exception as e:
         # Log the exception
         logger.error(f"initialize_env_var error: {e}", exc_info=True)
@@ -758,7 +758,7 @@ def claim_cameras():
                     payload=json.dumps(data)
                 )
                 logger.info(f"claim_cameras published {data}")
-                return
+                continue
 
         data = {
             "uuid": thread_gstreamer.cam_uuid,
@@ -773,7 +773,6 @@ def claim_cameras():
         )
 
         logger.info(f"claim_cameras published {data}")
-        return
 
     # Reschedule the claim cameras function for every 5 minutes (300 seconds)
     timer = threading.Timer(60, claim_cameras)
