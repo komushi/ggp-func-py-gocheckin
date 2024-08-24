@@ -516,7 +516,8 @@ def query_camera_items(host_id):
     # Retrieve item from the table
     response = table.query(
         KeyConditionExpression=Key('hostId').eq(host_id),
-        FilterExpression=Attr('category').eq('CAMERA') & (Attr('isDetecting').eq(True) | Attr('isRecording').eq(True))
+        # FilterExpression=Attr('category').eq('CAMERA') & (Attr('isDetecting').eq(True) | Attr('isRecording').eq(True))
+        FilterExpression=Attr('category').eq('CAMERA')
     )
     
     # Print the items returned by the query
@@ -734,14 +735,15 @@ def initialize_env_var():
 
 def claim_cameras():
     logger.info(f"claim_cameras in")
-    for thread_name in thread_gstreamers:
-        thread_gstreamer = thread_gstreamers[thread_name]
+    for cam_ip in camera_items:
+        thread_gstreamer = thread_gstreamers[cam_ip]
         if thread_gstreamer is not None:
             if thread_gstreamer.is_playing:
                 data = {
                     "uuid": thread_gstreamer.cam_uuid,
                     "hostId": os.environ['HOST_ID'],
-                    "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+                    "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                    "isPlaying": True
                 }
 
                 iotClient.publish(
@@ -749,6 +751,22 @@ def claim_cameras():
                     payload=json.dumps(data)
                 )
                 logger.info(f"claim_cameras published {data}")
+                return
+
+        data = {
+            "uuid": thread_gstreamer.cam_uuid,
+            "hostId": os.environ['HOST_ID'],
+            "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+            "isPlaying": False
+        }
+
+        iotClient.publish(
+            topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+            payload=json.dumps(data)
+        )
+
+        logger.info(f"claim_cameras published {data}")
+        return
 
     # Reschedule the claim cameras function for every 5 minutes (300 seconds)
     timer = threading.Timer(60, claim_cameras)
@@ -917,7 +935,11 @@ def start_gstreamer_thread(host_id, cam_ip):
     if camera_item is None:
         logger.info(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
         return
-    
+    else:
+        if not camera_item['isDetecting'] and not camera_item['isRecording']:
+            logger.info(f"{cam_ip} start_gstreamer_thread, camera_item has been set to idle")
+            return
+
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
             if thread_gstreamers[cam_ip].is_alive():
