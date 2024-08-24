@@ -436,9 +436,10 @@ class StreamCapture(threading.Thread):
                 if new_state == Gst.State.PLAYING:
                     self.is_playing = True
 
-                    self.send_keyframe_request()
+                    # self.send_keyframe_request()
                 else:
-                    self.is_playing = False
+                    if new_state != old_state:
+                        self.is_playing = False
 
                 logger.info(f"{self.cam_ip} Pipeline state changed from {old_state.value_nick} to {new_state.value_nick}.")
         elif message.type == Gst.MessageType.WARNING:
@@ -551,14 +552,13 @@ class StreamCapture(threading.Thread):
         # self.pipeline.set_state(Gst.State.READY)
         self.pipeline.set_state(Gst.State.PLAYING)
 
-        self.send_keyframe_request()
+        # self.send_keyframe_request()
 
         logging.info("create_and_link_splitmuxsink, Splitmuxsink branch created and linked")
 
         return True
 
-    def send_keyframe_request(self):
-        pass
+    # def send_keyframe_request(self):
         # event = Gst.Event.new_custom(Gst.EventType.CUSTOM_DOWNSTREAM, Gst.Structure.new_empty("GstForceKeyUnit"))
         # if self.rtph265depay is not None:
         #     self.rtph265depay.send_event(event)
