@@ -743,22 +743,23 @@ def initialize_env_var():
 def claim_cameras():
     logger.info(f"claim_cameras in")
     for cam_ip in camera_items:
-        thread_gstreamer = thread_gstreamers[cam_ip]
-        if thread_gstreamer is not None:
-            if thread_gstreamer.is_playing:
-                data = {
-                    "uuid": thread_gstreamer.cam_uuid,
-                    "hostId": os.environ['HOST_ID'],
-                    "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-                    "isPlaying": True
-                }
+        if cam_ip in thread_gstreamers:
+            thread_gstreamer = thread_gstreamers[cam_ip]
+            if thread_gstreamer is not None:
+                if thread_gstreamer.is_playing:
+                    data = {
+                        "uuid": thread_gstreamer.cam_uuid,
+                        "hostId": os.environ['HOST_ID'],
+                        "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                        "isPlaying": True
+                    }
 
-                iotClient.publish(
-                    topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
-                    payload=json.dumps(data)
-                )
-                logger.info(f"claim_cameras published {data}")
-                continue
+                    iotClient.publish(
+                        topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+                        payload=json.dumps(data)
+                    )
+                    logger.info(f"claim_cameras published {data}")
+                    continue
 
         data = {
             "uuid": thread_gstreamer.cam_uuid,
