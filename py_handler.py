@@ -149,9 +149,14 @@ def init_gst_apps():
     camera_item_list = query_camera_items(os.environ['HOST_ID'])
     
     for camera_item in camera_item_list:
-        cam_ip = camera_item['localIp']
-        camera_items[cam_ip] = camera_item
-        init_gst_app(os.environ['HOST_ID'], cam_ip)
+        try:
+            cam_ip = camera_item['localIp']
+            camera_items[cam_ip] = camera_item
+            init_gst_app(os.environ['HOST_ID'], cam_ip)
+        except Exception as e:
+            logger.error(f"Error handling init_gst_apps: {e}")
+            traceback.print_exc()
+            pass
 
     logger.info(f"init_gst_apps out")
 
@@ -161,6 +166,8 @@ def init_gst_app(host_id, cam_ip):
     global thread_monitors
 
     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip)
+
+    logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
     if thread_gstreamer is not None:
         if is_new_gst_thread:
@@ -934,11 +941,11 @@ def start_gstreamer_thread(host_id, cam_ip):
 
     if camera_item is None:
         logger.info(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
-        return
+        return None, False
     else:
         if not camera_item['isDetecting'] and not camera_item['isRecording']:
             logger.info(f"{cam_ip} start_gstreamer_thread, camera_item has been set to idle")
-            return
+            return None, False
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
