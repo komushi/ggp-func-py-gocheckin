@@ -558,11 +558,12 @@ class StreamCapture(threading.Thread):
         return True
 
     def send_keyframe_request(self):
-        event = Gst.Event.new_custom(Gst.EventType.CUSTOM_DOWNSTREAM, Gst.Structure.new_empty("GstForceKeyUnit"))
-        if self.rtph265depay is not None:
-            self.rtph265depay.send_event(event)
-        elif self.rtph264depay is not None:
-            self.rtph264depay.send_event(event)
+        pass
+        # event = Gst.Event.new_custom(Gst.EventType.CUSTOM_DOWNSTREAM, Gst.Structure.new_empty("GstForceKeyUnit"))
+        # if self.rtph265depay is not None:
+        #     self.rtph265depay.send_event(event)
+        # elif self.rtph264depay is not None:
+        #     self.rtph264depay.send_event(event)
 
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):
