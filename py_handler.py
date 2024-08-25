@@ -776,7 +776,7 @@ def claim_cameras():
         logger.info(f"claim_cameras published {data}")
 
     # Reschedule the claim cameras function for every 5 minutes (300 seconds)
-    timer = threading.Timer(60, claim_cameras)
+    timer = threading.Timer(300, claim_cameras)
     timer.name = "Thread-ClaimCameras-Timer"
     timer.start()
     # timer.join()
@@ -1048,7 +1048,7 @@ def set_recording_time(cam_ip, delay):
     recording_timers[cam_ip] = threading.Timer(delay, thread_gstreamers[cam_ip].stop_recording)
     recording_timers[cam_ip].name = f"Thread-RecordingStopper-{cam_ip}"
     recording_timers[cam_ip].start()
-    recording_timers[cam_ip].join()
+    # recording_timers[cam_ip].join()
 
 def set_sampling_time(thread_gstreamer, delay):
     global detection_timer
