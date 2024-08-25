@@ -656,7 +656,7 @@ def get_active_members():
         # Add the query results to the results list
         results.extend(response['Items'])
 
-    logger.info(f'active_member: {results}')
+    # logger.info(f'active_member: {results}')
 
     filtered_results = []
 
@@ -665,7 +665,7 @@ def get_active_members():
             item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
             filtered_results.append(item)
         else:
-            logger.info(f"get_active_members, member {item.reservationCode}-{item.memberNo} filtered out with no faceEmbedding")
+            logger.info(f"get_active_members, member {item['reservationCode']}-{item['memberNo']} filtered out with no faceEmbedding")
     
     results = filtered_results
 
