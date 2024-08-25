@@ -244,7 +244,7 @@ def start_http_server():
                         timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
                         timer.name = "Thread-FetchMembers"
                         timer.start()
-                        timer.join()
+                        # timer.join()
 
                         return
 
@@ -258,7 +258,7 @@ def start_http_server():
                         timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
                         timer.name = "Thread-FetchMembers"
                         timer.start()
-                        timer.join()
+                        # timer.join()
 
                         return
 
@@ -299,7 +299,7 @@ def start_http_server():
                     timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
                     timer.name = "Thread-FetchMembers"
                     timer.start()
-                    timer.join()
+                    # timer.join()
 
                 elif self.path == '/detect_record':
                     # Process the POST data
@@ -832,7 +832,7 @@ def fetch_scanner_output_queue():
                             timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
                             timer.name = "Thread-FetchMembers"
                             timer.start()
-                            timer.join()
+                            # timer.join()
 
                             logger.info(f"fetch_scanner_output_queue, member_detected with IoT Publish payload: {message['payload']}")
 
@@ -1059,7 +1059,7 @@ def set_sampling_time(thread_gstreamer, delay):
     detection_timer = threading.Timer(delay, thread_gstreamer.stop_sampling)
     detection_timer.name = f"Thread-SamplingStopper-{thread_gstreamer.cam_ip}"
     detection_timer.start()
-    detection_timer.join()
+    # detection_timer.join()
 
 
 # Register signal handlers
