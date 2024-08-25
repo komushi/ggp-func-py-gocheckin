@@ -779,7 +779,7 @@ def claim_cameras():
     timer = threading.Timer(60, claim_cameras)
     timer.name = "Thread-ClaimCameras-Timer"
     timer.start()
-    timer.join()
+    # timer.join()
 
 def claim_scanner():
     data = {

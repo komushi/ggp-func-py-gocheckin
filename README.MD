@@ -83,4 +83,13 @@ fields @timestamp, @message
 | limit 200
 ```
 
+### 4-4. Query Check state changes and hearbeat
+```
+fields @timestamp, @message
+| filter @message like /Pipeline state changed from/ or @message like /claim_cameras published/
+| display @timestamp, @logStream, @message
+| sort @timestamp desc
+| limit 200
+```
+
 ## 5.
