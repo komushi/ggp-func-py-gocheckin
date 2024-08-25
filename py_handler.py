@@ -656,7 +656,7 @@ def get_active_members():
         # Add the query results to the results list
         results.extend(response['Items'])
 
-    # logger.info(f'active_member: {results}')
+    logger.info(f'active_member: {results}')
 
     filtered_results = []
 
