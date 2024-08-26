@@ -89,12 +89,11 @@ class FaceRecognition(threading.Thread):
                                                     "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
                                                 }
 
-                                                checkedIn = False
-                                                if 'checkedIn' in active_member:
-                                                    if active_member['checkedIn']:
-                                                        checkedIn = active_member['checkedIn']
+                                                keyNotified = False
+                                                if 'keyNotified' in active_member:
+                                                    if active_member['keyNotified']:
+                                                        keyNotified = active_member['keyNotified']
 
-                                                # if not checkedIn:
                                                 now = datetime.now(timezone.utc)
                                                 date_folder = now.strftime("%Y-%m-%d")
                                                 time_filename = now.strftime("%H:%M:%S")
@@ -138,7 +137,7 @@ class FaceRecognition(threading.Thread):
 
                                                     self.scanner_output_queue.put({
                                                         "type": "guest_detected",
-                                                        "checkedIn": checkedIn,
+                                                        "keyNotified": keyNotified,
                                                         "payload": self.captured_members[memberKey],
                                                         "local_file_path": local_file_path,
                                                         "snapshot_payload": snapshot_payload

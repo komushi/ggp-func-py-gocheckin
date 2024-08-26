@@ -593,7 +593,7 @@ def get_active_reservations():
 
     return items
 
-def update_member(reservationCode, memberNo):
+def update_member(reservationCode, memberNo, keyNotified=True):
     logger.info('update_member in')
 
     # Specify the table name
@@ -606,13 +606,14 @@ def update_member(reservationCode, memberNo):
         'memberNo': memberNo
     }
 
-    attribute_name = 'checkedIn'
-
     response = table.update_item(
         Key=member_key,
-        UpdateExpression=f'SET {attribute_name} = :val',
+        UpdateExpression=f'SET #kn = :kn',
+        ExpressionAttributeNames={
+            '#kn': 'keyNotified'
+        },
         ExpressionAttributeValues={
-            ':val': True
+            ':kn': keyNotified
         },
         ReturnValues='UPDATED_NEW'
     )
@@ -632,7 +633,7 @@ def get_active_members():
     active_reservations = get_active_reservations()
 
     # Define the list of attributes to retrieve
-    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName', 'checkedIn']
+    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName', 'keyNotified']
 
     # Initialize an empty list to store the results
     results = []
@@ -670,8 +671,7 @@ def get_active_members():
     results = filtered_results
 
     for item in results:
-        logger.info(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}, checkedIn: {item['checkedIn']}")
-        # logger.info(f"get_active_members out item: {item}")
+        logger.info(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}, keyNotified: {item['keyNotified']}")
 
     return results
 
@@ -823,10 +823,10 @@ def fetch_scanner_output_queue():
                             payload=json.dumps(snapshot_payload)
                         )
 
-                    if 'checkedIn' in message:
-                        checkedIn = message['checkedIn']
+                    if 'keyNotified' in message:
+                        keyNotified = message['keyNotified']
 
-                        if not checkedIn:    
+                        if not keyNotified:    
                             update_member(message['payload']['reservationCode'], message['payload']['memberNo'])
 
                             timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
