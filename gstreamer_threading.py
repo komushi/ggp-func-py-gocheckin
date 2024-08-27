@@ -394,7 +394,14 @@ class StreamCapture(threading.Thread):
                 self.is_playing = False
                 
         elif message.type == Gst.MessageType.WARNING:
+            gerror, debug = message.parse_warning()
+            warning_message = gerror.message
+            
             logger.warning(f"Warning message {message.parse_warning()}： {message.type} at {self.cam_ip}.")
+            
+            if "Could not read from resource." in warning_message:
+                raise ValueError(f"{self.name} Gst.MessageType.ERROR: {gerror}, {debug}")
+            
         elif message.type == Gst.MessageType.ELEMENT:
             structure = message.get_structure()
             # logger.info(f"New ELEMENT detected: {structure.get_name()}")

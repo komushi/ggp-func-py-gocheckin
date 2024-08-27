@@ -777,7 +777,7 @@ def claim_cameras():
         logger.info(f"claim_cameras published {data}")
 
     # Reschedule the claim cameras function for every 5 minutes (300 seconds)
-    timer = threading.Timer(300, claim_cameras)
+    timer = threading.Timer(60, claim_cameras)
     timer.name = "Thread-ClaimCameras-Timer"
     timer.start()
     # timer.join()
