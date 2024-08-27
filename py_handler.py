@@ -763,7 +763,7 @@ def claim_cameras():
                     continue
 
         data = {
-            "uuid": thread_gstreamer.cam_uuid,
+            "uuid": camera_items['uuid'],
             "hostId": os.environ['HOST_ID'],
             "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
             "isPlaying": False
