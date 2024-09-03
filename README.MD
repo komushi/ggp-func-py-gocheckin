@@ -92,4 +92,10 @@ fields @timestamp, @message
 | limit 200
 ```
 
-## 5.
+# gst query to check IPC issues
+## 1. Check if a IPC has issues with pulling RTSP streams
+If there is no-standard media type or application type data, it might come together with the pulling issue.
+```
+gst-launch-1.0 -v rtspsrc location=<rtsp_url> ! fakesink
+> caps = application/x-rtp, media=(string)application/tp-link, payload=(int)0,
+```
