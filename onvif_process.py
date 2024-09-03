@@ -6,6 +6,10 @@ import traceback
 
 from zeep import Client, xsd
 from zeep.transports import Transport
+from zeep.wsse.username import UsernameToken
+
+from requests import Session
+
 import xml.etree.ElementTree as ET
 
 # Setup logging to stdout
