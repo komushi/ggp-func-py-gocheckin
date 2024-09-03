@@ -1041,6 +1041,14 @@ def set_sampling_time(thread_gstreamer, delay):
     detection_timer.start()
     # detection_timer.join()
 
+def subscribe_onvif():
+    logger.info(f"subscribe_onvif in")
+    for cam_ip in camera_items:
+        camera_item = camera_items[cam_ip]
+        onvif.subscribe(camera_item, get_local_ip())
+        
+
+
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)
@@ -1057,6 +1065,8 @@ init_gst_apps()
 
 # Init uploader_app
 init_uploader_app()
+
+subscribe_onvif()
 
 # Start the HTTP server thread
 start_server_thread()
