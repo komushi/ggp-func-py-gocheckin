@@ -1092,10 +1092,12 @@ def set_sampling_time(thread_gstreamer, delay):
 
 def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
+    
+    global camera_items
 
     try:
         logger.info(f"subscribe_onvif camera_items {camera_items}")
-        global camera_items
+        
         for cam_ip in camera_items:
             # logger.info(f"subscribe_onvif cam_ip {cam_ip}")
             camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
