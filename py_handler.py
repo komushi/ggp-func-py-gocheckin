@@ -736,8 +736,8 @@ def initialize_env_var():
         else:
             raise ValueError("host_item is None")
                 
-        # Reschedule the initialization function for every 5 minutes (300 seconds)
-        timer = threading.Timer(300, initialize_env_var)
+        # Reschedule the initialization function for every 30 minutes (1800 seconds)
+        timer = threading.Timer(1800, initialize_env_var)
         timer.name = "Thread-Initializer-Timer"
         timer.start()
         # timer.join()
