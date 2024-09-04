@@ -920,6 +920,11 @@ def start_scheduler_threads():
     fetch_camera_thread.start()
     logger.info("Fetch camera thread started")
 
+    # Start the SubscribeOnvif thread
+    subscribe_onvif_thread = threading.Thread(target=subscribe_onvif, name="Thread-SubscribeOnvif")
+    subscribe_onvif_thread.start()
+    logger.info("SubscribeOnvif thread started")    
+
     # Start the claim scanner thread after the initialization
     claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
     claim_scanner_thread.start()
@@ -1102,7 +1107,7 @@ signal.signal(signal.SIGINT, signal_handler)
 start_scheduler_threads()
 
 # Subscribe onvif
-subscribe_onvif()
+# subscribe_onvif()
 
 # # Init face_app
 # init_face_app()
