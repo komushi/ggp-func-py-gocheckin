@@ -115,6 +115,24 @@ def function_handler(event, context):
             logger.info(f"function_handler init_scanner changing model to {str(topic)}")
             init_face_app(event['model'])
 
+def fetch_camera_items():
+    logger.info(f"fetch_camera_items in")
+
+    global camera_items
+
+    camera_item_list = query_camera_items(os.environ['HOST_ID'])
+    
+    for camera_item in camera_item_list:
+        try:
+            cam_ip = camera_item['localIp']
+            camera_items[cam_ip] = camera_item
+        except Exception as e:
+            logger.error(f"Error handling fetch_camera_items: {e}")
+            traceback.print_exc()
+            pass
+
+    logger.info(f"fetch_camera_items out")
+
 def init_uploader_app():
     import s3_uploader as uploader
 
@@ -141,17 +159,12 @@ def init_face_app(model='buffalo_sc'):
     face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
+
 def init_gst_apps():
     logger.info(f"init_gst_apps in")
 
-    global camera_items
-
-    camera_item_list = query_camera_items(os.environ['HOST_ID'])
-    
-    for camera_item in camera_item_list:
+    for cam_ip in camera_items:
         try:
-            cam_ip = camera_item['localIp']
-            camera_items[cam_ip] = camera_item
             init_gst_app(os.environ['HOST_ID'], cam_ip)
         except Exception as e:
             logger.error(f"Error handling init_gst_apps: {e}")
@@ -159,6 +172,25 @@ def init_gst_apps():
             pass
 
     logger.info(f"init_gst_apps out")
+
+# def init_gst_apps():
+#     logger.info(f"init_gst_apps in")
+
+#     global camera_items
+
+#     camera_item_list = query_camera_items(os.environ['HOST_ID'])
+    
+#     for camera_item in camera_item_list:
+#         try:
+#             cam_ip = camera_item['localIp']
+#             camera_items[cam_ip] = camera_item
+#             init_gst_app(os.environ['HOST_ID'], cam_ip)
+#         except Exception as e:
+#             logger.error(f"Error handling init_gst_apps: {e}")
+#             traceback.print_exc()
+#             pass
+
+#     logger.info(f"init_gst_apps out")
 
 def init_gst_app(host_id, cam_ip):
     logger.info(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
@@ -1058,6 +1090,12 @@ def subscribe_onvif():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
+# Fetch camera_items
+fetch_camera_items()
+
+# Subscribe onvif
+# subscribe_onvif()
+
 # Start the scheduler threads
 start_scheduler_threads()
 
@@ -1069,8 +1107,6 @@ init_gst_apps()
 
 # Init uploader_app
 init_uploader_app()
-
-subscribe_onvif()
 
 # Start the HTTP server thread
 start_server_thread()

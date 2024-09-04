@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 def extract_notification(raw_payload):
     # Parse the XML content
@@ -68,12 +68,10 @@ def subscribe(camera_item, scanner_local_ip, http_port):
         session.auth = (user, password)
 
         wsse = UsernameToken(username=user, password=password, use_digest=True)
-
         logger.info(f"onvif.subscribe wsse {wsse}")
 
         # Create a Zeep client using the local WSDL file
         client = Client(wsdl_file, wsse=wsse, transport=Transport(session=session))
-
         logger.info(f"onvif.subscribe client {client}")
 
         notification_service = client.create_service(notification_binding, service_url)
