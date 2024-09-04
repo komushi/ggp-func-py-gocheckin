@@ -1043,12 +1043,18 @@ def set_sampling_time(thread_gstreamer, delay):
 
 def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
-    for cam_ip in camera_items:
-        camera_item = camera_items[cam_ip]
-        onvif.subscribe(camera_item, get_local_ip())
-        
+    scanner_local_ip = get_local_ip()
+    try:
+        for cam_ip in camera_items:
+            camera_item = camera_items[cam_ip]
+            onvif.subscribe(camera_item, scanner_local_ip)
+            
+    except Exception as e:
+        logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
+        traceback.print_exc()
 
 
+    logger.info(f"subscribe_onvif out")
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)

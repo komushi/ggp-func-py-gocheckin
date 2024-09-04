@@ -68,21 +68,29 @@ def subscribe(camera_item, local_ip):
 
     wsse = UsernameToken(username=user, password=password, use_digest=True)
 
+    logger.info(f"onvif.subscribe wsse {wsse}")
+
     # Create a Zeep client using the local WSDL file
     client = Client(wsdl_file, wsse=wsse, transport=Transport(session=session))
 
+    logger.info(f"onvif.subscribe client {client}")
+
     notification_service = client.create_service(notification_binding, service_url)
+    logger.info(f"onvif.subscribe notification_service {notification_service}")
+
     subscription_service = client.create_service(subscription_binding, service_url)
+    logger.info(f"onvif.subscribe subscription_service {subscription_service}")
 
     # Get the EndpointReferenceType
     address_type = client.get_element('{http://www.w3.org/2005/08/addressing}EndpointReference')
-    # print(f"address_type {address_type}")
+    logger.info(f"onvif.subscribe address_type {address_type}")
 
     # Create the consumer reference
     consumer_reference = address_type(Address=f"http://{local_ip}:7788/onvif_notifications")
-    # print(f"consumer_reference {consumer_reference}")
+    logger.info(f"onvif.subscribe consumer_reference {consumer_reference}")
 
     subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1D')
+    logger.info(f"onvif.subscribe subscription {subscription}")
 
     addressing_header_type = xsd.ComplexType(
         xsd.Sequence([
@@ -91,10 +99,10 @@ def subscribe(camera_item, local_ip):
     )
 
     addressing_header = addressing_header_type(To=subscription.SubscriptionReference.Address._value_1)
+    logger.info(f"onvif.subscribe addressing_header {addressing_header}")
 
-    logger.info(f"onvif.subscribe subscription address {subscription.SubscriptionReference.Address._value_1}")
-
-    logger.info(f"onvif.subscribe out cam_ip {camera_item['localIp']}")
+    logger.info(f"onvif.subscribe out cam_ip {camera_item['localIp']} sub_addressing {subscription.SubscriptionReference.Address._value_1}")
+    return 
 
 class OnvifAdapter():
     def __init__(self):
