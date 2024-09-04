@@ -45,6 +45,8 @@ def extract_notification(raw_payload):
             return ip_address, utc_time, is_motion_value
         
 def subscribe(camera_item, local_ip):
+    logger.info(f"onvif.subscribe in camera_item {camera_item}, local_ip {local_ip}")
+
     server_ip = camera_item['localIp']
     server_port = camera_item['rtsp']['port']
     user = camera_item['username']
@@ -80,7 +82,7 @@ def subscribe(camera_item, local_ip):
     consumer_reference = address_type(Address=f"http://{local_ip}:7788/onvif_notifications")
     # print(f"consumer_reference {consumer_reference}")
 
-    subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1H')
+    subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1D')
 
     addressing_header_type = xsd.ComplexType(
         xsd.Sequence([
@@ -89,6 +91,10 @@ def subscribe(camera_item, local_ip):
     )
 
     addressing_header = addressing_header_type(To=subscription.SubscriptionReference.Address._value_1)
+
+    logger.info(f"onvif.subscribe subscription address {subscription.SubscriptionReference.Address._value_1}")
+
+    logger.info(f"onvif.subscribe out cam_ip {camera_item['localIp']}")
 
 class OnvifAdapter():
     def __init__(self):
