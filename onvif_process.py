@@ -44,64 +44,70 @@ def extract_notification(raw_payload):
 
             return ip_address, utc_time, is_motion_value
         
-def subscribe(camera_item, local_ip):
-    logger.info(f"onvif.subscribe in camera_item {camera_item}, local_ip {local_ip}")
+def subscribe(camera_item, scanner_local_ip, http_port):
+    logger.info(f"onvif.subscribe in camera_item {camera_item}, scanner_local_ip {scanner_local_ip}")
 
-    server_ip = camera_item['localIp']
-    server_port = camera_item['rtsp']['port']
-    user = camera_item['username']
-    password = camera_item['password']
-    service_url = '%s:%s/onvif/Events' % \
-                    (server_ip if (server_ip.startswith('http://') or server_ip.startswith('https://'))
-                     else 'http://%s' % server_ip, server_port)
-    
-    wsdl_file = './wsdl/events.wsdl'
+    try:
+        server_ip = camera_item['localIp']
+        server_port = camera_item['rtsp']['port']
+        user = camera_item['username']
+        password = camera_item['password']
+        service_url = '%s:%s/onvif/Events' % \
+                        (server_ip if (server_ip.startswith('http://') or server_ip.startswith('https://'))
+                        else 'http://%s' % server_ip, server_port)
+        
+        wsdl_file = './wsdl/events.wsdl'
 
-    notification_binding = '{http://www.onvif.org/ver10/events/wsdl}NotificationProducerBinding'
-    subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}SubscriptionManagerBinding'
-    
-    logger.info(f"service_url: {service_url}, wsdl_file: {wsdl_file}, subscription_binding: {subscription_binding}, notification_binding: {notification_binding}")
+        notification_binding = '{http://www.onvif.org/ver10/events/wsdl}NotificationProducerBinding'
+        subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}SubscriptionManagerBinding'
+        
+        logger.info(f"service_url: {service_url}, wsdl_file: {wsdl_file}, subscription_binding: {subscription_binding}, notification_binding: {notification_binding}")
 
-    # Create a session to handle authentication
-    session = Session()
-    session.auth = (user, password)
+        # Create a session to handle authentication
+        session = Session()
+        session.auth = (user, password)
 
-    wsse = UsernameToken(username=user, password=password, use_digest=True)
+        wsse = UsernameToken(username=user, password=password, use_digest=True)
 
-    logger.info(f"onvif.subscribe wsse {wsse}")
+        logger.info(f"onvif.subscribe wsse {wsse}")
 
-    # Create a Zeep client using the local WSDL file
-    client = Client(wsdl_file, wsse=wsse, transport=Transport(session=session))
+        # Create a Zeep client using the local WSDL file
+        client = Client(wsdl_file, wsse=wsse, transport=Transport(session=session))
 
-    logger.info(f"onvif.subscribe client {client}")
+        logger.info(f"onvif.subscribe client {client}")
 
-    notification_service = client.create_service(notification_binding, service_url)
-    logger.info(f"onvif.subscribe notification_service {notification_service}")
+        notification_service = client.create_service(notification_binding, service_url)
+        logger.info(f"onvif.subscribe notification_service {notification_service}")
 
-    subscription_service = client.create_service(subscription_binding, service_url)
-    logger.info(f"onvif.subscribe subscription_service {subscription_service}")
+        subscription_service = client.create_service(subscription_binding, service_url)
+        logger.info(f"onvif.subscribe subscription_service {subscription_service}")
 
-    # Get the EndpointReferenceType
-    address_type = client.get_element('{http://www.w3.org/2005/08/addressing}EndpointReference')
-    logger.info(f"onvif.subscribe address_type {address_type}")
+        # Get the EndpointReferenceType
+        address_type = client.get_element('{http://www.w3.org/2005/08/addressing}EndpointReference')
+        logger.info(f"onvif.subscribe address_type {address_type}")
 
-    # Create the consumer reference
-    consumer_reference = address_type(Address=f"http://{local_ip}:7788/onvif_notifications")
-    logger.info(f"onvif.subscribe consumer_reference {consumer_reference}")
+        # Create the consumer reference
+        consumer_reference = address_type(Address=f"http://{scanner_local_ip}:{http_port}/onvif_notifications")
+        logger.info(f"onvif.subscribe consumer_reference {consumer_reference}")
 
-    subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1D')
-    logger.info(f"onvif.subscribe subscription {subscription}")
+        subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1D')
+        logger.info(f"onvif.subscribe subscription {subscription}")
 
-    addressing_header_type = xsd.ComplexType(
-        xsd.Sequence([
-            xsd.Element('{http://www.w3.org/2005/08/addressing}To', xsd.String())
-        ])
-    )
+        addressing_header_type = xsd.ComplexType(
+            xsd.Sequence([
+                xsd.Element('{http://www.w3.org/2005/08/addressing}To', xsd.String())
+            ])
+        )
 
-    addressing_header = addressing_header_type(To=subscription.SubscriptionReference.Address._value_1)
-    logger.info(f"onvif.subscribe addressing_header {addressing_header}")
+        addressing_header = addressing_header_type(To=subscription.SubscriptionReference.Address._value_1)
+        logger.info(f"onvif.subscribe addressing_header {addressing_header}")
 
-    logger.info(f"onvif.subscribe out cam_ip {camera_item['localIp']} sub_addressing {subscription.SubscriptionReference.Address._value_1}")
+        logger.info(f"onvif.subscribe out cam_ip {camera_item['localIp']} sub_addressing {subscription.SubscriptionReference.Address._value_1}")
+
+    except Exception as e:
+        logger.error(f"onvif.subscribe, Exception during running, Error: {e}")
+        traceback.print_exc()
+
     return 
 
 class OnvifAdapter():

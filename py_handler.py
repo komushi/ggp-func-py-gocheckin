@@ -41,6 +41,14 @@ import onvif_process as onvif
 import greengrasssdk
 iotClient = greengrasssdk.client("iot-data")
 
+def get_local_ip():
+
+    # Connect to an external host, in this case, Google's DNS server
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+    return local_ip
+
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -52,6 +60,7 @@ server_thread = None
 httpd = None
 thread_lock = threading.Lock()
 http_port = 7777
+scanner_local_ip = get_local_ip()
 
 # Initialize the scheduler
 scheduler_thread = None
@@ -93,10 +102,7 @@ dynamodb = boto3.resource(
     aws_secret_access_key='fakeSecretAccessKey'
 )
 
-
-
 def function_handler(event, context):
-
     context_vars = vars(context)
     topic = context_vars['client_context'].custom['subject']
 
@@ -108,14 +114,6 @@ def function_handler(event, context):
         if 'model' in event:
             logger.info(f"function_handler init_scanner changing model to {str(topic)}")
             init_face_app(event['model'])
-
-def get_local_ip():
-
-    # Connect to an external host, in this case, Google's DNS server
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-    return local_ip
 
 def init_uploader_app():
     import s3_uploader as uploader
@@ -765,7 +763,7 @@ def claim_scanner():
     data = {
         "equipmentId": os.environ['AWS_IOT_THING_NAME'],
         "equipmentName": os.environ['AWS_IOT_THING_NAME'],
-        "localIp": get_local_ip()
+        "localIp": scanner_local_ip
     }
     
     iotClient.publish(
@@ -1043,11 +1041,11 @@ def set_sampling_time(thread_gstreamer, delay):
 
 def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
-    scanner_local_ip = get_local_ip()
+
     try:
         for cam_ip in camera_items:
             camera_item = camera_items[cam_ip]
-            onvif.subscribe(camera_item, scanner_local_ip)
+            onvif.subscribe(camera_item, scanner_local_ip, http_port)
             
     except Exception as e:
         logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
