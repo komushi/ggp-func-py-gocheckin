@@ -1095,14 +1095,14 @@ def subscribe_onvif():
 
     try:
         logger.info(f"subscribe_onvif camera_items {camera_items}")
+        global camera_items
         for cam_ip in camera_items:
-            logger.info(f"subscribe_onvif cam_ip {cam_ip}")
-            camera_item = camera_items[cam_ip]
-            camera_item['onvifSubAddress'] = onvif.subscribe(camera_item, scanner_local_ip, http_port)
+            # logger.info(f"subscribe_onvif cam_ip {cam_ip}")
+            camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
             
     except Exception as e:
         logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
-        traceback.print_exc()
+        # traceback.print_exc()
 
 
     logger.info(f"subscribe_onvif out")
