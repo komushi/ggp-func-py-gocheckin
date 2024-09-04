@@ -913,7 +913,9 @@ def start_scheduler_threads():
     initialization_thread.start()
     logger.info("Initialization thread started")
 
-    # Start the initialization thread first
+    time.sleep(2)
+    
+    # Start the FetchCamera thread
     fetch_camera_thread = threading.Thread(target=fetch_camera_items, name="Thread-FetchCamera")
     fetch_camera_thread.start()
     logger.info("Fetch camera thread started")
