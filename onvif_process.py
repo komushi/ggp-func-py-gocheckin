@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 def extract_notification(raw_payload):
     # Parse the XML content
