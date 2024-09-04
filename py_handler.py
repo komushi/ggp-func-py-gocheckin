@@ -342,7 +342,10 @@ def start_http_server():
   
                     logger.info(f"/onvif_notifications cam_ip: {cam_ip}")
 
-                    thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
+                    if cam_ip is not None and utc_time is not None and is_motion_value is not None:
+                        thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
+                    else:
+                        thread_gstreamer = None
 
                     if thread_gstreamer is not None:
 
