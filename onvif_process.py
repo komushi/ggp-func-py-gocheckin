@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 def extract_notification(raw_payload):
-    logger.info(f"onvif.extract_notification in raw_payload {raw_payload}")
+    logger.info(f"onvif.extract_notification in")
 
     # Parse the XML content
     root = ET.fromstring(raw_payload)
