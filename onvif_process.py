@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 def extract_notification(raw_payload):
+    logger.info(f"onvif.extract_notification in raw_payload {raw_payload}")
+
     # Parse the XML content
     root = ET.fromstring(raw_payload)
     
@@ -42,7 +44,11 @@ def extract_notification(raw_payload):
 
             ip_address = urlparse(address).hostname
 
+            logger.info(f"onvif.extract_notification out ip_address {ip_address} utc_time {utc_time} is_motion_value {is_motion_value}")
             return ip_address, utc_time, is_motion_value
+        
+    logger.info(f"onvif.extract_notification out None")
+    return None, None, None
         
 def subscribe(camera_item, scanner_local_ip, http_port):
     logger.info(f"onvif.subscribe in camera_item {camera_item}, scanner_local_ip {scanner_local_ip}")
