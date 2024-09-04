@@ -913,14 +913,20 @@ def start_scheduler_threads():
     initialization_thread.start()
     logger.info("Initialization thread started")
 
+    # Start the initialization thread first
+    fetch_camera_thread = threading.Thread(target=fetch_camera_items, name="Thread-FetchCamera")
+    fetch_camera_thread.start()
+    logger.info("Fetch camera thread started")
+
     # Start the claim scanner thread after the initialization
     claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
     claim_scanner_thread.start()
     logger.info("Claim scanner thread started")
 
+    # Start the claim camera thread after the initialization
     claim_cameras_thread = threading.Thread(target=claim_cameras, name="Thread-ClaimCameras")
     claim_cameras_thread.start()
-    logger.info("Claim scanner thread started")
+    logger.info("Claim camera thread started")
     
 
 def stop_gstreamer_thread(thread_name):
@@ -1090,14 +1096,11 @@ def subscribe_onvif():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
-# Fetch camera_items
-fetch_camera_items()
+# Start the scheduler threads
+start_scheduler_threads()
 
 # Subscribe onvif
 # subscribe_onvif()
-
-# Start the scheduler threads
-start_scheduler_threads()
 
 # Init face_app
 init_face_app()
