@@ -84,16 +84,19 @@ def subscribe(camera_item, scanner_local_ip, http_port):
         consumer_reference = address_type(Address=f"http://{scanner_local_ip}:{http_port}/onvif_notifications")
         # logger.info(f"onvif.subscribe consumer_reference {consumer_reference}")
 
-        subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1D')
+        subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1H')
         # logger.info(f"onvif.subscribe subscription {subscription}")
 
         logger.info(f"onvif.subscribe out onvif_sub_address {subscription.SubscriptionReference.Address._value_1}")
 
+        return subscription.SubscriptionReference.Address._value_1
+
     except Exception as e:
         logger.error(f"onvif.subscribe, Exception during running, Error: {e}")
-        traceback.print_exc()
+        # traceback.print_exc()
+        pass
 
-    return subscription.SubscriptionReference.Address._value_1
+    
 
 def unsubscribe(camera_item):
     logger.info(f"onvif.unsubscribe in camera_item {camera_item}")
@@ -143,5 +146,5 @@ def unsubscribe(camera_item):
 
     except Exception as e:
         logger.error(f"onvif.unsubscribe, Exception during running, Error: {e}")
-        traceback.print_exc()
+        # traceback.print_exc()
         pass
