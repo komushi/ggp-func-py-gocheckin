@@ -49,7 +49,7 @@ def subscribe(camera_item, scanner_local_ip, http_port):
 
     try:
         server_ip = camera_item['localIp']
-        server_port = camera_item['rtsp']['port']
+        server_port = camera_item['onvif']['port']
         user = camera_item['username']
         password = camera_item['password']
         service_url = '%s:%s/onvif/Events' % \
