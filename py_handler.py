@@ -1001,6 +1001,10 @@ def signal_handler(signum, frame):
     global shutting_down
     shutting_down = True
 
+    for cam_ip in camera_items:
+        camera_item = camera_items[cam_ip]
+        onvif.unsubscribe(camera_item)
+
     global thread_detector
     if thread_detector is not None:
         thread_detector.stop_detection()
@@ -1094,7 +1098,7 @@ def subscribe_onvif():
         for cam_ip in camera_items:
             logger.info(f"subscribe_onvif cam_ip {cam_ip}")
             camera_item = camera_items[cam_ip]
-            onvif.subscribe(camera_item, scanner_local_ip, http_port)
+            camera_item['onvifSubAddress'] = onvif.subscribe(camera_item, scanner_local_ip, http_port)
             
     except Exception as e:
         logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
@@ -1110,20 +1114,17 @@ signal.signal(signal.SIGINT, signal_handler)
 # Start the scheduler threads
 start_scheduler_threads()
 
-# Subscribe onvif
-# subscribe_onvif()
+# Init face_app
+init_face_app()
 
-# # Init face_app
-# init_face_app()
+# Init gst_apps
+init_gst_apps()
 
-# # Init gst_apps
-# init_gst_apps()
+# Init uploader_app
+init_uploader_app()
 
-# # Init uploader_app
-# init_uploader_app()
+# Start the HTTP server thread
+start_server_thread()
 
-# # Start the HTTP server thread
-# start_server_thread()
-
-# # Start scanner_output_queue thread
-# start_scanner_output_queue_thread()
+# Start scanner_output_queue thread
+start_scanner_output_queue_thread()
