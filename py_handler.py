@@ -1102,23 +1102,19 @@ signal.signal(signal.SIGINT, signal_handler)
 start_scheduler_threads()
 
 # Subscribe onvif
-# subscribe_onvif()
+subscribe_onvif()
 
-# Init face_app
-init_face_app()
+# # Init face_app
+# init_face_app()
 
-# Init gst_apps
-init_gst_apps()
+# # Init gst_apps
+# init_gst_apps()
 
-# Init uploader_app
-init_uploader_app()
+# # Init uploader_app
+# init_uploader_app()
 
-# Start the HTTP server thread
-start_server_thread()
+# # Start the HTTP server thread
+# start_server_thread()
 
-# Start scanner_output_queue thread
-start_scanner_output_queue_thread()
-
-
-
-
+# # Start scanner_output_queue thread
+# start_scanner_output_queue_thread()
