@@ -537,11 +537,11 @@ def query_camera_items(host_id):
     )
     
     # Print the items returned by the query
-    camera_items = response.get('Items', [None])
+    camera_item_list = response.get('Items', [None])
 
-    logger.info(f'query_camera_items out {camera_items}')
+    logger.info(f'query_camera_items out {camera_item_list}')
 
-    return camera_items
+    return camera_item_list
 
 # def get_camera_item(host_id, cam_uuid):
 
@@ -1090,7 +1090,9 @@ def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
 
     try:
+        logger.info(f"subscribe_onvif camera_items {camera_items}")
         for cam_ip in camera_items:
+            logger.info(f"subscribe_onvif cam_ip {cam_ip}")
             camera_item = camera_items[cam_ip]
             onvif.subscribe(camera_item, scanner_local_ip, http_port)
             
