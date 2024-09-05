@@ -128,14 +128,11 @@ def unsubscribe(camera_item):
         session.auth = (user, password)
 
         wsse = UsernameToken(username=user, password=password, use_digest=True)
-        # logger.info(f"onvif.subscribe wsse {wsse}")
 
         # Create a Zeep client using the local WSDL file
         client = Client(wsdl_file, wsse=wsse, transport=Transport(session=session))
-        # logger.info(f"onvif.subscribe client {client}")
 
         subscription_service = client.create_service(subscription_binding, service_url)
-        # logger.info(f"onvif.subscribe subscription_service {subscription_service}")
 
         addressing_header_type = xsd.ComplexType(
             xsd.Sequence([

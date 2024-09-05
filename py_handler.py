@@ -120,20 +120,19 @@ def fetch_camera_items():
 
     global camera_items
 
-    camera_item_list = query_camera_items(os.environ['HOST_ID'])
-    
-    for camera_item in camera_item_list:
-        try:
+    try:
+        camera_item_list = query_camera_items(os.environ['HOST_ID'])
+        
+        for camera_item in camera_item_list:
             cam_ip = camera_item['localIp']
             camera_items[cam_ip] = camera_item
-        except Exception as e:
-            logger.error(f"Error handling fetch_camera_items: {e}")
-            # traceback.print_exc()
-            pass
-
-    timer = threading.Timer(600, fetch_camera_items)
-    timer.name = "Thread-FetchCamera-Timer"
-    timer.start()
+            
+    except Exception as e:
+        logger.error(f"Error handling fetch_camera_items: {e}")
+    finally:
+        timer = threading.Timer(600, fetch_camera_items)
+        timer.name = "Thread-FetchCamera-Timer"
+        timer.start()
 
     logger.info(f"fetch_camera_items out")
 
@@ -870,12 +869,6 @@ def claim_scanner():
         payload=json.dumps(data)
     )
 
-    # # Reschedule the claim scanner function for every 30 minutes (1800 seconds)
-    # timer = threading.Timer(1800, claim_scanner)
-    # timer.name = "Thread-ClaimScanner-Timer"
-    # timer.start()
-    # timer.join()
-
 def fetch_scanner_output_queue():
     while True:
         try:
@@ -1166,25 +1159,25 @@ def subscribe_onvif():
         logger.info(f"subscribe_onvif camera_items {camera_items}")
         
         for cam_ip in camera_items:
-            # logger.info(f"subscribe_onvif cam_ip {cam_ip}")
-            logger.info(f"subscribe_onvif before renew onvifSubAddress {camera_items[cam_ip]['onvifSubAddress']}")
+            # logger.info(f"subscribe_onvif cam_ip {cam_ip}")            
+            logger.info(f"subscribe_onvif before renew onvifSubAddress {camera_items[cam_ip]}")
 
             renew_response = onvif.renew(camera_items[cam_ip])
 
-            logger.info(f"subscribe_onvif after renew onvifSubAddress {camera_items[cam_ip]['onvifSubAddress']}")
+            logger.info(f"subscribe_onvif after renew onvifSubAddress {camera_items[cam_ip]}")
 
             if renew_response is None:
                 camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
 
-            logger.info(f"subscribe_onvif after subscribe onvifSubAddress {camera_items[cam_ip]['onvifSubAddress']}")
+            logger.info(f"subscribe_onvif after subscribe onvifSubAddress {camera_items[cam_ip]}")
             
     except Exception as e:
         logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
         # traceback.print_exc()
-
-    timer = threading.Timer(60, fetch_camera_items)
-    timer.name = "Thread-SubscribeOnvif-Timer"
-    timer.start()
+    finally:
+        timer = threading.Timer(60, subscribe_onvif)
+        timer.name = "Thread-SubscribeOnvif-Timer"
+        timer.start()
 
     logger.info(f"subscribe_onvif out")
 
