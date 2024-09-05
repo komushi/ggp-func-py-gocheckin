@@ -128,8 +128,12 @@ def fetch_camera_items():
             camera_items[cam_ip] = camera_item
         except Exception as e:
             logger.error(f"Error handling fetch_camera_items: {e}")
-            traceback.print_exc()
+            # traceback.print_exc()
             pass
+
+    timer = threading.Timer(600, fetch_camera_items)
+    timer.name = "Thread-FetchCamera-Timer"
+    timer.start()
 
     logger.info(f"fetch_camera_items out")
 
@@ -1177,6 +1181,10 @@ def subscribe_onvif():
     except Exception as e:
         logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
         # traceback.print_exc()
+
+    timer = threading.Timer(60, fetch_camera_items)
+    timer.name = "Thread-SubscribeOnvif-Timer"
+    timer.start()
 
     logger.info(f"subscribe_onvif out")
 
