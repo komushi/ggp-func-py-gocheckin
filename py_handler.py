@@ -341,14 +341,20 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
 
                     cam_ip, utc_time, is_motion_value = onvif.extract_notification(post_data)
-                    logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
+                    # logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
   
-                    logger.info(f"/onvif_notifications cam_ip: {cam_ip}")
 
+                    thread_gstreamer = None
                     if cam_ip is not None and utc_time is not None and is_motion_value is not None:
-                        thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
+                        logger.info(f"/onvif_notifications cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+                        if is_motion_value:
+                            thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
                     else:
-                        thread_gstreamer = None
+                        self.send_response(200)
+                        self.end_headers()
+                        self.wfile.write(b'Will not start GST')
+                        return
+
 
                     if thread_gstreamer is not None:
 
@@ -390,93 +396,15 @@ def start_http_server():
                                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
 
                             self.send_response(200)
-                            self.send_header('Content-type', 'application/json')
                             self.end_headers()
-                            self.wfile.write(json.dumps({"message": f"Starting Thread: {cam_ip}"}).encode())
+                            self.wfile.write(b'Starting GST')
                         else:
                             self.send_response(200)
-                            self.send_header('Content-type', 'application/json')
                             self.end_headers()
-                            self.wfile.write(json.dumps({"message": f"Not Playing Thread: {cam_ip}"}).encode())
-                    else:
-                        self.send_response(200)
-                        self.send_header('Content-type', 'application/json')
-                        self.end_headers()
-                        self.wfile.write(json.dumps({"message": f"Not Starting Thread: {cam_ip}"}).encode())
+                            self.wfile.write(b'Will not start GST')
+                            return
 
                     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-
-
-                # elif self.path == '/detect_record':
-                #     # Process the POST data
-                #     content_length = int(self.headers['Content-Length'])
-                #     post_data = self.rfile.read(content_length)
-                #     event = json.loads(post_data)
-
-                #     cam_ip = event['cam_ip']
-                    
-                #     logger.info(f"/detect_record cam_ip: {cam_ip}")
-
-                #     # thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
-
-                #     thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
-
-                #     if thread_gstreamer is not None:
-
-                #         logger.info(f"{cam_ip} /detect_record thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
-                #         if thread_gstreamer.is_playing:
-
-                #             camera_item = camera_items[cam_ip]
-
-                #             # detect
-                #             if camera_item['isDetecting']:
-                #                 if cam_ip in thread_gstreamers:
-                #                     if thread_gstreamers[cam_ip] is not None:
-                #                         thread_gstreamers[cam_ip].start_sampling()
-                #                         set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
-
-                #                 if thread_detector is None:
-                #                     params = {}
-                #                     params['face_app'] = face_app
-
-                #                     thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
-
-                #                     fetch_members()
-
-                #                     thread_detector.captured_members = {}
-                #                     thread_detector.start()
-                #                     thread_detector.start_detection()
-
-                #                     # thread_detector.extend_detection_time()
-
-                #                 else:
-                #                     fetch_members()
-                #                     thread_detector.captured_members = {}
-                #                     thread_detector.start_detection()
-
-                #             # record 
-                #             if camera_item['isRecording']:
-                #                 if cam_ip in thread_gstreamers:
-                #                     if thread_gstreamers[cam_ip].start_recording():
-                #                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
-
-                #             self.send_response(200)
-                #             self.send_header('Content-type', 'application/json')
-                #             self.end_headers()
-                #             self.wfile.write(json.dumps({"message": f"Starting Thread: {cam_ip}"}).encode())
-                #         else:
-                #             self.send_response(200)
-                #             self.send_header('Content-type', 'application/json')
-                #             self.end_headers()
-                #             self.wfile.write(json.dumps({"message": f"Not Playing Thread: {cam_ip}"}).encode())
-                #     else:
-                #         self.send_response(200)
-                #         self.send_header('Content-type', 'application/json')
-                #         self.end_headers()
-                #         self.wfile.write(json.dumps({"message": f"Not Starting Thread: {cam_ip}"}).encode())
-
-                #     logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
-
                 else:
                     self.send_response(404)
                     self.end_headers()
