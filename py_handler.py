@@ -1163,12 +1163,20 @@ def subscribe_onvif():
         
         for cam_ip in camera_items:
             # logger.info(f"subscribe_onvif cam_ip {cam_ip}")
-            camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
+            logger.info(f"subscribe_onvif before renew onvifSubAddress {camera_items[cam_ip]['onvifSubAddress']}")
+
+            renew_response = onvif.renew(camera_items[cam_ip])
+
+            logger.info(f"subscribe_onvif after renew onvifSubAddress {camera_items[cam_ip]['onvifSubAddress']}")
+
+            if renew_response is None:
+                camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
+
+            logger.info(f"subscribe_onvif after subscribe onvifSubAddress {camera_items[cam_ip]['onvifSubAddress']}")
             
     except Exception as e:
         logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
         # traceback.print_exc()
-
 
     logger.info(f"subscribe_onvif out")
 

@@ -154,3 +154,52 @@ def unsubscribe(camera_item):
         logger.error(f"onvif.unsubscribe, Exception during running, Error: {e}")
         # traceback.print_exc()
         pass
+
+
+def renew(camera_item):
+    logger.info(f"onvif.renew in camera_item {camera_item}")
+
+    try:
+        server_ip = camera_item['localIp']
+        server_port = camera_item['onvif']['port']
+        user = camera_item['username']
+        password = camera_item['password']
+        onvif_sub_address = camera_item['onvifSubAddress']
+        service_url = '%s:%s/onvif/Events' % \
+                        (server_ip if (server_ip.startswith('http://') or server_ip.startswith('https://'))
+                        else 'http://%s' % server_ip, server_port)
+        
+        wsdl_file = './wsdl/events.wsdl'
+
+        subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}SubscriptionManagerBinding'
+        
+        logger.info(f"service_url: {service_url}, wsdl_file: {wsdl_file}, subscription_binding: {subscription_binding}")
+
+        # Create a session to handle authentication
+        session = Session()
+        session.auth = (user, password)
+
+        wsse = UsernameToken(username=user, password=password, use_digest=True)
+
+        # Create a Zeep client using the local WSDL file
+        client = Client(wsdl_file, wsse=wsse, transport=Transport(session=session))
+
+        subscription_service = client.create_service(subscription_binding, service_url)
+
+        addressing_header_type = xsd.ComplexType(
+            xsd.Sequence([
+                xsd.Element('{http://www.w3.org/2005/08/addressing}To', xsd.String())
+            ])
+        )
+
+        addressing_header = addressing_header_type(To=onvif_sub_address)
+
+        result = subscription_service.Renew(_soapheaders=[addressing_header], TerminationTime='PT1H')
+
+        logger.info(f"onvif.renew result {result}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"onvif.renew, Exception during running, Error: {e}")
+        return
