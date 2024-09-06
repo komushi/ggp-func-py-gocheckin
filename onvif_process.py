@@ -216,6 +216,6 @@ def renew(camera_item):
         traceback.print_exc()
     finally:
         logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-        logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
+        # logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
 
         return result

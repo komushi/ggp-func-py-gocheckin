@@ -128,8 +128,12 @@ def fetch_camera_items():
             if cam_ip not in camera_items:
                 camera_items[cam_ip] = camera_item
             else:
-                if camera_items[cam_ip] is None:
-                    camera_items[cam_ip] = camera_item
+                onvif_sub_address = None
+                if 'onvifSubAddress' in camera_items[cam_ip]:
+                    onvif_sub_address = camera_items[cam_ip]['onvifSubAddress']
+
+                camera_items[cam_ip] = camera_item
+                camera_items[cam_ip]['onvifSubAddress'] = onvif_sub_address
             
     except Exception as e:
         logger.error(f"Error handling fetch_camera_items: {e}")
@@ -994,8 +998,12 @@ def signal_handler(signum, frame):
     shutting_down = True
 
     for cam_ip in camera_items:
-        camera_item = camera_items[cam_ip]
-        onvif.unsubscribe(camera_item)
+        try:
+            camera_item = camera_items[cam_ip]
+            onvif.unsubscribe(camera_item)
+        except Exception as e:
+            logger.error(f"Error handling unsubscribe, cam_ip:{cam_ip} Error:{e}")
+            pass
 
     global thread_detector
     if thread_detector is not None:
@@ -1086,26 +1094,29 @@ def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
     
     global camera_items
-
-    try:
-        # logger.info(f"subscribe_onvif camera_items {camera_items}")
         
-        for cam_ip in camera_items:
+    for cam_ip in camera_items:
+        try:
             if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:        
                 renew_response = onvif.renew(camera_items[cam_ip])
 
                 if renew_response is None:
+                    logger.info(f"subscribe_onvif renew_response {renew_response}")
                     camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
 
                 logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
-            
-    except Exception as e:
-        logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
-        # traceback.print_exc()
-    finally:
-        timer = threading.Timer(60, subscribe_onvif)
-        timer.name = "Thread-SubscribeOnvif-Timer"
-        timer.start()
+            else:
+                if 'onvifSubAddress' in camera_items[cam_ip]:
+                    if camera_items[cam_ip]['onvifSubAddress'] is not None:
+                        onvif.unsubscribe(camera_items[cam_ip])
+                        camera_items[cam_ip]['onvifSubAddress'] = None
+        except Exception as e:
+            logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
+            pass
+    
+    timer = threading.Timer(60, subscribe_onvif)
+    timer.name = "Thread-SubscribeOnvif-Timer"
+    timer.start()
 
     logger.info(f"subscribe_onvif out")
 
