@@ -182,26 +182,12 @@ def init_gst_apps():
             traceback.print_exc()
             pass
 
+    timer = threading.Timer(60, init_gst_apps)
+    timer.name = "Thread-InitGst-Timer"
+    timer.start()
+
     logger.info(f"init_gst_apps out")
 
-# def init_gst_apps():
-#     logger.info(f"init_gst_apps in")
-
-#     global camera_items
-
-#     camera_item_list = query_camera_items(os.environ['HOST_ID'])
-    
-#     for camera_item in camera_item_list:
-#         try:
-#             cam_ip = camera_item['localIp']
-#             camera_items[cam_ip] = camera_item
-#             init_gst_app(os.environ['HOST_ID'], cam_ip)
-#         except Exception as e:
-#             logger.error(f"Error handling init_gst_apps: {e}")
-#             traceback.print_exc()
-#             pass
-
-#     logger.info(f"init_gst_apps out")
 
 def init_gst_app(host_id, cam_ip):
     logger.info(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
@@ -921,7 +907,12 @@ def start_scheduler_threads():
     # Start the SubscribeOnvif thread
     subscribe_onvif_thread = threading.Thread(target=subscribe_onvif, name="Thread-SubscribeOnvif")
     subscribe_onvif_thread.start()
-    logger.info("SubscribeOnvif thread started")    
+    logger.info("SubscribeOnvif thread started")
+
+    # Start the InitGst thread
+    init_gst_apps_thread = threading.Thread(target=init_gst_apps, name="Thread-InitGst-Timer")
+    init_gst_apps_thread.start()
+    logger.info("InitGst thread started")
 
     # Start the claim scanner thread after the initialization
     claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
@@ -1124,17 +1115,21 @@ def subscribe_onvif():
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
-# Start the scheduler threads
-start_scheduler_threads()
-
 # Init face_app
 init_face_app()
 
-# Init gst_apps
-init_gst_apps()
-
 # Init uploader_app
 init_uploader_app()
+
+# Start the scheduler threads
+start_scheduler_threads()
+
+
+
+# Init gst_apps
+# init_gst_apps()
+
+
 
 # Start the HTTP server thread
 start_server_thread()
