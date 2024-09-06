@@ -125,7 +125,11 @@ def fetch_camera_items():
         
         for camera_item in camera_item_list:
             cam_ip = camera_item['localIp']
-            camera_items[cam_ip] = camera_item
+            if cam_ip not in camera_items:
+                camera_items[cam_ip] = camera_item
+            else:
+                if camera_items[cam_ip] is None:
+                    camera_items[cam_ip] = camera_item
             
     except Exception as e:
         logger.error(f"Error handling fetch_camera_items: {e}")

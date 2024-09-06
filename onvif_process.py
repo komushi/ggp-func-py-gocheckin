@@ -162,12 +162,12 @@ def renew(camera_item):
 
     result = None
     
+    onvif_sub_address = None
     if 'onvifSubAddress' in camera_item:
         onvif_sub_address = camera_item['onvifSubAddress']
-    else:
-        onvif_sub_address = None
+
+    if onvif_sub_address is None:
         logger.info(f"onvif.renew in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-        logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
         logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
 
         return
