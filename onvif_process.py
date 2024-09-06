@@ -110,7 +110,7 @@ def subscribe(camera_item, scanner_local_ip, http_port):
 
 
 def unsubscribe(camera_item):
-    logger.info(f"onvif.unsubscribe in camera_item {camera_item}")
+    logger.info(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} camera_item: {camera_item}")
 
     try:
         server_ip = camera_item['localIp']
@@ -149,7 +149,7 @@ def unsubscribe(camera_item):
 
         result = subscription_service.Unsubscribe(_soapheaders=[addressing_header])
 
-        logger.info(f"onvif.unsubscribe result {result}")
+        logger.info(f"onvif.unsubscribe cam_ip: {camera_item['localIp']} result: {result}")
 
 
     except Exception as e:
@@ -159,15 +159,20 @@ def unsubscribe(camera_item):
 
 
 def renew(camera_item):
+
+    result = None
     
     if 'onvifSubAddress' in camera_item:
         onvif_sub_address = camera_item['onvifSubAddress']
     else:
         onvif_sub_address = None
+        logger.info(f"onvif.renew in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+        logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+        logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
+
+        return
 
     logger.info(f"onvif.renew in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-
-    result = None
 
     try:
         server_ip = camera_item['localIp']
@@ -211,6 +216,6 @@ def renew(camera_item):
         traceback.print_exc()
     finally:
         logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-        logger.info(f"onvif.renew out result: {result}")
+        logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
 
         return result
