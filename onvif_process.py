@@ -110,7 +110,18 @@ def subscribe(camera_item, scanner_local_ip, http_port):
 
 
 def unsubscribe(camera_item):
-    logger.info(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} camera_item: {camera_item}")
+
+    onvif_sub_address = None
+    if 'onvifSubAddress' in camera_item:
+        onvif_sub_address = camera_item['onvifSubAddress']
+
+    if onvif_sub_address is None:
+        logger.info(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+        logger.info(f"onvif.unsubscribe out cam_ip: {camera_item['localIp']}")
+
+        return
+
+    logger.info(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
 
     try:
         server_ip = camera_item['localIp']
