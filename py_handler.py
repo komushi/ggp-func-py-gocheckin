@@ -8,7 +8,7 @@ import os
 import io
 import base64
 
-from queue import Queue, Empty
+from queue import Queue
 
 import traceback
 
@@ -18,10 +18,9 @@ import socketserver
 import socket
 
 import threading
-import sched
 import time
 
-import random
+
 
 import requests
 
@@ -30,6 +29,8 @@ import numpy as np
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
+
+import s3_uploader as uploader
 
 from insightface.app import FaceAnalysis
 import face_recognition as fdm
@@ -63,8 +64,8 @@ http_port = 7777
 scanner_local_ip = get_local_ip()
 
 # Initialize the scheduler
-scheduler_thread = None
-scheduler = sched.scheduler(time.time, time.sleep)
+# scheduler_thread = None
+# scheduler = sched.scheduler(time.time, time.sleep)
 
 # Initialize the active_members and the last_fetch_time
 last_fetch_time = None
@@ -145,7 +146,7 @@ def fetch_camera_items():
     logger.info(f"fetch_camera_items out")
 
 def init_uploader_app():
-    import s3_uploader as uploader
+    logger.info(f"init_uploader_app in")
 
     global uploader_app
     if uploader_app is None:
@@ -155,6 +156,8 @@ def init_uploader_app():
                 cred_provider_path=f"/role-aliases/{os.environ['AWS_ROLE_ALIAS']}/credentials",
                 bucket_name=os.environ['VIDEO_BUCKET']
             )
+    
+    logger.info(f"init_uploader_app out")
 
 def init_face_app(model='buffalo_sc'):
     class FaceAnalysisChild(FaceAnalysis):
@@ -403,7 +406,8 @@ def start_http_server():
                     self.send_response(404)
                     self.end_headers()
                     self.wfile.write(b'Not Found')
-
+            except BrokenPipeError:
+                logger.error("Client disconnected before the response could be sent.")
             except Exception as e:
                 logger.error(f"Error handling POST request: {e}")
                 traceback.print_exc()
@@ -1118,18 +1122,14 @@ signal.signal(signal.SIGINT, signal_handler)
 # Init face_app
 init_face_app()
 
-# Init uploader_app
-init_uploader_app()
-
 # Start the scheduler threads
 start_scheduler_threads()
 
-
+# Init uploader_app
+init_uploader_app()
 
 # Init gst_apps
 # init_gst_apps()
-
-
 
 # Start the HTTP server thread
 start_server_thread()
