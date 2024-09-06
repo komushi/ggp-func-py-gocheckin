@@ -138,7 +138,7 @@ def fetch_camera_items():
     except Exception as e:
         logger.error(f"Error handling fetch_camera_items: {e}")
     finally:
-        timer = threading.Timer(600, fetch_camera_items)
+        timer = threading.Timer(60, fetch_camera_items)
         timer.name = "Thread-FetchCamera-Timer"
         timer.start()
 
