@@ -339,69 +339,13 @@ def start_http_server():
 
                     cam_ip, utc_time, is_motion_value = onvif.extract_notification(post_data)
                     # logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
+
+                    handle_notification(cam_ip, utc_time, is_motion_value)
+
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(b'Notification handled')
   
-
-                    thread_gstreamer = None
-                    if cam_ip is not None and utc_time is not None and is_motion_value is not None:
-                        logger.info(f"/onvif_notifications cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
-                        if is_motion_value:
-                            thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
-                    else:
-                        self.send_response(200)
-                        self.end_headers()
-                        self.wfile.write(b'Will not start GST')
-                        return
-
-
-                    if thread_gstreamer is not None:
-
-                        logger.info(f"{cam_ip} /onvif_notifications thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
-                        if thread_gstreamer.is_playing:
-
-                            camera_item = camera_items[cam_ip]
-
-                            # detect
-                            if camera_item['isDetecting']:
-                                if cam_ip in thread_gstreamers:
-                                    if thread_gstreamers[cam_ip] is not None:
-                                        thread_gstreamers[cam_ip].start_sampling()
-                                        set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
-
-                                if thread_detector is None:
-                                    params = {}
-                                    params['face_app'] = face_app
-
-                                    thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
-
-                                    fetch_members()
-
-                                    thread_detector.captured_members = {}
-                                    thread_detector.start()
-                                    thread_detector.start_detection()
-
-                                    # thread_detector.extend_detection_time()
-
-                                else:
-                                    fetch_members()
-                                    thread_detector.captured_members = {}
-                                    thread_detector.start_detection()
-
-                            # record 
-                            if camera_item['isRecording']:
-                                if cam_ip in thread_gstreamers:
-                                    if thread_gstreamers[cam_ip].start_recording():
-                                        set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
-
-                            self.send_response(200)
-                            self.end_headers()
-                            self.wfile.write(b'Starting GST')
-                        else:
-                            self.send_response(200)
-                            self.end_headers()
-                            self.wfile.write(b'Will not start GST')
-                            return
-
-                    logger.info(f'Available threads after starting: {", ".join(thread.name for thread in threading.enumerate())}')
                 else:
                     self.send_response(404)
                     self.end_headers()
@@ -1084,6 +1028,60 @@ def set_sampling_time(thread_gstreamer, delay):
     detection_timer.name = f"Thread-SamplingStopper-{thread_gstreamer.cam_ip}"
     detection_timer.start()
     # detection_timer.join()
+
+def handle_notification(cam_ip, utc_time, is_motion_value):
+
+    thread_gstreamer = None
+    if cam_ip is not None and utc_time is not None and is_motion_value is not None:
+        logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+        if is_motion_value:
+            thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
+    else:
+        logger.info(f"handle_notification out")
+        return
+
+
+    if thread_gstreamer is not None:
+
+        logger.info(f"{cam_ip} handle_notification thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
+        if thread_gstreamer.is_playing:
+
+            camera_item = camera_items[cam_ip]
+
+            # detect
+            if camera_item['isDetecting']:
+                if cam_ip in thread_gstreamers:
+                    if thread_gstreamers[cam_ip] is not None:
+                        thread_gstreamers[cam_ip].start_sampling()
+                        set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
+
+                if thread_detector is None:
+                    params = {}
+                    params['face_app'] = face_app
+
+                    thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+
+                    fetch_members()
+
+                    thread_detector.captured_members = {}
+                    thread_detector.start()
+                    thread_detector.start_detection()
+
+                    # thread_detector.extend_detection_time()
+
+                else:
+                    fetch_members()
+                    thread_detector.captured_members = {}
+                    thread_detector.start_detection()
+
+            # record 
+            if camera_item['isRecording']:
+                if cam_ip in thread_gstreamers:
+                    if thread_gstreamers[cam_ip].start_recording():
+                        set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
+
+
+    logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
 
 def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
