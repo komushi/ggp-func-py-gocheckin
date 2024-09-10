@@ -93,6 +93,7 @@ thread_monitors = {}
 # Initialize the scanner_output_queue
 scanner_output_queue = Queue(maxsize=50)
 cam_queue = Queue(maxsize=500)
+motion_detection_queue = Queue(maxsize=500)
 
 # Initialize the DynamoDB resource
 dynamodb = boto3.resource(
@@ -139,7 +140,7 @@ def fetch_camera_items():
     except Exception as e:
         logger.error(f"Error handling fetch_camera_items: {e}")
     finally:
-        timer = threading.Timer(60, fetch_camera_items)
+        timer = threading.Timer(600, fetch_camera_items)
         timer.name = "Thread-FetchCamera-Timer"
         timer.start()
 
@@ -817,6 +818,23 @@ def fetch_scanner_output_queue():
             pass
         time.sleep(1)
 
+def fetch_motion_detection_queue():
+    while True:
+        try:
+            if not motion_detection_queue.empty():
+                cam_ip, is_motion_value, utc_time = motion_detection_queue.get_nowait()    
+                # logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
+
+                handle_notification(cam_ip, utc_time, is_motion_value)
+
+        except Exception as e:
+            logger.error(f"fetch_motion_detection_queue, Exception during running, Error: {e}")
+            traceback.print_exc()
+            pass
+        # time.sleep(1)
+
+
+
 # http server
 def start_server_thread():
     global server_thread
@@ -835,6 +853,11 @@ def start_scanner_output_queue_thread():
     scheduler_thread.start()
     logger.info("Scanner Output Queue thread started")
 
+# motion_detection_queue
+def start_motion_detection_queue_thread():
+    scheduler_thread = threading.Thread(target=fetch_motion_detection_queue, name="Thread-MotionDetectionQueue")
+    scheduler_thread.start()
+    logger.info("Motion Detection Queue thread started")
 
 # Function to start the scheduler threads
 def start_scheduler_threads():
@@ -940,6 +963,15 @@ def signal_handler(signum, frame):
         try:
             camera_item = camera_items[cam_ip]
             onvif.unsubscribe(camera_item)
+
+            if camera_item['onvif']['isSubscription']:
+                if 'onvifSubAddress' in camera_item:
+                    if camera_item['onvifSubAddress'] is not None:
+                        onvif.unsubscribe(camera_item)
+                        camera_item['onvifSubAddress'] = None
+            elif camera_item['onvif']['isPullpoint']:
+                onvif.stop_pullpoint(camera_item)
+
         except Exception as e:
             logger.error(f"Error handling unsubscribe, cam_ip:{cam_ip} Error:{e}")
             pass
@@ -1090,19 +1122,27 @@ def subscribe_onvif():
         
     for cam_ip in camera_items:
         try:
-            if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:        
-                renew_response = onvif.renew(camera_items[cam_ip])
+            if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:
+                if camera_items[cam_ip]['onvif']['isSubscription']:
+                    renew_response = onvif.renew(camera_items[cam_ip])
 
-                if renew_response is None:
-                    logger.info(f"subscribe_onvif renew_response {renew_response}")
-                    camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
+                    if renew_response is None:
+                        logger.info(f"subscribe_onvif renew_response {renew_response}")
+                        camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
 
-                logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
+                    logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
+
+                elif camera_items[cam_ip]['onvif']['isPullpoint']:
+                    onvif.start_pullpoint(camera_items[cam_ip], motion_detection_queue)
             else:
-                if 'onvifSubAddress' in camera_items[cam_ip]:
-                    if camera_items[cam_ip]['onvifSubAddress'] is not None:
-                        onvif.unsubscribe(camera_items[cam_ip])
-                        camera_items[cam_ip]['onvifSubAddress'] = None
+                if camera_items[cam_ip]['onvif']['isSubscription']:
+                    if 'onvifSubAddress' in camera_items[cam_ip]:
+                        if camera_items[cam_ip]['onvifSubAddress'] is not None:
+                            onvif.unsubscribe(camera_items[cam_ip])
+                            camera_items[cam_ip]['onvifSubAddress'] = None
+                elif camera_items[cam_ip]['onvif']['isPullpoint']:
+                    onvif.stop_pullpoint(camera_items[cam_ip])
+                    
         except Exception as e:
             logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
             pass
@@ -1134,3 +1174,6 @@ start_server_thread()
 
 # Start scanner_output_queue thread
 start_scanner_output_queue_thread()
+
+# Start motion_detection_queue thread
+start_motion_detection_queue_thread()
