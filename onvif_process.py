@@ -238,6 +238,32 @@ def renew(camera_item):
 
 def start_pullpoint(camera_item, motion_detection_queue):
 
+    def pull_messages(ip_address, motion_detection_queue):
+    
+        while True:
+            try:
+                pullmess = pullpoint_service.PullMessages(Timeout='PT1M', MessageLimit=10)
+                for msg in pullmess.NotificationMessage:
+                    logger.info(f"msg: {msg}")
+                    message = serialize_object(msg)
+
+                    message_element = message['Message']['_value_1']
+
+                    utc_time = None
+                    is_motion = None
+                    for simple_item in message_element.findall(".//ns0:SimpleItem", namespaces={'ns0': 'http://www.onvif.org/ver10/schema'}):
+                        if simple_item.attrib.get('Name') == "IsMotion":
+                            is_motion = simple_item.attrib.get('Value')
+                            utc_time = message_element.attrib.get('UtcTime')
+                            motion_detection_queue.put((ip_address, is_motion, utc_time), block=False)
+                            break
+
+                    if utc_time is not None and is_motion is not None:
+                        logger.info(f"onvif.start_pullpoint.pull_messages Motion detected: utc_time: {utc_time} is_motion: {is_motion}")
+
+            except Exception as e:
+                pass
+
     global thread_pullpoints
 
     if 'onvifSubAddress' in camera_item:
@@ -293,31 +319,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
     thread_pullpoints[server_ip].start()
 
     
-    def pull_messages(ip_address, motion_detection_queue):
-    
-        while True:
-            try:
-                pullmess = pullpoint_service.PullMessages(Timeout='PT1M', MessageLimit=10)
-                for msg in pullmess.NotificationMessage:
-                    logger.info(f"msg: {msg}")
-                    message = serialize_object(msg)
 
-                    message_element = message['Message']['_value_1']
-
-                    utc_time = None
-                    is_motion = None
-                    for simple_item in message_element.findall(".//ns0:SimpleItem", namespaces={'ns0': 'http://www.onvif.org/ver10/schema'}):
-                        if simple_item.attrib.get('Name') == "IsMotion":
-                            is_motion = simple_item.attrib.get('Value')
-                            utc_time = message_element.attrib.get('UtcTime')
-                            motion_detection_queue.put((ip_address, is_motion, utc_time), block=False)
-                            break
-
-                    if utc_time is not None and is_motion is not None:
-                        logger.info(f"onvif.start_pullpoint.pull_messages Motion detected: utc_time: {utc_time} is_motion: {is_motion}")
-
-            except Exception as e:
-                pass
 
 def stop_pullpoint(camera_item):  
     onvif_sub_address = None
