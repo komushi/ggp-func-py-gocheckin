@@ -185,7 +185,7 @@ def init_gst_apps():
             traceback.print_exc()
             pass
 
-    timer = threading.Timer(60, init_gst_apps)
+    timer = threading.Timer(600, init_gst_apps)
     timer.name = "Thread-InitGst-Timer"
     timer.start()
 
