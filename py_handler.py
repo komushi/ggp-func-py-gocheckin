@@ -117,8 +117,8 @@ def function_handler(event, context):
             logger.info(f"function_handler init_scanner changing model to {str(topic)}")
             init_face_app(event['model'])
 
-    elif topic == f"gocheckin/fetch_camera_items":
-        logger.info('function_handler fetch_camera_items')
+    elif topic == f"gocheckin/fetch_cameras":
+        logger.info('function_handler fetch_cameras')
 
         fetch_camera_items()
 
