@@ -245,7 +245,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
     else:
         onvif_sub_address = None
 
-    logger.info(f"onvif.subscribe in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+    logger.info(f"onvif.start_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
 
     try:
         server_ip = camera_item['localIp']
@@ -314,7 +314,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
                             break
 
                     if utc_time is not None and is_motion is not None:
-                        logger.info(f"Motion detected: utc_time: {utc_time} is_motion: {is_motion}")
+                        logger.info(f"onvif.start_pullpoint.pull_messages Motion detected: utc_time: {utc_time} is_motion: {is_motion}")
 
             except Exception as e:
                 pass
