@@ -1030,6 +1030,7 @@ def set_sampling_time(thread_gstreamer, delay):
     # detection_timer.join()
 
 def handle_notification(cam_ip, utc_time, is_motion_value):
+    global thread_detector
 
     thread_gstreamer = None
     if cam_ip is not None and utc_time is not None and is_motion_value is not None:
@@ -1039,7 +1040,6 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
     else:
         logger.info(f"handle_notification out")
         return
-
 
     if thread_gstreamer is not None:
 
