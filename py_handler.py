@@ -117,6 +117,11 @@ def function_handler(event, context):
             logger.info(f"function_handler init_scanner changing model to {str(topic)}")
             init_face_app(event['model'])
 
+    elif topic == f"gocheckin/fetch_camera_items":
+        logger.info('function_handler fetch_camera_items')
+
+        fetch_camera_items()
+
 def fetch_camera_items():
     logger.info(f"fetch_camera_items in")
 
@@ -139,10 +144,10 @@ def fetch_camera_items():
             
     except Exception as e:
         logger.error(f"Error handling fetch_camera_items: {e}")
-    finally:
-        timer = threading.Timer(600, fetch_camera_items)
-        timer.name = "Thread-FetchCamera-Timer"
-        timer.start()
+    # finally:
+    #     timer = threading.Timer(600, fetch_camera_items)
+    #     timer.name = "Thread-FetchCamera-Timer"
+    #     timer.start()
 
     logger.info(f"fetch_camera_items out")
 
@@ -1113,7 +1118,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
 
 
-    logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+    logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
 
 def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
@@ -1147,7 +1152,7 @@ def subscribe_onvif():
             logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
             pass
     
-    timer = threading.Timer(600, subscribe_onvif)
+    timer = threading.Timer(60, subscribe_onvif)
     timer.name = "Thread-SubscribeOnvif-Timer"
     timer.start()
 
