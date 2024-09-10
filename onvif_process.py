@@ -244,7 +244,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
             try:
                 pullmess = pullpoint_service.PullMessages(Timeout='PT1M', MessageLimit=10)
                 for msg in pullmess.NotificationMessage:
-                    logger.info(f"msg: {msg}")
+
                     message = serialize_object(msg)
 
                     message_element = message['Message']['_value_1']
