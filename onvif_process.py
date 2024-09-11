@@ -300,7 +300,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
 
         event_service = client.create_service(event_binding, service_url)
 
-        subscription = event_service.CreatePullPointSubscription()
+        subscription = event_service.CreatePullPointSubscription(InitialTerminationTime='P24H')
 
         pullpoint_service = client.create_service(pullpoint_subscription_binding, subscription.SubscriptionReference.Address._value_1)
 
@@ -310,7 +310,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
 
     except Exception as e:
         logger.error(f"onvif.start_pullpoint, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
-        traceback.print_exc()
+        # traceback.print_exc()
         onvif_sub_address = None
 
         return onvif_sub_address
