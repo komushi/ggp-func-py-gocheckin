@@ -318,7 +318,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
     thread_pullpoints[server_ip] = threading.Thread(target=pull_messages, name=f"Thread-OnvifPull-{server_ip}", args=(server_ip, motion_detection_queue))
     thread_pullpoints[server_ip].start()
 
-    
+    return onvif_sub_address
 
 
 def stop_pullpoint(camera_item):  
