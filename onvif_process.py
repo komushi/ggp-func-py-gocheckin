@@ -300,7 +300,7 @@ def start_pullpoint(camera_item, motion_detection_queue):
 
         event_service = client.create_service(event_binding, service_url)
 
-        subscription = event_service.CreatePullPointSubscription(InitialTerminationTime='P24H')
+        subscription = event_service.CreatePullPointSubscription(InitialTerminationTime='PT24H')
 
         pullpoint_service = client.create_service(pullpoint_subscription_binding, subscription.SubscriptionReference.Address._value_1)
 
