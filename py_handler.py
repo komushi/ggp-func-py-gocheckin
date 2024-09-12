@@ -121,7 +121,7 @@ def function_handler(event, context):
         logger.info('function_handler fetch_cameras')
 
         fetch_camera_items()
-    elif topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
+    elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event and 'utc_time' in event:
