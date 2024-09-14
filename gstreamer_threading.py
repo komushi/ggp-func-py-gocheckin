@@ -340,21 +340,21 @@ class StreamCapture(threading.Thread):
 
 
     def start_recording(self):
-        logger.info(f"start_recording, {self.name} Start recording...")
+        logger.info(f"{self.cam_ip} start_recording in")
 
         if self.is_playing:
 
             if self.create_and_link_splitmuxsink():
 
                 self.record_valve.set_property('drop', False)
-                # logger.info(f"start_recording, {self.name} Start New Recording...")
-
+                
+                logger.info(f"{self.cam_ip} start_recording out, Start recording")
                 return True;
             else:
-                logger.warning(f"start_recording, Recording already started with {self.name}")
+                logger.warning(f"{self.cam_ip} start_recording out, Recording already started")
                 return False;
         else:
-            logger.info(f"start_recording, Recording not started as {self.name} is not playing")
+            logger.info(f"{self.cam_ip} start_recording out, Recording not started because not playing")
             return False;
 
     def stop_recording(self):
