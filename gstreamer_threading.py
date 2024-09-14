@@ -358,18 +358,26 @@ class StreamCapture(threading.Thread):
             return False;
 
     def stop_recording(self):
-        logger.info(f"stop_recording, Stop recording with {self.name}")
+        logger.info(f"{self.cam_ip} stop_recording in")
 
-        if self.record_valve is not None:
-            self.record_valve.set_property('drop', True)
-            # logger.info(f"stop_recording, {self.name} Dropping record_valve...")
+        try:
+
+            if self.record_valve is not None:
+                self.record_valve.set_property('drop', True)
+            
+            # Send EOS to the recording branch
+            if self.splitmuxsink is not None:
+                self.splitmuxsink.send_event(Gst.Event.new_eos())
+                logger.info(f"{self.cam_ip} stop_recording, End-Of-Stream sent")
+
+            self.unlink_and_remove_splitmuxsink()
+
+        except Exception as e:
+            logger.error(f"{self.cam_ip} stop_recording, Exception during running, Error: {e}")
+        finally:
+            logger.info(f"{self.cam_ip} stop_recording out")
+
         
-        # Send EOS to the recording branch
-        if self.splitmuxsink is not None:
-            self.splitmuxsink.send_event(Gst.Event.new_eos())
-            logger.info(f"stop_recording, {self.name} End-Of-Stream sent...")
-
-        self.unlink_and_remove_splitmuxsink()
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
@@ -525,8 +533,10 @@ class StreamCapture(threading.Thread):
 
     # Function to unlink and remove the splitmuxsink branch
     def unlink_and_remove_splitmuxsink(self):
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink in")
+
         if self.splitmuxsink is None:
-            logging.warning("unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
+            logging.warning(f"{self.cam_ip} unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
             return
         
         time.sleep(1)
@@ -558,4 +568,4 @@ class StreamCapture(threading.Thread):
         self.record_valve = None
         self.queue = None
         
-        logging.info("unlink_and_remove_splitmuxsink, Splitmuxsink branch unlinked and removed")
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink out")

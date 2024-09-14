@@ -92,6 +92,16 @@ fields @timestamp, @message
 | limit 200
 ```
 
+## 5. To find if splitmuxsink not unlink issues
+### 5-1. Query
+```
+fields @timestamp, @message
+| filter @message like /unlink_and_remove_splitmuxsink/ or @message like /stop_recording/
+| display @timestamp, @logStream, @message
+| sort @timestamp desc
+| limit 200
+```
+
 # gst query to check IPC issues
 ## 1. Check if a IPC has issues with pulling RTSP streams
 If there is no-standard media type or application type data, it might come together with the pulling issue.
