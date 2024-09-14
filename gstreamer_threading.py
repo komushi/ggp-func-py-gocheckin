@@ -572,31 +572,35 @@ class StreamCapture(threading.Thread):
         logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink in")
 
         if self.splitmuxsink is None:
-            logger.warning(f"{self.cam_ip} unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
+            logging.warning(f"{self.cam_ip} unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
             return
-
+        
         time.sleep(1)
 
-        # Set elements to NULL state with proper handling
+        # Set elements to NULL state before unlinking
         self.set_element_state_to_null()
 
-        # Unlink and release tee pads
+        # Unlink the tee from the queue
+        self.h264h265_parser.unlink(self.splitmuxsink)
+        self.record_valve.unlink(self.h264h265_parser)
+        self.queue.unlink(self.record_valve)
         tee_pad = self.tee.get_request_pad("src_%u")
         tee_pad.unlink(self.queue.get_static_pad("sink"))
+
+        # Release the tee pad
         self.tee.release_request_pad(tee_pad)
 
-        # Remove elements from the pipeline
+        # Remove the elements from the pipeline
         self.pipeline.remove(self.splitmuxsink)
         self.pipeline.remove(self.h264h265_parser)
         self.pipeline.remove(self.record_valve)
         self.pipeline.remove(self.queue)
 
-        # Reset attributes
         self.splitmuxsink = None
         self.h264h265_parser = None
         self.record_valve = None
         self.queue = None
-
+        
         logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink out")
 
 
