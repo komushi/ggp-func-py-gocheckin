@@ -545,8 +545,11 @@ class StreamCapture(threading.Thread):
 
         # Set elements to NULL state before unlinking
         self.splitmuxsink.set_state(Gst.State.NULL)
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01.1")
         self.h264h265_parser.set_state(Gst.State.NULL)
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01.2")
         self.record_valve.set_state(Gst.State.NULL)
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01.3")
         self.queue.set_state(Gst.State.NULL)
 
         logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 02")
