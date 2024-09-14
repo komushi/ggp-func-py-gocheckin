@@ -196,6 +196,8 @@ class StreamCapture(threading.Thread):
 
         self.is_playing = False
 
+        self.recording_stopping = False
+
     #     rtpbin = self.pipeline.get_by_name("m_rtpbin")
 
     #     rtpbin.connect("pad-added", self.pad_added_handler)
@@ -342,6 +344,10 @@ class StreamCapture(threading.Thread):
     def start_recording(self):
         logger.info(f"{self.cam_ip} start_recording in")
 
+        if self.recording_stopping:
+            logger.info(f"{self.cam_ip} start_recording out, Already stopping")
+            return False
+
         if self.is_playing:
 
             if self.create_and_link_splitmuxsink():
@@ -360,6 +366,7 @@ class StreamCapture(threading.Thread):
     def stop_recording(self):
         logger.info(f"{self.cam_ip} stop_recording in")
 
+        self.recording_stopping = True
         try:
 
             if self.record_valve is not None:
@@ -376,6 +383,7 @@ class StreamCapture(threading.Thread):
             logger.error(f"{self.cam_ip} stop_recording, Exception during running, Error: {e}")
         finally:
             logger.info(f"{self.cam_ip} stop_recording out")
+            self.recording_stopping = False
 
         
 
