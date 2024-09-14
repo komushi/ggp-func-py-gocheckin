@@ -571,7 +571,7 @@ class StreamCapture(threading.Thread):
         self.pipeline.remove(self.record_valve)
         self.pipeline.remove(self.queue)
 
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 05)
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 05")
 
         self.splitmuxsink = None
         self.h264h265_parser = None
