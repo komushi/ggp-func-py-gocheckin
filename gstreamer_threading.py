@@ -541,11 +541,15 @@ class StreamCapture(threading.Thread):
         
         time.sleep(1)
 
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01")
+
         # Set elements to NULL state before unlinking
         self.splitmuxsink.set_state(Gst.State.NULL)
         self.h264h265_parser.set_state(Gst.State.NULL)
         self.record_valve.set_state(Gst.State.NULL)
         self.queue.set_state(Gst.State.NULL)
+
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 02")
 
         # Unlink the tee from the queue
         self.h264h265_parser.unlink(self.splitmuxsink)
@@ -554,14 +558,20 @@ class StreamCapture(threading.Thread):
         tee_pad = self.tee.get_request_pad("src_%u")
         tee_pad.unlink(self.queue.get_static_pad("sink"))
 
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 03")
+
         # Release the tee pad
         self.tee.release_request_pad(tee_pad)
+
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 04")
 
         # Remove the elements from the pipeline
         self.pipeline.remove(self.splitmuxsink)
         self.pipeline.remove(self.h264h265_parser)
         self.pipeline.remove(self.record_valve)
         self.pipeline.remove(self.queue)
+
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 05)
 
         self.splitmuxsink = None
         self.h264h265_parser = None
