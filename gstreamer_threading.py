@@ -539,8 +539,69 @@ class StreamCapture(threading.Thread):
         # elif self.rtph264depay is not None:
         #     self.rtph264depay.send_event(event)
 
-    # Function to unlink and remove the splitmuxsink branch
+    def set_element_state_to_null(self):
+        logger.info(f"{self.cam_ip} set_element_state_to_null in")
+
+        if self.splitmuxsink:
+            result = self.splitmuxsink.set_state(Gst.State.NULL)
+            if result == Gst.StateChangeReturn.ASYNC:
+                # Wait until the state transition completes
+                self.splitmuxsink.get_state(Gst.CLOCK_TIME_NONE)
+
+        if self.h264h265_parser:
+            result = self.splitmuxsink.set_state(Gst.State.NULL)
+            if result == Gst.StateChangeReturn.ASYNC:
+                # Wait until the state transition completes
+                self.splitmuxsink.get_state(Gst.CLOCK_TIME_NONE)
+
+        if self.record_valve:
+            result = self.splitmuxsink.set_state(Gst.State.NULL)
+            if result == Gst.StateChangeReturn.ASYNC:
+                # Wait until the state transition completes
+                self.splitmuxsink.get_state(Gst.CLOCK_TIME_NONE)
+
+        if self.queue:
+            result = self.splitmuxsink.set_state(Gst.State.NULL)
+            if result == Gst.StateChangeReturn.ASYNC:
+                # Wait until the state transition completes
+                self.splitmuxsink.get_state(Gst.CLOCK_TIME_NONE)
+
+        logger.info(f"{self.cam_ip} set_element_state_to_null out")
+
     def unlink_and_remove_splitmuxsink(self):
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink in")
+
+        if self.splitmuxsink is None:
+            logger.warning(f"{self.cam_ip} unlink_and_remove_splitmuxsink, No splitmuxsink branch to unlink")
+            return
+
+        time.sleep(1)
+
+        # Set elements to NULL state with proper handling
+        self.set_element_state_to_null()
+
+        # Unlink and release tee pads
+        tee_pad = self.tee.get_request_pad("src_%u")
+        tee_pad.unlink(self.queue.get_static_pad("sink"))
+        self.tee.release_request_pad(tee_pad)
+
+        # Remove elements from the pipeline
+        self.pipeline.remove(self.splitmuxsink)
+        self.pipeline.remove(self.h264h265_parser)
+        self.pipeline.remove(self.record_valve)
+        self.pipeline.remove(self.queue)
+
+        # Reset attributes
+        self.splitmuxsink = None
+        self.h264h265_parser = None
+        self.record_valve = None
+        self.queue = None
+
+        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink out")
+
+
+    # Function to unlink and remove the splitmuxsink branch
+    def unlink_and_remove_splitmuxsink1(self):
         logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink in")
 
         if self.splitmuxsink is None:
@@ -549,18 +610,11 @@ class StreamCapture(threading.Thread):
         
         time.sleep(1)
 
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01")
-
         # Set elements to NULL state before unlinking
         self.splitmuxsink.set_state(Gst.State.NULL)
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01.1")
         self.h264h265_parser.set_state(Gst.State.NULL)
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01.2")
         self.record_valve.set_state(Gst.State.NULL)
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 01.3")
         self.queue.set_state(Gst.State.NULL)
-
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 02")
 
         # Unlink the tee from the queue
         self.h264h265_parser.unlink(self.splitmuxsink)
@@ -569,20 +623,14 @@ class StreamCapture(threading.Thread):
         tee_pad = self.tee.get_request_pad("src_%u")
         tee_pad.unlink(self.queue.get_static_pad("sink"))
 
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 03")
-
         # Release the tee pad
         self.tee.release_request_pad(tee_pad)
-
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 04")
 
         # Remove the elements from the pipeline
         self.pipeline.remove(self.splitmuxsink)
         self.pipeline.remove(self.h264h265_parser)
         self.pipeline.remove(self.record_valve)
         self.pipeline.remove(self.queue)
-
-        logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink 05")
 
         self.splitmuxsink = None
         self.h264h265_parser = None
