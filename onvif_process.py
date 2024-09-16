@@ -48,7 +48,7 @@ def extract_notification(raw_payload):
 
             ip_address = urlparse(address).hostname
 
-            logger.info(f"onvif.extract_notification out ip_address {ip_address} utc_time {utc_time} is_motion_value {is_motion_value}")
+            logger.info(f"onvif.extract_notification out ip_address {ip_address} is_motion_value {is_motion_value} utc_time {utc_time}")
             return ip_address, utc_time, is_motion_value
         
     logger.info(f"onvif.extract_notification out None")
@@ -100,7 +100,7 @@ def subscribe(camera_item, scanner_local_ip, http_port):
         consumer_reference = address_type(Address=f"http://{scanner_local_ip}:{http_port}/onvif_notifications")
         logger.info(f"onvif.subscribe consumer_reference {consumer_reference}")
 
-        subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT24H')
+        subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT2M')
         # logger.info(f"onvif.subscribe subscription {subscription}")
 
         onvif_sub_address = subscription.SubscriptionReference.Address._value_1
