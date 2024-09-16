@@ -568,7 +568,7 @@ class StreamCapture(threading.Thread):
 
         logger.info(f"{self.cam_ip} set_element_state_to_null out")
 
-    def unlink_and_remove_splitmuxsink(self):
+    def unlink_and_remove_splitmuxsink2(self):
         logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink in")
 
         if self.splitmuxsink is None:
@@ -605,7 +605,7 @@ class StreamCapture(threading.Thread):
 
 
     # Function to unlink and remove the splitmuxsink branch
-    def unlink_and_remove_splitmuxsink1(self):
+    def unlink_and_remove_splitmuxsink(self):
         logger.info(f"{self.cam_ip} unlink_and_remove_splitmuxsink in")
 
         if self.splitmuxsink is None:
