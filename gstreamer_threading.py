@@ -180,10 +180,10 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
             
-    def on_new_buffer(self, sink, _):
+    def on_new_buffer(self):
         crt_time = time.time()
 
-        sample = sink.emit('pull-sample')
+        sample = self.sink.emit('pull-sample')
 
         if sample:
             buffer = sample.get_buffer()
