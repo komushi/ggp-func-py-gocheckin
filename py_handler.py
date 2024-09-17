@@ -1066,7 +1066,7 @@ def set_sampling_time(thread_gstreamer, delay):
     if detection_timer:
         detection_timer.cancel()
     
-    detection_timer = threading.Timer(delay, thread_gstreamer.stop_sampling)
+    detection_timer = threading.Timer(delay, thread_gstreamer.stop_feeding)
     detection_timer.name = f"Thread-SamplingStopper-{thread_gstreamer.cam_ip}"
     detection_timer.start()
     # detection_timer.join()
@@ -1094,7 +1094,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
             if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
-                        thread_gstreamers[cam_ip].start_sampling()
+                        thread_gstreamers[cam_ip].feed_detecting()
                         set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
                 if thread_detector is None:
