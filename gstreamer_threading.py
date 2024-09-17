@@ -69,7 +69,7 @@ pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
     ! tee name=t
-    t. ! mp4mux name=mux ! filesink name=sink async=false
+    t. ! queue ! mp4mux name=mux ! filesink name=sink async=false
     t. ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0  ! avdec_h265 name=m_avdec
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
