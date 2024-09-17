@@ -141,7 +141,7 @@ class StreamCapture(threading.Thread):
         caps = Gst.caps_from_string(
             'video/x-raw, format=(string){BGR, GRAY8}; video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
         self.sink.set_property('caps', caps)
-        self.sink.connect("new-sample", self.on_new_buffer)
+        self.sink.connect("new-sample", self.on_new_buffer, {})
 
         self.stop_event = threading.Event()
         self.buffer = deque()
@@ -180,10 +180,10 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
             
-    def on_new_buffer(self):
+    def on_new_buffer(self, sink, _):
         crt_time = time.time()
 
-        sample = self.sink.emit('pull-sample')
+        sample = sink.emit('pull-sample')
 
         if sample:
             buffer = sample.get_buffer()
