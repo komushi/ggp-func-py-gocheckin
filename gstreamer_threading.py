@@ -298,7 +298,7 @@ class StreamCapture(threading.Thread):
         if not self.is_playing:
 
             playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            # logger.info(f"start_playing, {self.name} set_state PLAYING state_change_return: {playing_state_change_return}")
+            logger.info(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return}")
 
             if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
                 logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
