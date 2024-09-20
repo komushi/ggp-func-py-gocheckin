@@ -53,16 +53,14 @@ pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtph264depay
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h264parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h264 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert ! capsfilter caps=video/x-raw,format=BGR 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert ! video/x-raw,format=BGR 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""    
 
 pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse ! tee name=t t. 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert ! capsfilter caps=video/x-raw,format=BGR 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert ! video/x-raw,format=BGR 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
 # pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
 #     ! queue ! rtph264depay name=m_rtph264depay 
@@ -175,7 +173,7 @@ class StreamCapture(threading.Thread):
         # flags: readable, writable
         caps = Gst.caps_from_string(
             'video/x-raw, format=(string){BGR, GRAY8}; video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
-        self.sink.set_property('caps', caps)
+        # self.sink.set_property('caps', caps)
 
         # if not self.source or not self.sink or not self.pipeline or not self.decode or not self.convert:
         if not self.sink or not self.pipeline or not self.convert:
