@@ -175,7 +175,7 @@ class StreamCapture(threading.Thread):
         # flags: readable, writable
         caps = Gst.caps_from_string(
             'video/x-raw, format=(string){BGR, GRAY8}; video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
-        self.sink.set_property('caps', caps)
+        # self.sink.set_property('caps', caps)
 
         # if not self.source or not self.sink or not self.pipeline or not self.decode or not self.convert:
         if not self.sink or not self.pipeline or not self.convert:
