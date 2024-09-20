@@ -217,6 +217,8 @@ class StreamCapture(threading.Thread):
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
         caps = sample.get_caps()
+        
+        logger.info(f"{self.cam_ip} gst_to_opencv, caps: {caps.to_string()}")
 
         arr = np.ndarray(
             (caps.get_structure(0).get_value('height'),
