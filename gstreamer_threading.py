@@ -55,25 +55,23 @@ pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""    
 
-# pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
-#     ! tee name=t
-#     t. ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0  ! mp4mux name=mux ! filesink name=sink async=false
-#     t. ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0  ! avdec_h265 name=m_avdec
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
-
 pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
     ! tee name=t
-    t. ! queue ! mp4mux name=mux ! filesink name=sink async=false
+    t. ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0  ! splitmuxsink name=splitmuxsink location=/dev/null max-size-time=60000000000 muxer-factory=mp4mux
     t. ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0  ! avdec_h265 name=m_avdec
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
+
+# pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
 
 ext = ".mp4"
 max_seconds = 5
@@ -219,13 +217,12 @@ class StreamCapture(threading.Thread):
         if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder)):
             os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
 
-        # Update filesink location with the new file name
-        filesink = self.pipeline.get_by_name('sink')
-        filesink.set_property('location', location)
+        # Get the splitmuxsink element
+        splitmuxsink = self.pipeline.get_by_name('splitmuxsink')
 
-        # Get the mp4mux element to push frames
-        mux = self.pipeline.get_by_name('mux')
-
+        # Set the new location for the next file segment
+        splitmuxsink.set_property('location', location)
+        
         # Get all frames in the buffer
         frames_to_save = self.get_all_frames()
 
@@ -234,10 +231,13 @@ class StreamCapture(threading.Thread):
                 buffer = Gst.Buffer.new_wrapped(frame_data)
                 buffer.pts = pts
                 buffer.duration = duration
-                mux.get_static_pad('sink').push(buffer)
+                splitmuxsink.get_static_pad('sink').push(buffer)
 
         # Clear the frame buffer after saving to prevent memory issues
         self.clear_all_frames()
+
+        # Send EOS event to finalize the current file
+        splitmuxsink.send_event(Gst.Event.new_eos())
 
         if not self.scanner_output_queue.full():
             video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
