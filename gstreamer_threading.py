@@ -405,7 +405,7 @@ class StreamCapture(threading.Thread):
 
         with self.lock:
             self.is_recording = True
-            self.recordings[utc_time] = datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            self.recordings[utc_time] = datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
         logger.info(f"{self.cam_ip} start_recording out")
 
