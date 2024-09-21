@@ -300,7 +300,7 @@ class StreamCapture(threading.Thread):
                                         "object_key": object_key,
                                         "ext": ext,
                                         "local_file_path": location,
-                                        "start_datetime": self.start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                        "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                                         "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                                     }
                                 }, block=False)
