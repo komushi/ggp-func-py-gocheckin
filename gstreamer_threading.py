@@ -46,32 +46,21 @@ class StreamCommands(Enum):
 
 # h264 or h265
 pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtph264depay
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtphdepay
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h264parse
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! mp4mux name=mux
-    ! filesink name=sink async=false
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h264 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""    
-
-pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
-    ! tee name=t
-    t. ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0  ! splitmuxsink name=splitmuxsink location=/dev/null max-size-time=60000000000 muxer-factory=mp4mux
-    t. ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0  ! avdec_h265 name=m_avdec
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
 
-# pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtph265depay 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
+pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtphdepay 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
+    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
+
 
 ext = ".mp4"
 max_seconds = 5
@@ -103,20 +92,18 @@ class StreamCapture(threading.Thread):
         if  self.source is not None:
             # self.source.set_property('latency', 2000)
             self.source.set_property('location', self.rtsp_src)
-            self.source.set_property('protocols', 'tcp')
+            # self.source.set_property('protocols', 'tcp')
             # self.source.set_property('retry', 1)
             # self.source.set_property('timeout', 5000000)
             # self.source.set_property('tcp-timeout', 20000000)
-            self.source.set_property('buffer-mode', 3)            
+            self.source.set_property('buffer-mode', 3)
+            # self.source.set_property("onvif-mode", True)
+            # self.source.set_property("onvif-rate-control", False)
+            self.source.set_property('is-live', True)    
 
-        # if float(f"{GstPbutils.plugins_base_version().major}.{GstPbutils.plugins_base_version().minor}") >= 1.18:
-        self.source.set_property("onvif-mode", True)
-        self.source.set_property("onvif-rate-control", False)
-        self.source.set_property('is-live', True)
 
-        # rtph264depay
-        self.rtph264depay = self.pipeline.get_by_name('m_rtph264depay')
-        self.rtph265depay = self.pipeline.get_by_name('m_rtph265depay')
+        # rtphdepay
+        self.rtphdepay = self.pipeline.get_by_name('m_rtphdepay')
 
         # decode params
         self.decode = self.pipeline.get_by_name('m_avdec')
@@ -129,19 +116,22 @@ class StreamCapture(threading.Thread):
 
         #framerate parameters
         self.framerate_ctr = self.pipeline.get_by_name('m_videorate')
-        self.framerate_ctr.set_property('max-rate', self.framerate/1)
-        # self.framerate_ctr.set_property('drop-only', 'true')
+        if  self.framerate_ctr is not None:
+            self.framerate_ctr.set_property('max-rate', self.framerate/1)
+            self.framerate_ctr.set_property('drop-only', 'true')
 
         # sink params
-        self.sink = self.pipeline.get_by_name('m_appsink')
-        # self.sink.set_property('max-lateness', 500000000)
-        self.sink.set_property('max-buffers', 5)
-        self.sink.set_property('drop', True)
-        self.sink.set_property('emit-signals', True)
-        caps = Gst.caps_from_string(
-            'video/x-raw, format=(string){BGR, GRAY8}; video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
-        self.sink.set_property('caps', caps)
-        self.sink.connect("new-sample", self.on_new_buffer, {})
+        self.appsink = self.pipeline.get_by_name('m_appsink')
+        if  self.appsink is not None:
+            self.appsink.set_property('max-buffers', 5)
+            self.appsink.set_property('drop', True)
+            self.appsink.set_property('emit-signals', True)
+            self.appsink.set_property('sync', False)
+            # caps = Gst.caps_from_string(
+            #     'video/x-raw, format=(string){BGR, GRAY8}; video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
+            caps = Gst.caps_from_string('video/x-raw, format=(string){BGR, GRAY8}')
+            self.appsink.set_property('caps', caps)
+            self.appsink.connect("new-sample", self.on_new_sample, {})
 
         self.stop_event = threading.Event()
         self.buffer = deque()
@@ -180,7 +170,7 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
             
-    def on_new_buffer(self, sink, _):
+    def on_new_sample(self, sink, _):
         crt_time = time.time()
 
         sample = sink.emit('pull-sample')
@@ -206,60 +196,118 @@ class StreamCapture(threading.Thread):
 
         return Gst.FlowReturn.OK
 
-    def push_frames(self):
-        logger.info(f"{self.cam_ip} push_frames in")
+    def save_frames_as_video(self):
+        logger.info(f"{self.cam_ip} save_frames_as_video in")
 
         date_folder = self.start_datetime_utc.strftime("%Y-%m-%d")
         time_filename = self.start_datetime_utc.strftime("%H:%M:%S")
-        local_file_name = str(uuid.uuid4())[:8]
-        location = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, local_file_name + ext)
+        # local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
 
         if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder)):
             os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder))
 
-        # Get the splitmuxsink element
-        splitmuxsink = self.pipeline.get_by_name('splitmuxsink')
+        # Get frames from buffer
+        frames = self.get_all_frames()
 
-        # Set the new location for the next file segment
-        splitmuxsink.set_property('location', location)
-        
-        # Get all frames in the buffer
-        frames_to_save = self.get_all_frames()
+        # Start the save task in a new thread
+        save_thread = threading.Thread(target=self.save_task, args=(frames, date_folder, time_filename), name=f"save_task_{time_filename}")
+        save_thread.start()
 
-        with self.lock:
-            for _, frame_data, pts, duration, caps in frames_to_save:
-                buffer = Gst.Buffer.new_wrapped(frame_data)
-                buffer.pts = pts
-                buffer.duration = duration
-                splitmuxsink.get_static_pad('sink').push(buffer)
+        logger.info(f'Available threads after save_task: {", ".join(thread.name for thread in threading.enumerate())}')
 
-        # Clear the frame buffer after saving to prevent memory issues
+        # Clear the frame buffer
         self.clear_all_frames()
 
-        # Send EOS event to finalize the current file
-        splitmuxsink.send_event(Gst.Event.new_eos())
+        logger.info(f"{self.cam_ip} save_frames_as_video out")
 
-        if not self.scanner_output_queue.full():
-            video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
-            object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+    def save_task(self, frames, date_folder, time_filename):
+        logger.info(f"{self.cam_ip} save_task in date_folder {date_folder} time_filename {time_filename} with {len(frames)} frames.")
 
-            self.scanner_output_queue.put({
-                "type": "video_clipped",
-                "payload": {
-                    "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                    "cam_ip": self.cam_ip,
-                    "cam_uuid": self.cam_uuid,
-                    "cam_name": self.cam_name,
-                    "video_key": video_key,
-                    "object_key": object_key,
-                    "ext": ext,
-                    "local_file_path": location,
-                    "start_datetime": self.start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-                    "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-                }
-            }, block=False)
+        local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
 
-        logger.info(f"{self.cam_ip} push_frames out")
+        save_pipeline = Gst.parse_launch(f'''
+            appsrc name=m_appsrc emit-signals=true is-live=true format=time
+            ! videoconvert ! video/x-raw, format=I420
+            ! x265enc ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
+        ''')
+
+        appsrc = save_pipeline.get_by_name('m_appsrc')
+        _, _, _, _, first_caps = frames[0]
+        appsrc.set_property("caps", first_caps)
+
+        save_pipeline.set_state(Gst.State.PLAYING)
+
+        # Push frames to appsrc
+        with self.lock:
+            for _, frame_data, pts, duration, caps in frames:
+                # logger.info(f"push_buffer_to_appsrc caps {caps.to_string()}")
+
+                buf = Gst.Buffer.new_wrapped(frame_data)
+                buf.pts = pts
+                buf.duration = duration
+
+                ret = appsrc.emit('push-buffer', buf)
+                if ret != Gst.FlowReturn.OK:
+                    logger.error(f"Error pushing buffer to appsrc: {ret}")
+
+        # Emit EOS to signal end of the stream
+        appsrc.emit('end-of-stream')
+
+        # Wait for EOS message or error on the bus
+        bus = save_pipeline.get_bus()
+        while True:
+            msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
+            if msg:
+                if msg.type == Gst.MessageType.EOS:
+                    logger.info(f"EOS received")
+                    break
+                elif msg.type == Gst.MessageType.ERROR:
+                    err, debug = msg.parse_error()
+                    logger.error(f"Error received: {err}, {debug}")
+                    break
+                elif msg.type == Gst.MessageType.ELEMENT:
+                    structure = msg.get_structure()
+                    if structure and structure.get_name().startswith("splitmuxsink-"):
+                        action = structure.get_name()
+                        # logger.info(f"New action detected: {action}")
+                        if action == "splitmuxsink-fragment-opened":
+                            location = structure.get_string("location")
+                            logger.info(f"New file being created: {location}")
+                        elif action == "splitmuxsink-fragment-closed":
+                            location = structure.get_string("location")
+                            logger.info(f"New file created: {location}")
+
+                            if not self.scanner_output_queue.full():
+                                
+                                video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{self.ext}"""
+
+                                object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{self.ext}"""
+
+                                logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{self.ext}")
+
+                                self.scanner_output_queue.put({
+                                    "type": "video_clipped",
+                                    "payload": {
+                                        "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                                        "cam_ip": self.cam_ip,
+                                        "cam_uuid": self.cam_uuid,
+                                        "cam_name": self.cam_name,
+                                        "video_key": video_key,
+                                        "object_key": object_key,
+                                        "ext": self.ext,
+                                        "local_file_path": location,
+                                        "start_datetime": self.start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                        "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                    }
+                                }, block=False)
+
+                            break
+                            
+        # Set pipeline to NULL state once processing is complete
+        save_pipeline.set_state(Gst.State.NULL)
+
+        logger.info(f"{self.cam_ip} save_task out")
+
 
     def run(self):
         try:
@@ -359,7 +407,7 @@ class StreamCapture(threading.Thread):
         
         with self.lock:
             self.is_recording = False
-        self.push_frames()
+        self.save_frames_as_video()
 
         logger.info(f"{self.cam_ip} stop_recording out")
 
