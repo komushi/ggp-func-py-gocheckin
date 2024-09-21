@@ -63,7 +63,7 @@ pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc
 
 
 ext = ".mp4"
-max_seconds = 5
+max_seconds = 2
 
 class StreamCapture(threading.Thread):
 
@@ -209,14 +209,14 @@ class StreamCapture(threading.Thread):
         # Get frames from buffer
         frames = self.get_all_frames()
 
+        # Clear the frame buffer
+        self.clear_all_frames()
+
         # Start the save task in a new thread
         save_thread = threading.Thread(target=self.save_task, args=(frames, date_folder, time_filename), name=f"save_task_{time_filename}")
         save_thread.start()
 
         logger.info(f'Available threads after save_task: {", ".join(thread.name for thread in threading.enumerate())}')
-
-        # Clear the frame buffer
-        self.clear_all_frames()
 
         logger.info(f"{self.cam_ip} save_frames_as_video out")
 
@@ -395,21 +395,79 @@ class StreamCapture(threading.Thread):
     def start_recording(self):
         logger.info(f"{self.cam_ip} start_recording in")
 
+        if self.is_recording:
+            logger.warning(f"{self.cam_ip} start_recording out, Recording already started")
+            return False
+
         with self.lock:
             self.is_recording = True
             self.start_datetime_utc = datetime.now(timezone.utc)
 
         logger.info(f"{self.cam_ip} start_recording out")
 
+        return True
+
 
     def stop_recording(self):
         logger.info(f"{self.cam_ip} stop_recording in")
+
+        if not self.is_recording:
+            logger.warning(f"{self.cam_ip} start_recording out, already stopped")
+            return False
         
         with self.lock:
             self.is_recording = False
+
         self.save_frames_as_video()
 
         logger.info(f"{self.cam_ip} stop_recording out")
+
+        return True
+
+
+    # def start_recording(self):
+    #     logger.info(f"{self.cam_ip} start_recording in")
+
+    #     if self.recording_stopping:
+    #         logger.info(f"{self.cam_ip} start_recording out, Already stopping")
+    #         return False
+
+    #     if self.is_playing:
+
+    #         if self.create_and_link_splitmuxsink():
+
+    #             self.record_valve.set_property('drop', False)
+                
+    #             logger.info(f"{self.cam_ip} start_recording out, Start recording")
+    #             return True;
+    #         else:
+    #             logger.warning(f"{self.cam_ip} start_recording out, Recording already started")
+    #             return False;
+    #     else:
+    #         logger.info(f"{self.cam_ip} start_recording out, Recording not started because not playing")
+    #         return False;
+
+    # def stop_recording(self):
+    #     logger.info(f"{self.cam_ip} stop_recording in")
+
+    #     self.recording_stopping = True
+    #     try:
+
+    #         if self.record_valve is not None:
+    #             self.record_valve.set_property('drop', True)
+            
+    #         # Send EOS to the recording branch
+    #         if self.splitmuxsink is not None:
+    #             self.splitmuxsink.send_event(Gst.Event.new_eos())
+    #             logger.info(f"{self.cam_ip} stop_recording, End-Of-Stream sent")
+
+    #         self.unlink_and_remove_splitmuxsink()
+
+    #     except Exception as e:
+    #         logger.error(f"{self.cam_ip} stop_recording, Exception during running, Error: {e}")
+    #     finally:
+    #         logger.info(f"{self.cam_ip} stop_recording out")
+    #         self.recording_stopping = False
 
 
     def on_message(self, bus, message):
