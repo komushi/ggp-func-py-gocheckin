@@ -1047,7 +1047,7 @@ def monitor_stop_event(thread_gstreamer):
             
 
 
-def set_recording_time(cam_ip, delay):
+def set_recording_time(cam_ip, delay, utc_time):
     logger.info(f'set_recording_time, cam_ip: {cam_ip}')
     global recording_timers
 
@@ -1055,7 +1055,7 @@ def set_recording_time(cam_ip, delay):
         if recording_timers[cam_ip]:
             recording_timers[cam_ip].cancel()
 
-    recording_timers[cam_ip] = threading.Timer(delay, thread_gstreamers[cam_ip].stop_recording)
+    recording_timers[cam_ip] = threading.Timer(delay, thread_gstreamers[cam_ip].stop_recording, [utc_time])
     recording_timers[cam_ip].name = f"Thread-RecordingStopper-{cam_ip}"
     recording_timers[cam_ip].start()
     # recording_timers[cam_ip].join()
@@ -1119,8 +1119,8 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
             # record 
             if camera_item['isRecording']:
                 if cam_ip in thread_gstreamers:
-                    if thread_gstreamers[cam_ip].start_recording():
-                        set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']))
+                    if thread_gstreamers[cam_ip].start_recording(utc_time):
+                        set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']), utc_time)
 
 
     logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
