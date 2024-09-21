@@ -228,7 +228,7 @@ class StreamCapture(threading.Thread):
         save_pipeline = Gst.parse_launch(f'''
             appsrc name=m_appsrc emit-signals=true is-live=true format=time
             ! videoconvert ! video/x-raw, format=I420
-            ! x265enc ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
+            ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
         ''')
 
         appsrc = save_pipeline.get_by_name('m_appsrc')
