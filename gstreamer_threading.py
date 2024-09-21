@@ -279,11 +279,11 @@ class StreamCapture(threading.Thread):
 
                             if not self.scanner_output_queue.full():
                                 
-                                video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{self.ext}"""
+                                video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                                object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{self.ext}"""
+                                object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                                logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{self.ext}")
+                                logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
 
                                 self.scanner_output_queue.put({
                                     "type": "video_clipped",
@@ -294,7 +294,7 @@ class StreamCapture(threading.Thread):
                                         "cam_name": self.cam_name,
                                         "video_key": video_key,
                                         "object_key": object_key,
-                                        "ext": self.ext,
+                                        "ext": ext,
                                         "local_file_path": location,
                                         "start_datetime": self.start_datetime_utc.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
                                         "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
