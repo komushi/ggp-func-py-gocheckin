@@ -218,6 +218,8 @@ class StreamCapture(threading.Thread):
         save_thread = threading.Thread(target=self.save_task, args=(frames, utc_time_object), name=f"save_task_{time_filename}")
         save_thread.start()
 
+        frames = None
+
         logger.info(f'Available threads after save_task: {", ".join(thread.name for thread in threading.enumerate())}')
 
         logger.info(f"{self.cam_ip} save_frames_as_video out")
@@ -257,7 +259,7 @@ class StreamCapture(threading.Thread):
                 if ret != Gst.FlowReturn.OK:
                     logger.error(f"Error pushing buffer to appsrc: {ret}")
 
-            # frames = None
+        frames = None
 
         # Emit EOS to signal end of the stream
         appsrc.emit('end-of-stream')
