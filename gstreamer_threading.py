@@ -221,6 +221,7 @@ class StreamCapture(threading.Thread):
         save_thread.start()
 
         save_thread_event.wait()
+        save_thread.join()
 
         frames = None
         gc.collect()
