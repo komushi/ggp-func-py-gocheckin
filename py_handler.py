@@ -125,7 +125,7 @@ def function_handler(event, context):
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event:
-            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z', True)
+            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', True)
 
 def fetch_camera_items():
     logger.info(f"fetch_camera_items in")
@@ -841,7 +841,7 @@ def fetch_motion_detection_queue():
             logger.error(f"fetch_motion_detection_queue, Exception during running, Error: {e}")
             traceback.print_exc()
             pass
-        # time.sleep(1)
+        time.sleep(5)
 
 
 
