@@ -34,15 +34,6 @@ fields @timestamp, @message
 | limit 200
 ```
 
-## 2. To find if there are "file too close issue"
-### 2-1. Query
-```
-fields @timestamp, @message
-| filter @message like /splitmuxsink-fragment-closed is too close to splitmuxsink-fragment-opened/
-| display @timestamp, @logStream, @message
-| sort @timestamp desc
-| limit 200
-```
 
 ## 3. To find if there are rtsp seek issues
 ### 3-1. Query

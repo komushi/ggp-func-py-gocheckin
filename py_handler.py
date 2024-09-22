@@ -351,7 +351,8 @@ def start_http_server():
                     cam_ip, utc_time, is_motion_value = onvif.extract_notification(post_data)
                     # logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
 
-                    handle_notification(cam_ip, utc_time, is_motion_value)
+                    if is_motion_value:
+                        handle_notification(cam_ip, utc_time, is_motion_value)
 
                     self.send_response(200)
                     self.end_headers()
@@ -835,7 +836,8 @@ def fetch_motion_detection_queue():
                 cam_ip, is_motion_value, utc_time = motion_detection_queue.get_nowait()    
                 # logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
 
-                handle_notification(cam_ip, utc_time, is_motion_value)
+                if is_motion_value:
+                    handle_notification(cam_ip, utc_time, is_motion_value)
 
         except Exception as e:
             logger.error(f"fetch_motion_detection_queue, Exception during running, Error: {e}")
@@ -1078,8 +1080,8 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
     thread_gstreamer = None
     if cam_ip is not None and utc_time is not None and is_motion_value is not None:
         logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
-        if is_motion_value:
-            thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
+        # if is_motion_value:
+        thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
     else:
         logger.info(f"handle_notification out")
         return
