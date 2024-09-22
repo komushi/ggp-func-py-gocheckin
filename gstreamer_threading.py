@@ -265,7 +265,8 @@ class StreamCapture(threading.Thread):
         # Wait for EOS message or error on the bus
         bus = save_pipeline.get_bus()
         while True:
-            msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
+            # msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
+            msg = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
             if msg:
                 if msg.type == Gst.MessageType.EOS:
                     logger.info(f"EOS received")
