@@ -316,6 +316,9 @@ class StreamCapture(threading.Thread):
         # Set pipeline to NULL state once processing is complete
         save_pipeline.set_state(Gst.State.NULL)
 
+        appsrc = None
+        save_pipeline = None
+
         logger.info(f"{self.cam_ip} save_task out")
 
 
