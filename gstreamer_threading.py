@@ -224,6 +224,8 @@ class StreamCapture(threading.Thread):
     def save_task(self, frames, utc_time_object):
         logger.info(f"{self.cam_ip} save_task in date_folder with {len(frames)} frames.")
 
+        end_datetime = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
+
         date_folder = utc_time_object.strftime("%Y-%m-%d")
         time_filename = utc_time_object.strftime("%H:%M:%S")
 
@@ -301,7 +303,7 @@ class StreamCapture(threading.Thread):
                                         "ext": ext,
                                         "local_file_path": location,
                                         "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-                                        "end_datetime": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                        "end_datetime": end_datetime
                                     }
                                 }, block=False)
 

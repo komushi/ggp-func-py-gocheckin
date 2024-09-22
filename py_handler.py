@@ -841,7 +841,8 @@ def fetch_motion_detection_queue():
             logger.error(f"fetch_motion_detection_queue, Exception during running, Error: {e}")
             traceback.print_exc()
             pass
-        time.sleep(5)
+        
+        time.sleep(1)
 
 
 
