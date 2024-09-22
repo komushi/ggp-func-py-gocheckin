@@ -10,7 +10,7 @@ import uuid
 
 import os
 import sys
-import gc
+# import gc
 import logging
 import threading
 from enum import Enum
@@ -257,7 +257,7 @@ class StreamCapture(threading.Thread):
                 if ret != Gst.FlowReturn.OK:
                     logger.error(f"Error pushing buffer to appsrc: {ret}")
 
-            frames = None
+            # frames = None
 
         # Emit EOS to signal end of the stream
         appsrc.emit('end-of-stream')
@@ -316,8 +316,8 @@ class StreamCapture(threading.Thread):
         # Set pipeline to NULL state once processing is complete
         save_pipeline.set_state(Gst.State.NULL)
 
-        appsrc = None
-        save_pipeline = None
+        # appsrc = None
+        # save_pipeline = None
 
         logger.info(f"{self.cam_ip} save_task out")
 
@@ -436,7 +436,7 @@ class StreamCapture(threading.Thread):
 
         logger.info(f"{self.cam_ip} stop_recording out")
 
-        gc.collect()
+        # gc.collect()
 
         return True
 
