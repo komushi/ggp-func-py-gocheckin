@@ -251,11 +251,11 @@ class StreamCapture(threading.Thread):
             save_pipeline = Gst.parse_launch(f'''
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! videoconvert ! video/x-raw, format=I420
-                ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! mp4mux ! filesink location={local_file_path}
+                ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
             ''')
 
             appsrc = save_pipeline.get_by_name('m_appsrc')
-            splitmuxsink = save_pipeline.get_by_name('m_sink')
+            muxsink = save_pipeline.get_by_name('m_sink')
             _, _, _, _, first_caps = frames[0]
             appsrc.set_property("caps", first_caps)
 
@@ -282,7 +282,7 @@ class StreamCapture(threading.Thread):
 
             bus = save_pipeline.get_bus()
             bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS)
-            
+
             # Wait for EOS message or error on the bus
             # bus = save_pipeline.get_bus()
             # while True:
@@ -336,7 +336,7 @@ class StreamCapture(threading.Thread):
                                 
             # Set pipeline to NULL state once processing is complete
             appsrc.set_state(Gst.State.NULL)
-            splitmuxsink.set_state(Gst.State.NULL)
+            muxsink.set_state(Gst.State.NULL)
             save_pipeline.set_state(Gst.State.NULL)
 
         except Exception as e:
@@ -344,7 +344,7 @@ class StreamCapture(threading.Thread):
             traceback.print_exc()
         finally:
             appsrc = None
-            splitmuxsink = None
+            muxsink = None
             save_pipeline = None
 
             gc.collect()
