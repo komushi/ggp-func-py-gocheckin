@@ -10,6 +10,7 @@ import uuid
 
 import os
 import sys
+import gc
 import logging
 import threading
 from enum import Enum
@@ -430,6 +431,8 @@ class StreamCapture(threading.Thread):
         del self.recordings[utc_time]
 
         logger.info(f"{self.cam_ip} stop_recording out")
+
+        gc.collect()
 
         return True
 
