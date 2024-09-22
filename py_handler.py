@@ -1179,9 +1179,6 @@ start_scheduler_threads()
 # Init uploader_app
 init_uploader_app()
 
-# Init gst_apps
-# init_gst_apps()
-
 # Start the HTTP server thread
 # start_server_thread()
 

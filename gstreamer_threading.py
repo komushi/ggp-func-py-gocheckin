@@ -10,7 +10,7 @@ import uuid
 
 import os
 import sys
-# import gc
+import gc
 import logging
 import threading
 from enum import Enum
@@ -214,112 +214,126 @@ class StreamCapture(threading.Thread):
         # Clear the frame buffer
         self.clear_all_frames()
 
+        save_thread_event = threading.Event()
+
         # Start the save task in a new thread
-        save_thread = threading.Thread(target=self.save_task, args=(frames, utc_time_object), name=f"save_task_{time_filename}")
+        save_thread = threading.Thread(target=self.save_task, args=(frames, utc_time_object, save_thread_event), name=f"save_task_{time_filename}")
         save_thread.start()
 
+        save_thread_event.wait()
+
         frames = None
+        gc.collect()
 
         logger.info(f'Available threads after save_task: {", ".join(thread.name for thread in threading.enumerate())}')
 
         logger.info(f"{self.cam_ip} save_frames_as_video out")
 
-    def save_task(self, frames, utc_time_object):
+    def save_task(self, frames, utc_time_object, save_thread_event):
         logger.info(f"{self.cam_ip} save_task in date_folder with {len(frames)} frames.")
 
-        end_datetime = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
+        try:
 
-        date_folder = utc_time_object.strftime("%Y-%m-%d")
-        time_filename = utc_time_object.strftime("%H:%M:%S")
+            end_datetime = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
 
-        local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
+            date_folder = utc_time_object.strftime("%Y-%m-%d")
+            time_filename = utc_time_object.strftime("%H:%M:%S")
 
-        save_pipeline = Gst.parse_launch(f'''
-            appsrc name=m_appsrc emit-signals=true is-live=true format=time
-            ! videoconvert ! video/x-raw, format=I420
-            ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
-        ''')
+            local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
 
-        appsrc = save_pipeline.get_by_name('m_appsrc')
-        _, _, _, _, first_caps = frames[0]
-        appsrc.set_property("caps", first_caps)
+            save_pipeline = Gst.parse_launch(f'''
+                appsrc name=m_appsrc emit-signals=true is-live=true format=time
+                ! videoconvert ! video/x-raw, format=I420
+                ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
+            ''')
 
-        save_pipeline.set_state(Gst.State.PLAYING)
+            appsrc = save_pipeline.get_by_name('m_appsrc')
+            _, _, _, _, first_caps = frames[0]
+            appsrc.set_property("caps", first_caps)
 
-        # Push frames to appsrc
-        with self.lock:
-            for _, frame_data, pts, duration, caps in frames:
-                # logger.info(f"push_buffer_to_appsrc caps {caps.to_string()}")
+            save_pipeline.set_state(Gst.State.PLAYING)
 
-                buf = Gst.Buffer.new_wrapped(frame_data)
-                buf.pts = pts
-                buf.duration = duration
+            # Push frames to appsrc
+            with self.lock:
+                for _, frame_data, pts, duration, caps in frames:
+                    # logger.info(f"push_buffer_to_appsrc caps {caps.to_string()}")
 
-                ret = appsrc.emit('push-buffer', buf)
-                if ret != Gst.FlowReturn.OK:
-                    logger.error(f"Error pushing buffer to appsrc: {ret}")
+                    buf = Gst.Buffer.new_wrapped(frame_data)
+                    buf.pts = pts
+                    buf.duration = duration
 
-        frames = None
+                    ret = appsrc.emit('push-buffer', buf)
+                    if ret != Gst.FlowReturn.OK:
+                        logger.error(f"Error pushing buffer to appsrc: {ret}")
 
-        # Emit EOS to signal end of the stream
-        appsrc.emit('end-of-stream')
+            frames = None
 
-        # Wait for EOS message or error on the bus
-        bus = save_pipeline.get_bus()
-        while True:
-            # msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
-            msg = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
-            if msg:
-                if msg.type == Gst.MessageType.EOS:
-                    logger.info(f"EOS received")
-                    break
-                elif msg.type == Gst.MessageType.ERROR:
-                    err, debug = msg.parse_error()
-                    logger.error(f"Error received: {err}, {debug}")
-                    break
-                elif msg.type == Gst.MessageType.ELEMENT:
-                    structure = msg.get_structure()
-                    if structure and structure.get_name().startswith("splitmuxsink-"):
-                        action = structure.get_name()
-                        # logger.info(f"New action detected: {action}")
-                        if action == "splitmuxsink-fragment-opened":
-                            location = structure.get_string("location")
-                            logger.info(f"New file being created: {location}")
-                        elif action == "splitmuxsink-fragment-closed":
-                            location = structure.get_string("location")
-                            logger.info(f"New file created: {location}")
+            # Emit EOS to signal end of the stream
+            appsrc.emit('end-of-stream')
 
-                            if not self.scanner_output_queue.full():
+            # Wait for EOS message or error on the bus
+            bus = save_pipeline.get_bus()
+            while True:
+                # msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
+                msg = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+                if msg:
+                    if msg.type == Gst.MessageType.EOS:
+                        logger.info(f"EOS received")
+                        break
+                    elif msg.type == Gst.MessageType.ERROR:
+                        err, debug = msg.parse_error()
+                        logger.error(f"Error received: {err}, {debug}")
+                        break
+                    elif msg.type == Gst.MessageType.ELEMENT:
+                        structure = msg.get_structure()
+                        if structure and structure.get_name().startswith("splitmuxsink-"):
+                            action = structure.get_name()
+                            # logger.info(f"New action detected: {action}")
+                            if action == "splitmuxsink-fragment-opened":
+                                location = structure.get_string("location")
+                                logger.info(f"New file being created: {location}")
+                            elif action == "splitmuxsink-fragment-closed":
+                                location = structure.get_string("location")
+                                logger.info(f"New file created: {location}")
+
+                                if not self.scanner_output_queue.full():
+                                    
+                                    video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+
+                                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+
+                                    logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
+
+                                    self.scanner_output_queue.put({
+                                        "type": "video_clipped",
+                                        "payload": {
+                                            "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                                            "cam_ip": self.cam_ip,
+                                            "cam_uuid": self.cam_uuid,
+                                            "cam_name": self.cam_name,
+                                            "video_key": video_key,
+                                            "object_key": object_key,
+                                            "ext": ext,
+                                            "local_file_path": location,
+                                            "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                            "end_datetime": end_datetime
+                                        }
+                                    }, block=False)
+
+                                break
                                 
-                                video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+            # Set pipeline to NULL state once processing is complete
+            save_pipeline.set_state(Gst.State.NULL)
 
-                                object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+        except Exception as e:
+            logger.error(f"{self.cam_ip} save_task, Exception during running, Error: {e}")
+            traceback.print_exc()
+        finally:
+            appsrc = None
+            save_pipeline = None
 
-                                logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
-
-                                self.scanner_output_queue.put({
-                                    "type": "video_clipped",
-                                    "payload": {
-                                        "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                                        "cam_ip": self.cam_ip,
-                                        "cam_uuid": self.cam_uuid,
-                                        "cam_name": self.cam_name,
-                                        "video_key": video_key,
-                                        "object_key": object_key,
-                                        "ext": ext,
-                                        "local_file_path": location,
-                                        "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-                                        "end_datetime": end_datetime
-                                    }
-                                }, block=False)
-
-                            break
-                            
-        # Set pipeline to NULL state once processing is complete
-        save_pipeline.set_state(Gst.State.NULL)
-
-        # appsrc = None
-        # save_pipeline = None
+            gc.collect()
+            save_thread_event.set()
 
         logger.info(f"{self.cam_ip} save_task out")
 
@@ -437,8 +451,6 @@ class StreamCapture(threading.Thread):
         del self.recordings[utc_time]
 
         logger.info(f"{self.cam_ip} stop_recording out")
-
-        # gc.collect()
 
         return True
 
