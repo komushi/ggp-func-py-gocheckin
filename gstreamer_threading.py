@@ -256,6 +256,8 @@ class StreamCapture(threading.Thread):
                 if ret != Gst.FlowReturn.OK:
                     logger.error(f"Error pushing buffer to appsrc: {ret}")
 
+            frames = None
+
         # Emit EOS to signal end of the stream
         appsrc.emit('end-of-stream')
 
