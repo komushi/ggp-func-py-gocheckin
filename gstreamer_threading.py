@@ -242,17 +242,17 @@ class StreamCapture(threading.Thread):
 
             local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
 
-            # save_pipeline = Gst.parse_launch(f'''
-            #     appsrc name=m_appsrc emit-signals=true is-live=true format=time
-            #     ! videoconvert ! video/x-raw, format=I420
-            #     ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
-            # ''')
-
             save_pipeline = Gst.parse_launch(f'''
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! videoconvert ! video/x-raw, format=I420
-                ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
+                ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
             ''')
+
+            # save_pipeline = Gst.parse_launch(f'''
+            #     appsrc name=m_appsrc emit-signals=true is-live=true format=time
+            #     ! videoconvert ! video/x-raw, format=I420
+            #     ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
+            # ''')
 
             appsrc = save_pipeline.get_by_name('m_appsrc')
             muxsink = save_pipeline.get_by_name('m_sink')
@@ -280,59 +280,59 @@ class StreamCapture(threading.Thread):
             appsrc.emit('end-of-stream')
 
 
-            bus = save_pipeline.get_bus()
-            bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS)
+            # bus = save_pipeline.get_bus()
+            # bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS)
 
             # Wait for EOS message or error on the bus
-            # bus = save_pipeline.get_bus()
-            # while True:
-            #     # msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
-            #     msg = bus.timed_pop_filtered(500 * Gst.MSECOND, Gst.MessageType.ANY)
-            #     if msg:
-            #         if msg.type == Gst.MessageType.EOS:
-            #             logger.info(f"EOS received")
-            #             break
-            #         elif msg.type == Gst.MessageType.ERROR:
-            #             err, debug = msg.parse_error()
-            #             logger.error(f"Error received: {err}, {debug}")
-            #             break
-            #         elif msg.type == Gst.MessageType.ELEMENT:
-            #             structure = msg.get_structure()
-            #             if structure and structure.get_name().startswith("splitmuxsink-"):
-            #                 action = structure.get_name()
-            #                 # logger.info(f"New action detected: {action}")
-            #                 if action == "splitmuxsink-fragment-opened":
-            #                     location = structure.get_string("location")
-            #                     logger.info(f"New file being created: {location}")
-            #                 elif action == "splitmuxsink-fragment-closed":
-            #                     location = structure.get_string("location")
-            #                     logger.info(f"New file created: {location}")
+            bus = save_pipeline.get_bus()
+            while True:
+                # msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
+                msg = bus.timed_pop_filtered(500 * Gst.MSECOND, Gst.MessageType.ANY)
+                if msg:
+                    if msg.type == Gst.MessageType.EOS:
+                        logger.info(f"EOS received")
+                        break
+                    elif msg.type == Gst.MessageType.ERROR:
+                        err, debug = msg.parse_error()
+                        logger.error(f"Error received: {err}, {debug}")
+                        break
+                    elif msg.type == Gst.MessageType.ELEMENT:
+                        structure = msg.get_structure()
+                        if structure and structure.get_name().startswith("splitmuxsink-"):
+                            action = structure.get_name()
+                            # logger.info(f"New action detected: {action}")
+                            if action == "splitmuxsink-fragment-opened":
+                                location = structure.get_string("location")
+                                logger.info(f"New file being created: {location}")
+                            elif action == "splitmuxsink-fragment-closed":
+                                location = structure.get_string("location")
+                                logger.info(f"New file created: {location}")
 
-            #                     if not self.scanner_output_queue.full():
+                                if not self.scanner_output_queue.full():
                                     
-            #                         video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+                                    video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-            #                         object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+                                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-            #                         logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
+                                    logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
 
-            #                         self.scanner_output_queue.put({
-            #                             "type": "video_clipped",
-            #                             "payload": {
-            #                                 "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-            #                                 "cam_ip": self.cam_ip,
-            #                                 "cam_uuid": self.cam_uuid,
-            #                                 "cam_name": self.cam_name,
-            #                                 "video_key": video_key,
-            #                                 "object_key": object_key,
-            #                                 "ext": ext,
-            #                                 "local_file_path": location,
-            #                                 "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-            #                                 "end_datetime": end_datetime
-            #                             }
-            #                         }, block=False)
+                                    self.scanner_output_queue.put({
+                                        "type": "video_clipped",
+                                        "payload": {
+                                            "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                                            "cam_ip": self.cam_ip,
+                                            "cam_uuid": self.cam_uuid,
+                                            "cam_name": self.cam_name,
+                                            "video_key": video_key,
+                                            "object_key": object_key,
+                                            "ext": ext,
+                                            "local_file_path": location,
+                                            "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                            "end_datetime": end_datetime
+                                        }
+                                    }, block=False)
 
-            #                     break
+                                break
                                 
             # Set pipeline to NULL state once processing is complete
             appsrc.set_state(Gst.State.NULL)

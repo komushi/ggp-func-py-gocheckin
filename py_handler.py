@@ -1180,10 +1180,10 @@ start_scheduler_threads()
 init_uploader_app()
 
 # Start the HTTP server thread
-# start_server_thread()
+start_server_thread()
 
 # Start scanner_output_queue thread
 start_scanner_output_queue_thread()
 
 # Start motion_detection_queue thread
-start_motion_detection_queue_thread()
+# start_motion_detection_queue_thread()
