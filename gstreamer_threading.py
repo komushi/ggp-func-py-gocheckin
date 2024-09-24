@@ -252,10 +252,6 @@ class StreamCapture(threading.Thread):
             #     ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
             # ''')
 
-            appsrc = save_pipeline.get_by_name('m_appsrc')
-            _, _, _, _, first_caps = frames[0]
-            appsrc.set_property("caps", first_caps)
-
             save_pipeline.set_state(Gst.State.PLAYING)
 
             # Push frames to appsrc
@@ -269,7 +265,6 @@ class StreamCapture(threading.Thread):
 
             # Emit EOS to signal end of the stream
             appsrc.emit('end-of-stream')
-
 
             # bus = save_pipeline.get_bus()
             # bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS)
