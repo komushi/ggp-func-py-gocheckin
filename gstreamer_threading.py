@@ -145,7 +145,10 @@ class StreamCapture(threading.Thread):
 
         self.recordings = {}
 
-    def gst_to_opencv(self, buf, caps):
+    def gst_to_opencv(self, sample):
+        buf = sample.get_buffer()
+        caps = sample.get_caps()
+
         arr = np.ndarray(
             (caps.get_structure(0).get_value('height'),
              caps.get_structure(0).get_value('width'),
@@ -154,10 +157,19 @@ class StreamCapture(threading.Thread):
             dtype=np.uint8)
         return arr
 
-    def add_frame(self, frame, pts, duration, caps):
+    # def gst_to_opencv(self, buf, caps):
+    #     arr = np.ndarray(
+    #         (caps.get_structure(0).get_value('height'),
+    #          caps.get_structure(0).get_value('width'),
+    #          3),
+    #         buffer=buf.extract_dup(0, buf.get_size()),
+    #         dtype=np.uint8)
+    #     return arr
+
+    def add_frame(self, sample):
         with self.lock:
             current_time = time.time()
-            self.buffer.append((current_time, frame, pts, duration, caps))
+            self.buffer.append((current_time, sample))
 
             # Only discard frames if not recording
             if not self.is_recording:
@@ -178,24 +190,17 @@ class StreamCapture(threading.Thread):
         sample = sink.emit('pull-sample')
 
         if sample:
-            buffer = sample.get_buffer()
-            caps = sample.get_caps()
-            success, map_info = buffer.map(Gst.MapFlags.READ)
-
-            if success:
-                self.add_frame(
-                    map_info.data, buffer.pts, buffer.duration, caps
-                )
-                buffer.unmap(map_info)
+            self.add_frame(sample)
 
             if self.is_feeding:
                 if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.75:
                     self.last_sampling_time = crt_time
-                    arr = self.gst_to_opencv(buffer, caps)
+                    arr = self.gst_to_opencv(sample)
 
                     if not self.cam_queue.full():
                         self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
+        sample = None
         return Gst.FlowReturn.OK
 
     def save_frames_as_video(self, utc_time_object):
@@ -211,26 +216,19 @@ class StreamCapture(threading.Thread):
         # Get frames from buffer
         frames = self.get_all_frames()
 
-        # Clear the frame buffer
-        self.clear_all_frames()
-
-        save_thread_event = threading.Event()
-
         # Start the save task in a new thread
-        save_thread = threading.Thread(target=self.save_task, args=(frames, utc_time_object, save_thread_event), name=f"save_task_{time_filename}")
+        save_thread = threading.Thread(target=self.save_task, args=(frames, utc_time_object), name=f"save_task_{time_filename}")
         save_thread.start()
 
-        save_thread_event.wait()
-        save_thread.join()
-
+        # Clear the frame buffer
+        self.clear_all_frames()
         frames = None
-        gc.collect()
 
         logger.info(f'Available threads after save_task: {", ".join(thread.name for thread in threading.enumerate())}')
 
         logger.info(f"{self.cam_ip} save_frames_as_video out")
 
-    def save_task(self, frames, utc_time_object, save_thread_event):
+    def save_task(self, frames, utc_time_object):
         logger.info(f"{self.cam_ip} save_task in date_folder with {len(frames)} frames.")
 
         try:
@@ -255,7 +253,6 @@ class StreamCapture(threading.Thread):
             # ''')
 
             appsrc = save_pipeline.get_by_name('m_appsrc')
-            muxsink = save_pipeline.get_by_name('m_sink')
             _, _, _, _, first_caps = frames[0]
             appsrc.set_property("caps", first_caps)
 
@@ -263,14 +260,8 @@ class StreamCapture(threading.Thread):
 
             # Push frames to appsrc
             with self.lock:
-                for _, frame_data, pts, duration, caps in frames:
-                    # logger.info(f"push_buffer_to_appsrc caps {caps.to_string()}")
-
-                    buf = Gst.Buffer.new_wrapped(frame_data)
-                    buf.pts = pts
-                    buf.duration = duration
-
-                    ret = appsrc.emit('push-buffer', buf)
+                for _, sample in frames:
+                    ret = appsrc.emit('push-sample', sample)
                     if ret != Gst.FlowReturn.OK:
                         logger.error(f"Error pushing buffer to appsrc: {ret}")
 
@@ -335,20 +326,17 @@ class StreamCapture(threading.Thread):
                                 break
                                 
             # Set pipeline to NULL state once processing is complete
-            appsrc.set_state(Gst.State.NULL)
-            muxsink.set_state(Gst.State.NULL)
             save_pipeline.set_state(Gst.State.NULL)
+            appsrc.set_state(Gst.State.NULL)
 
         except Exception as e:
             logger.error(f"{self.cam_ip} save_task, Exception during running, Error: {e}")
             traceback.print_exc()
         finally:
             appsrc = None
-            muxsink = None
             save_pipeline = None
 
             gc.collect()
-            save_thread_event.set()
 
         logger.info(f"{self.cam_ip} save_task out")
 
