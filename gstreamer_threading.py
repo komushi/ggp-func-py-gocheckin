@@ -302,29 +302,29 @@ class StreamCapture(threading.Thread):
                                 location = structure.get_string("location")
                                 logger.info(f"New file created: {location}")
 
-                                if not self.scanner_output_queue.full():
+                                # if not self.scanner_output_queue.full():
                                     
-                                    video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+                                #     video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+                                #     object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                                    logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
+                                #     logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
 
-                                    self.scanner_output_queue.put({
-                                        "type": "video_clipped",
-                                        "payload": {
-                                            "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                                            "cam_ip": self.cam_ip,
-                                            "cam_uuid": self.cam_uuid,
-                                            "cam_name": self.cam_name,
-                                            "video_key": video_key,
-                                            "object_key": object_key,
-                                            "ext": ext,
-                                            "local_file_path": location,
-                                            "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-                                            "end_datetime": end_datetime
-                                        }
-                                    }, block=False)
+                                #     self.scanner_output_queue.put({
+                                #         "type": "video_clipped",
+                                #         "payload": {
+                                #             "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+                                #             "cam_ip": self.cam_ip,
+                                #             "cam_uuid": self.cam_uuid,
+                                #             "cam_name": self.cam_name,
+                                #             "video_key": video_key,
+                                #             "object_key": object_key,
+                                #             "ext": ext,
+                                #             "local_file_path": location,
+                                #             "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+                                #             "end_datetime": end_datetime
+                                #         }
+                                #     }, block=False)
 
                                 break
 
