@@ -188,8 +188,7 @@ class StreamCapture(threading.Thread):
 
         sample = sink.emit('pull-sample')
 
-        caps = sample.get_caps()
-        logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
+        # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
 
         if sample:
             self.add_frame(sample)
