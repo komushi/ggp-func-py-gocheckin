@@ -95,7 +95,7 @@ class StreamCapture(threading.Thread):
         # sink params
         appsink = self.pipeline.get_by_name('m_appsink')
         if  appsink is not None:
-            appsink.set_property('max-buffers', 5)
+            appsink.set_property('max-buffers', 100)
             appsink.set_property('drop', True)
             appsink.set_property('emit-signals', True)
             appsink.set_property('sync', False)
@@ -185,6 +185,9 @@ class StreamCapture(threading.Thread):
 
         sample = sink.emit('pull-sample')
 
+        caps = sample.get_caps()
+        logger.error(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
+
         if sample:
             self.add_frame(sample)
 
@@ -203,8 +206,6 @@ class StreamCapture(threading.Thread):
         sample = sink.emit('pull-sample')
 
         if sample:
-            self.add_frame(sample)
-
             arr = self.gst_to_opencv(sample)
 
             if not self.cam_queue.full():
