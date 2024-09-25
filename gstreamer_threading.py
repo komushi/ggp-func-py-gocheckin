@@ -258,16 +258,20 @@ class StreamCapture(threading.Thread):
                 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
             ''')
 
+            # save_pipeline = Gst.parse_launch(f'''
+            #     appsrc name=m_appsrc emit-signals=true is-live=true format=time
+            #     ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
+            # ''')
+
             appsrc = save_pipeline.get_by_name('m_appsrc')
 
             save_pipeline.set_state(Gst.State.PLAYING)
 
             # Push frames to appsrc
-            with self.lock:
-                for _, sample in frames:
-                    ret = appsrc.emit('push-sample', sample)
-                    if ret != Gst.FlowReturn.OK:
-                        logger.error(f"Error pushing buffer to appsrc: {ret}")
+            for _, sample in frames:
+                ret = appsrc.emit('push-sample', sample)
+                if ret != Gst.FlowReturn.OK:
+                    logger.error(f"Error pushing buffer to appsrc: {ret}")
 
             frames = None
 
