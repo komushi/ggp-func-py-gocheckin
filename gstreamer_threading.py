@@ -267,7 +267,7 @@ class StreamCapture(threading.Thread):
                 for _, sample in frames:
 
                     caps = sample.get_caps()
-                    logger.info(f"save_task sample caps: {caps}")
+                    logger.info(f"save_task sample caps: {caps.to_string()}")
 
                     ret = appsrc.emit('push-sample', sample)
                     if ret != Gst.FlowReturn.OK:
