@@ -274,59 +274,59 @@ class StreamCapture(threading.Thread):
             # Emit EOS to signal end of the stream
             appsrc.emit('end-of-stream')
 
-            # bus = save_pipeline.get_bus()
-            # bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS)
+            bus = save_pipeline.get_bus()
+            bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS)
 
             # Wait for EOS message or error on the bus
-            bus = save_pipeline.get_bus()
-            while True:
-                msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
-                # msg = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
-                if msg:
-                    if msg.type == Gst.MessageType.EOS:
-                        logger.info(f"EOS received")
-                        break
-                    elif msg.type == Gst.MessageType.ERROR:
-                        err, debug = msg.parse_error()
-                        logger.error(f"Error received: {err}, {debug}")
-                        break
-                    elif msg.type == Gst.MessageType.ELEMENT:
-                        structure = msg.get_structure()
-                        if structure and structure.get_name().startswith("splitmuxsink-"):
-                            action = structure.get_name()
-                            # logger.info(f"New action detected: {action}")
-                            if action == "splitmuxsink-fragment-opened":
-                                location = structure.get_string("location")
-                                logger.info(f"New file being created: {location}")
-                            elif action == "splitmuxsink-fragment-closed":
-                                location = structure.get_string("location")
-                                logger.info(f"New file created: {location}")
+            # bus = save_pipeline.get_bus()
+            # while True:
+            #     msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
+            #     # msg = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+            #     if msg:
+            #         if msg.type == Gst.MessageType.EOS:
+            #             logger.info(f"EOS received")
+            #             break
+            #         elif msg.type == Gst.MessageType.ERROR:
+            #             err, debug = msg.parse_error()
+            #             logger.error(f"Error received: {err}, {debug}")
+            #             break
+            #         elif msg.type == Gst.MessageType.ELEMENT:
+            #             structure = msg.get_structure()
+            #             if structure and structure.get_name().startswith("splitmuxsink-"):
+            #                 action = structure.get_name()
+            #                 # logger.info(f"New action detected: {action}")
+            #                 if action == "splitmuxsink-fragment-opened":
+            #                     location = structure.get_string("location")
+            #                     logger.info(f"New file being created: {location}")
+            #                 elif action == "splitmuxsink-fragment-closed":
+            #                     location = structure.get_string("location")
+            #                     logger.info(f"New file created: {location}")
 
-                                if not self.scanner_output_queue.full():
+            #                     if not self.scanner_output_queue.full():
                                     
-                                    video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+            #                         video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                                    object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
+            #                         object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                                    logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
+            #                         logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {location} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
 
-                                    self.scanner_output_queue.put({
-                                        "type": "video_clipped",
-                                        "payload": {
-                                            "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
-                                            "cam_ip": self.cam_ip,
-                                            "cam_uuid": self.cam_uuid,
-                                            "cam_name": self.cam_name,
-                                            "video_key": video_key,
-                                            "object_key": object_key,
-                                            "ext": ext,
-                                            "local_file_path": location,
-                                            "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
-                                            "end_datetime": end_datetime
-                                        }
-                                    }, block=False)
+            #                         self.scanner_output_queue.put({
+            #                             "type": "video_clipped",
+            #                             "payload": {
+            #                                 "video_clipping_location": os.environ['VIDEO_CLIPPING_LOCATION'],
+            #                                 "cam_ip": self.cam_ip,
+            #                                 "cam_uuid": self.cam_uuid,
+            #                                 "cam_name": self.cam_name,
+            #                                 "video_key": video_key,
+            #                                 "object_key": object_key,
+            #                                 "ext": ext,
+            #                                 "local_file_path": location,
+            #                                 "start_datetime": utc_time_object.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z',
+            #                                 "end_datetime": end_datetime
+            #                             }
+            #                         }, block=False)
 
-                                break
+            #                     break
 
         except Exception as e:
             logger.error(f"{self.cam_ip} save_task, Exception during running, Error: {e}")
