@@ -81,11 +81,11 @@ class StreamCapture(threading.Thread):
 
         pipeline_str = ''
         if params['codec'] == 'h264':
-            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']} buffer-mode=3 is-live=true
+            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']}
                                     ! queue ! rtph264depay name=m_rtph264depay 
                                     ! queue ! h264parse ! appsink name=m_appsink"""
         elif params['codec'] == 'h265':
-            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']} buffer-mode=3 is-live=true
+            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']}
                                     ! queue ! rtph265depay name=m_rtph265depay 
                                     ! queue ! h265parse ! appsink name=m_appsink"""
 
@@ -95,6 +95,9 @@ class StreamCapture(threading.Thread):
         # sink params
         appsink = self.pipeline.get_by_name('m_appsink')
         if  appsink is not None:
+            
+            logger.info(f"{self.cam_ip} appsink not None")
+
             appsink.set_property('max-buffers', 100)
             appsink.set_property('drop', True)
             appsink.set_property('emit-signals', True)
@@ -122,9 +125,9 @@ class StreamCapture(threading.Thread):
         self.decode_appsrc = self.pipeline_decode.get_by_name('m_appsrc')
 
         # sink params
-        appsink_decode = self.pipeline.get_by_name('m_appsink')
+        appsink_decode = self.pipeline_decode.get_by_name('m_appsink')
         if  appsink_decode is not None:
-            appsink_decode.set_property('max-buffers', 5)
+            appsink_decode.set_property('max-buffers', 100)
             appsink_decode.set_property('drop', True)
             appsink_decode.set_property('emit-signals', True)
             appsink_decode.set_property('sync', False)
@@ -186,7 +189,7 @@ class StreamCapture(threading.Thread):
         sample = sink.emit('pull-sample')
 
         caps = sample.get_caps()
-        logger.error(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
+        logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
 
         if sample:
             self.add_frame(sample)
