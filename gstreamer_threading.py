@@ -46,22 +46,21 @@ class StreamCommands(Enum):
 
 
 # h264 or h265
-pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtphdepay
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h264parse
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h264 name=m_avdec 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
+# pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtphdepay
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h264parse
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h264 name=m_avdec 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
 
-pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtphdepay 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
-    ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
-
+# pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtphdepay 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
+#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
 
 ext = ".mp4"
 max_seconds = 2
@@ -74,66 +73,63 @@ class StreamCapture(threading.Thread):
         # params
         self.cam_queue = cam_queue
         self.scanner_output_queue = scanner_output_queue
-        self.rtsp_src = params['rtsp_src']
         self.framerate = params['framerate']
         self.cam_ip = params['cam_ip']
         self.cam_uuid = params['cam_uuid']
         self.cam_name = params['cam_name']
         self.codec = params['codec']
+
+        pipeline_str = ''
         if params['codec'] == 'h264':
-            self.pipeline_str = pipeline_str_h264
+            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']} buffer-mode=3 is-live=true
+                                    ! queue ! rtph264depay name=m_rtph264depay 
+                                    ! queue ! h264parse ! appsink name=m_appsink"""
         elif params['codec'] == 'h265':
-            self.pipeline_str = pipeline_str_h265
+            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']} buffer-mode=3 is-live=true
+                                    ! queue ! rtph265depay name=m_rtph265depay 
+                                    ! queue ! h265parse ! appsink name=m_appsink"""
 
         # Create the empty pipeline
-        self.pipeline = Gst.parse_launch(self.pipeline_str)
-
-        # source params
-        self.source = self.pipeline.get_by_name('m_rtspsrc')
-        if  self.source is not None:
-            # self.source.set_property('latency', 2000)
-            self.source.set_property('location', self.rtsp_src)
-            # self.source.set_property('protocols', 'tcp')
-            # self.source.set_property('retry', 1)
-            # self.source.set_property('timeout', 5000000)
-            # self.source.set_property('tcp-timeout', 20000000)
-            self.source.set_property('buffer-mode', 3)
-            # self.source.set_property("onvif-mode", True)
-            # self.source.set_property("onvif-rate-control", False)
-            self.source.set_property('is-live', True)    
-
-
-        # rtphdepay
-        self.rtphdepay = self.pipeline.get_by_name('m_rtphdepay')
-
-        # decode params
-        self.decode = self.pipeline.get_by_name('m_avdec')
-        if  self.decode is not None:
-            self.decode.set_property('max-threads', 2)
-            self.decode.set_property('output-corrupt', 'false')
-        
-        # convert params
-        self.convert = self.pipeline.get_by_name('m_videoconvert')
-
-        #framerate parameters
-        self.framerate_ctr = self.pipeline.get_by_name('m_videorate')
-        if  self.framerate_ctr is not None:
-            self.framerate_ctr.set_property('max-rate', self.framerate/1)
-            self.framerate_ctr.set_property('drop-only', 'true')
+        self.pipeline = Gst.parse_launch(pipeline_str)
 
         # sink params
-        self.appsink = self.pipeline.get_by_name('m_appsink')
-        if  self.appsink is not None:
-            self.appsink.set_property('max-buffers', 5)
-            self.appsink.set_property('drop', True)
-            self.appsink.set_property('emit-signals', True)
-            self.appsink.set_property('sync', False)
-            # caps = Gst.caps_from_string(
-            #     'video/x-raw, format=(string){BGR, GRAY8}; video/x-bayer,format=(string){rggb,bggr,grbg,gbrg}')
-            caps = Gst.caps_from_string('video/x-raw, format=(string){BGR, GRAY8}')
-            self.appsink.set_property('caps', caps)
-            self.appsink.connect("new-sample", self.on_new_sample, {})
+        appsink = self.pipeline.get_by_name('m_appsink')
+        if  appsink is not None:
+            appsink.set_property('max-buffers', 5)
+            appsink.set_property('drop', True)
+            appsink.set_property('emit-signals', True)
+            appsink.set_property('sync', False)
+            appsink.connect("new-sample", self.on_new_sample, {})
 
+        pipeline_str_decode = ''
+        if params['codec'] == 'h264':
+            pipeline_str_decode = f"""
+                appsrc name=m_appsrc emit-signals=true is-live=true format=time
+                ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec
+                ! queue ! videoconvert ! video/x-raw, format=BGR
+                ! queue ! appsink name=m_appsink"""
+        elif params['codec'] == 'h265':
+            pipeline_str_decode = f"""
+                appsrc name=m_appsrc emit-signals=true is-live=true format=time
+                ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
+                ! queue ! videoconvert ! video/x-raw, format=BGR
+                ! queue ! appsink name=m_appsink"""
+
+        # Create the empty pipeline
+        self.pipeline_decode = Gst.parse_launch(pipeline_str_decode)
+
+        # source params
+        self.decode_appsrc = self.pipeline_decode.get_by_name('m_appsrc')
+
+        # sink params
+        appsink_decode = self.pipeline.get_by_name('m_appsink')
+        if  appsink_decode is not None:
+            appsink_decode.set_property('max-buffers', 5)
+            appsink_decode.set_property('drop', True)
+            appsink_decode.set_property('emit-signals', True)
+            appsink_decode.set_property('sync', False)
+            appsink_decode.connect("new-sample", self.on_new_sample_decode, {})
+        
         self.stop_event = threading.Event()
         self.buffer = deque()
         self.lock = threading.Lock()
@@ -183,7 +179,7 @@ class StreamCapture(threading.Thread):
     def clear_all_frames(self):
         with self.lock:
             self.buffer.clear()
-            
+
     def on_new_sample(self, sink, _):
         crt_time = time.time()
 
@@ -193,12 +189,26 @@ class StreamCapture(threading.Thread):
             self.add_frame(sample)
 
             if self.is_feeding:
-                if self.last_sampling_time is None or crt_time - self.last_sampling_time > 0.75:
+                if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 3:
                     self.last_sampling_time = crt_time
-                    arr = self.gst_to_opencv(sample)
 
-                    if not self.cam_queue.full():
-                        self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+                    ret = self.decode_appsrc.emit('push-sample', sample)
+                    if ret != Gst.FlowReturn.OK:
+                        logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+
+        sample = None
+        return Gst.FlowReturn.OK
+
+    def on_new_sample_decode(self, sink, _):
+        sample = sink.emit('pull-sample')
+
+        if sample:
+            self.add_frame(sample)
+
+            arr = self.gst_to_opencv(sample)
+
+            if not self.cam_queue.full():
+                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
         sample = None
         return Gst.FlowReturn.OK
@@ -242,15 +252,8 @@ class StreamCapture(threading.Thread):
 
             save_pipeline = Gst.parse_launch(f'''
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
-                ! videoconvert ! video/x-raw, format=I420
-                ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
+                ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
             ''')
-
-            # save_pipeline = Gst.parse_launch(f'''
-            #     appsrc name=m_appsrc emit-signals=true is-live=true format=time
-            #     ! videoconvert ! video/x-raw, format=I420
-            #     ! x265enc bitrate=100 ! video/x-h265 ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
-            # ''')
 
             appsrc = save_pipeline.get_by_name('m_appsrc')
 
@@ -275,7 +278,7 @@ class StreamCapture(threading.Thread):
             bus = save_pipeline.get_bus()
             while True:
                 # msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.ANY)
-                msg = bus.timed_pop_filtered(500 * Gst.MSECOND, Gst.MessageType.ANY)
+                msg = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
                 if msg:
                     if msg.type == Gst.MessageType.EOS:
                         logger.info(f"EOS received")
@@ -321,19 +324,13 @@ class StreamCapture(threading.Thread):
                                     }, block=False)
 
                                 break
-                                
-            # Set pipeline to NULL state once processing is complete
-            save_pipeline.set_state(Gst.State.NULL)
-            appsrc.set_state(Gst.State.NULL)
 
         except Exception as e:
             logger.error(f"{self.cam_ip} save_task, Exception during running, Error: {e}")
             traceback.print_exc()
         finally:
-            appsrc = None
-            save_pipeline = None
-
-            gc.collect()
+            # Set pipeline to NULL state once processing is complete
+            save_pipeline.set_state(Gst.State.NULL)
 
         logger.info(f"{self.cam_ip} save_task out")
 
