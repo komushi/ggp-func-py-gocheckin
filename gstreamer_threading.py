@@ -253,15 +253,15 @@ class StreamCapture(threading.Thread):
 
             local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
 
-            save_pipeline = Gst.parse_launch(f'''
-                appsrc name=m_appsrc emit-signals=true is-live=true format=time
-                ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
-            ''')
-
             # save_pipeline = Gst.parse_launch(f'''
             #     appsrc name=m_appsrc emit-signals=true is-live=true format=time
-            #     ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
+            #     ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=10000000000
             # ''')
+
+            save_pipeline = Gst.parse_launch(f'''
+                appsrc name=m_appsrc emit-signals=true is-live=true format=time
+                ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
+            ''')
 
             appsrc = save_pipeline.get_by_name('m_appsrc')
 
