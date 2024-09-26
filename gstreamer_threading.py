@@ -368,16 +368,21 @@ class StreamCapture(threading.Thread):
             if self.start_playing():
                 logger.info(f"{self.cam_ip} StreamCapture run, start_playing result: {True}")
 
-                # Wait until error or EOS
+                self.pipeline_decode.set_state(Gst.State.PLAYING)
+
                 bus = self.pipeline.get_bus()
-                # bus.add_signal_watch()
-                # bus.connect("message", self.on_message)
+                decode_bus = self.pipeline_decode.get_bus()
 
                 while not self.stop_event.is_set():
                     message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
                     if message:
                         self.on_message(bus, message)
+
+                    msg_decode = decode_bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+
+                    if msg_decode:
+                        self.on_message_decode(bus, msg_decode)
             else:
                 logger.error(f"{self.cam_ip} StreamCapture run, Not started as start_playing result: {False}")
                 self.pipeline.set_state(Gst.State.NULL)
@@ -388,6 +393,7 @@ class StreamCapture(threading.Thread):
             traceback.print_exc()
         finally:
             self.pipeline.set_state(Gst.State.NULL)
+            self.pipeline_decode.set_state(Gst.State.NULL)
             self.stop_event.set()
             self.is_playing = False
             logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up")
@@ -430,62 +436,37 @@ class StreamCapture(threading.Thread):
 
         self.pipeline.set_state(Gst.State.NULL)
 
-    def stop_decode_pipeline(self):
+    # def stop_decode_pipeline(self):
 
-        logger.info(f"{self.cam_ip} stop_decode_pipeline in")
+    #     logger.info(f"{self.cam_ip} stop_decode_pipeline in")
 
-        decode_state_change_return = self.pipeline_decode.set_state(Gst.State.NULL)
-        logger.info(f"{self.cam_ip} stop_decode_pipeline, set_state NULL state_change_return: {decode_state_change_return}")
+    #     decode_state_change_return = self.pipeline_decode.set_state(Gst.State.NULL)
+    #     logger.info(f"{self.cam_ip} stop_decode_pipeline, set_state NULL state_change_return: {decode_state_change_return}")
 
-        if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
-            logger.error(f"{self.cam_ip} stop_decode_pipeline out, decode_state_change_return is NOT SUCCESS")
-        else:
-            logger.info(f"{self.cam_ip} stop_decode_pipeline out, decode_state_change_return is SUCCESS")
+    #     if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
+    #         logger.error(f"{self.cam_ip} stop_decode_pipeline out, decode_state_change_return is NOT SUCCESS")
+    #     else:
+    #         logger.info(f"{self.cam_ip} stop_decode_pipeline out, decode_state_change_return is SUCCESS")
 
-    def start_decode_pipeline(self):
+    # def start_decode_pipeline(self):
 
-        logger.info(f"{self.cam_ip} start_decode_pipeline")
+    #     logger.info(f"{self.cam_ip} start_decode_pipeline")
 
-        decode_state_change_return = self.pipeline_decode.set_state(Gst.State.PLAYING)
-        logger.info(f"{self.cam_ip} start_decode_pipeline, set_state PLAYING state_change_return: {decode_state_change_return}")
+    #     decode_state_change_return = self.pipeline_decode.set_state(Gst.State.PLAYING)
+    #     logger.info(f"{self.cam_ip} start_decode_pipeline, set_state PLAYING state_change_return: {decode_state_change_return}")
 
-        if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
-            logger.error(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is NOT SUCCESS")
-        else:
-            logger.info(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is SUCCESS")
+    #     if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
+    #         logger.error(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is NOT SUCCESS")
+    #     else:
+    #         logger.info(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is SUCCESS")
 
-        bus = self.pipeline_decode.get_bus()
+    #     bus = self.pipeline_decode.get_bus()
 
-        while True:
-            message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+    #     while True:
+    #         message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
-            if message:
-                self.on_message_decode(bus, message)
-
-    def start_decode_pipeline1(self, count = 0, playing = False):
-
-        logger.info(f"{self.cam_ip} start_decode_pipeline, count: {count} playing: {playing}")
-        interval = 10
-
-        if count > 3:
-            logger.warning(f"{self.cam_ip} start_decode_pipeline, count ended with result playing: {playing}, count: {count}")
-            return playing
-        else:
-            if playing:
-                return playing
-
-        count += 1
-        
-        decode_state_change_return = self.pipeline_decode.set_state(Gst.State.PLAYING)
-        logger.info(f"{self.cam_ip} start_decode_pipeline, set_state PLAYING state_change_return: {decode_state_change_return}")
-
-        if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
-            logger.error(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is NOT SUCCESS")
-            time.sleep(interval)
-            return self.start_decode_pipeline(count)
-        else:
-            logger.info(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is SUCCESS")
-            return True
+    #         if message:
+    #             self.on_message_decode(bus, message)
 
     def feed_detecting(self):
         logger.info(f"{self.cam_ip} feed_detecting in")

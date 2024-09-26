@@ -185,6 +185,21 @@ def init_face_app(model='buffalo_sc'):
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
 
+
+# def init_gst_apps():
+#     logger.info(f"init_gst_apps in")
+
+#     for cam_ip in camera_items:
+#         thread_init_gst = threading.Thread(target=init_gst_app, name=f"Thread-InitGst-{cam_ip}", args=(os.environ['HOST_ID'], cam_ip))
+#         thread_init_gst.start()
+
+#     timer = threading.Timer(600, init_gst_apps)
+#     timer.name = "Thread-InitGst-Timer"
+#     timer.start()
+
+#     logger.info(f"init_gst_apps out")
+
+
 def init_gst_apps():
     logger.info(f"init_gst_apps in")
 
@@ -214,8 +229,6 @@ def init_gst_app(host_id, cam_ip):
 
     if thread_gstreamer is not None:
         if is_new_gst_thread:
-            thread_gstreamer.start_decode_pipeline()
-
             if cam_ip in thread_monitors:
                 if thread_monitors[cam_ip] is not None:
                     thread_monitors[cam_ip].join()
@@ -1031,8 +1044,6 @@ def monitor_stop_event(thread_gstreamer):
     global thread_monitors
 
     cam_ip = thread_gstreamer.cam_ip
-
-    thread_gstreamer.stop_decode_pipeline()
 
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
