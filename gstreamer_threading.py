@@ -185,7 +185,7 @@ class StreamCapture(threading.Thread):
             self.add_frame(sample)
 
             if self.is_feeding:
-                if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 3:
+                if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.1:
                     self.last_sampling_time = crt_time
 
                     ret = self.decode_appsrc.emit('push-sample', sample)
@@ -453,7 +453,7 @@ class StreamCapture(threading.Thread):
         bus = self.pipeline_decode.get_bus()
 
         while True:
-            message = bus.timed_pop_filtered(1000 * Gst.MSECOND, Gst.MessageType.ANY)
+            message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
             if message:
                 self.on_message_decode(bus, message)
