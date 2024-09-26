@@ -156,15 +156,6 @@ class StreamCapture(threading.Thread):
             dtype=np.uint8)
         return arr
 
-    # def gst_to_opencv(self, buf, caps):
-    #     arr = np.ndarray(
-    #         (caps.get_structure(0).get_value('height'),
-    #          caps.get_structure(0).get_value('width'),
-    #          3),
-    #         buffer=buf.extract_dup(0, buf.get_size()),
-    #         dtype=np.uint8)
-    #     return arr
-
     def add_frame(self, sample):
         with self.lock:
             current_time = time.time()
@@ -438,14 +429,36 @@ class StreamCapture(threading.Thread):
     def feed_detecting(self):
         logger.info(f"{self.cam_ip} feed_detecting in")
 
-        self.is_feeding = True
+        if self.is_feeding:
+            logger.error(f"{self.cam_ip} feed_detecting out, already detecting")
+            return
+        
+        decode_state_change_return = self.pipeline_decode.set_state(Gst.State.PLAYING)
+        logger.info(f"{self.cam_ip} feed_detecting, set_state PLAYING state_change_return: {decode_state_change_return}")
+
+        if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
+            logger.error(f"{self.cam_ip} feed_detecting, decode_state_change_return is NOT SUCCESS")
+        else:
+            self.is_feeding = True
+            logger.info(f"{self.cam_ip} feed_detecting, decode_state_change_return is SUCCESS")
 
         logger.info(f"{self.cam_ip} feed_detecting out")
 
     def stop_feeding(self):
         logger.info(f"{self.cam_ip} stop_feeding in")
 
-        self.is_feeding = False    
+        if not self.is_feeding:
+            logger.error(f"{self.cam_ip} stop_feeding out, already stopped")
+            return
+        
+        decode_state_change_return = self.pipeline_decode.set_state(Gst.State.NULL)
+        logger.info(f"{self.cam_ip} stop_feeding, set_state NULL decode_state_change_return: {decode_state_change_return}")
+
+        if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
+            logger.error(f"{self.cam_ip} stop_feeding, decode_state_change_return is NOT SUCCESS")
+        else:
+            self.is_feeding = False
+            logger.info(f"{self.cam_ip} stop_feeding, decode_state_change_return is SUCCESS")
 
         logger.info(f"{self.cam_ip} stop_feeding out")
 
