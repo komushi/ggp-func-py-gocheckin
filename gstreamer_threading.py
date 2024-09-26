@@ -192,7 +192,7 @@ class StreamCapture(threading.Thread):
                     if ret != Gst.FlowReturn.OK:
                         logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
-                    logger.info(f"{self.cam_ip} on_new_sample, decode_appsrc push-sample")
+                    # logger.info(f"{self.cam_ip} on_new_sample, decode_appsrc push-sample")
 
         sample = None
         return Gst.FlowReturn.OK
@@ -206,7 +206,7 @@ class StreamCapture(threading.Thread):
             if not self.cam_queue.full():
                 self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
-                logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put")
+                # logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put")
 
         sample = None
         return Gst.FlowReturn.OK
