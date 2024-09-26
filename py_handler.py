@@ -214,12 +214,15 @@ def init_gst_app(host_id, cam_ip):
 
     if thread_gstreamer is not None:
         if is_new_gst_thread:
+            thread_gstreamer.start_decode_pipeline()
+
             if cam_ip in thread_monitors:
                 if thread_monitors[cam_ip] is not None:
                     thread_monitors[cam_ip].join()
 
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
             thread_monitors[cam_ip].start()
+            
 
     logger.info(f"init_gst_app out thread_gstreamer: {thread_gstreamer}")
 
@@ -1029,6 +1032,8 @@ def monitor_stop_event(thread_gstreamer):
 
     cam_ip = thread_gstreamer.cam_ip
 
+    thread_gstreamer.stop_decode_pipeline()
+
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
     thread_gstreamer.join()  # Join the stopped thread
@@ -1160,7 +1165,7 @@ def subscribe_onvif():
             logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
             pass
     
-    timer = threading.Timer(600, subscribe_onvif)
+    timer = threading.Timer(3600, subscribe_onvif)
     timer.name = "Thread-SubscribeOnvif-Timer"
     timer.start()
 

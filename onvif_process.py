@@ -100,7 +100,7 @@ def subscribe(camera_item, scanner_local_ip, http_port):
         consumer_reference = address_type(Address=f"http://{scanner_local_ip}:{http_port}/onvif_notifications")
         logger.info(f"onvif.subscribe consumer_reference {consumer_reference}")
 
-        subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT20M')
+        subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1H')
         # logger.info(f"onvif.subscribe subscription {subscription}")
 
         onvif_sub_address = subscription.SubscriptionReference.Address._value_1
@@ -224,7 +224,7 @@ def renew(camera_item):
 
         addressing_header = addressing_header_type(To=onvif_sub_address)
 
-        result = subscription_service.Renew(_soapheaders=[addressing_header], TerminationTime='PT20M')
+        result = subscription_service.Renew(_soapheaders=[addressing_header], TerminationTime='PT1H')
 
     except Exception as e:
         logger.error(f"onvif.renew, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
