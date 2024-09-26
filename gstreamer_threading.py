@@ -438,7 +438,27 @@ class StreamCapture(threading.Thread):
         else:
             logger.info(f"{self.cam_ip} stop_decode_pipeline out, decode_state_change_return is SUCCESS")
 
-    def start_decode_pipeline(self, count = 0, playing = False):
+    def start_decode_pipeline(self):
+
+        logger.info(f"{self.cam_ip} start_decode_pipeline")
+
+        decode_state_change_return = self.pipeline_decode.set_state(Gst.State.PLAYING)
+        logger.info(f"{self.cam_ip} start_decode_pipeline, set_state PLAYING state_change_return: {decode_state_change_return}")
+
+        if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
+            logger.error(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is NOT SUCCESS")
+        else:
+            logger.info(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is SUCCESS")
+
+        bus = self.pipeline_decode.get_bus()
+
+        while True:
+            message = bus.timed_pop_filtered(1000 * Gst.MSECOND, Gst.MessageType.ANY)
+
+            if message:
+                self.on_message_decode(bus, message)
+
+    def start_decode_pipeline1(self, count = 0, playing = False):
 
         logger.info(f"{self.cam_ip} start_decode_pipeline, count: {count} playing: {playing}")
         interval = 10
@@ -546,3 +566,18 @@ class StreamCapture(threading.Thread):
             structure = message.get_structure()
             logger.debug(f"New ELEMENT detected: {structure.get_name()}")
        
+    def on_message_decode(self, bus, message):
+        if message.type == Gst.MessageType.EOS:
+            logger.warning("End-Of-Stream reached.")
+        elif message.type == Gst.MessageType.ERROR:
+            err, debug = message.parse_error()
+            raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
+        elif message.type == Gst.MessageType.STATE_CHANGED:
+            if isinstance(message.src, Gst.Pipeline):
+                old_state, new_state, pending_state = message.parse_state_changed()
+                logger.info(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
+        elif message.type == Gst.MessageType.WARNING:
+            logger.warning(f"Warning message {message.parse_warning()}： {message.type}")
+        elif message.type == Gst.MessageType.ELEMENT:
+            structure = message.get_structure()
+            logger.debug(f"New ELEMENT detected: {structure.get_name()}")
