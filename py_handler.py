@@ -1114,7 +1114,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
             if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
-                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']) * 1.5)
+                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
                         # set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
                 if thread_detector is None:

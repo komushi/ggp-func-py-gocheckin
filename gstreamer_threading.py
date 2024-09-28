@@ -177,6 +177,25 @@ class StreamCapture(threading.Thread):
             self.buffer.clear()
 
     def on_new_sample(self, sink, _):
+
+        sample = sink.emit('pull-sample')
+
+        # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
+
+        if sample:
+            self.add_frame(sample)
+
+            if self.is_feeding:
+                ret = self.decode_appsrc.emit('push-sample', sample)
+                if ret != Gst.FlowReturn.OK:
+                    logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+
+                # logger.info(f"{self.cam_ip} on_new_sample, decode_appsrc push-sample")
+
+        sample = None
+        return Gst.FlowReturn.OK
+
+    def on_new_sample2(self, sink, _):
         crt_time = time.time()
 
         sample = sink.emit('pull-sample')
