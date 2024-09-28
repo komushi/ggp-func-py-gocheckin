@@ -187,7 +187,7 @@ class StreamCapture(threading.Thread):
             self.add_frame(sample)
 
             if self.is_feeding:
-                if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.2:
+                if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.1:
                     self.last_sampling_time = crt_time
 
                     ret = self.decode_appsrc.emit('push-sample', sample)
