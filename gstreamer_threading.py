@@ -473,9 +473,10 @@ class StreamCapture(threading.Thread):
 
         self.is_feeding = True
 
-        if self.feeding_timer.is_alive():
-            logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
-            return
+        if self.feeding_timer:
+            if self.feeding_timer.is_alive():
+                logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
+                return
 
         self.feeding_timer.join()
         self.feeding_timer = None
