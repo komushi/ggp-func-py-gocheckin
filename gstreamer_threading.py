@@ -212,7 +212,7 @@ class StreamCapture(threading.Thread):
             # Store the current PTS as previous for the next comparison
             self.previous_pts = current_pts
 
-        return Gst.FlowReturn.O
+        return Gst.FlowReturn.OK
 
     def on_new_sample_old(self, sink, _):
         crt_time = time.time()
