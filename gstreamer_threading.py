@@ -480,8 +480,6 @@ class StreamCapture(threading.Thread):
                 logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
                 return
 
-        self.feeding_timer.join()
-        self.feeding_timer = None
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
         self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
         self.feeding_timer.start()
