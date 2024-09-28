@@ -188,20 +188,6 @@ def init_face_app(model='buffalo_sc'):
 
 
 
-# def init_gst_apps():
-#     logger.info(f"init_gst_apps in")
-
-#     for cam_ip in camera_items:
-#         thread_init_gst = threading.Thread(target=init_gst_app, name=f"Thread-InitGst-{cam_ip}", args=(os.environ['HOST_ID'], cam_ip))
-#         thread_init_gst.start()
-
-#     timer = threading.Timer(600, init_gst_apps)
-#     timer.name = "Thread-InitGst-Timer"
-#     timer.start()
-
-#     logger.info(f"init_gst_apps out")
-
-
 def init_gst_apps():
     logger.info(f"init_gst_apps in")
 
@@ -993,7 +979,6 @@ def signal_handler(signum, frame):
     for cam_ip in camera_items:
         try:
             camera_item = camera_items[cam_ip]
-            onvif_connectors[cam_ip].unsubscribe(camera_item)
 
             if camera_item['onvif']['isSubscription']:
                 if 'onvifSubAddress' in camera_item:
@@ -1114,7 +1099,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
             if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
-                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
+                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']) * 1.5)
                         # set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
                 if thread_detector is None:
