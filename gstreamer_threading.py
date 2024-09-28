@@ -468,10 +468,14 @@ class StreamCapture(threading.Thread):
     #         if message:
     #             self.on_message_decode(bus, message)
 
-    def feed_detecting(self):
+    def feed_detecting(self, running_seconds):
         logger.info(f"{self.cam_ip} feed_detecting in")
 
         self.is_feeding = True
+
+        feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
+        feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
+        feeding_timer.start()
 
         logger.info(f"{self.cam_ip} feed_detecting out")
 
