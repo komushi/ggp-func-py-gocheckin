@@ -221,13 +221,13 @@ def init_gst_apps():
 
 
 def init_gst_app(host_id, cam_ip):
-    logger.info(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
+    logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
 
     global thread_monitors
 
     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip)
 
-    logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+    logger.debug(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
     if thread_gstreamer is not None:
         if is_new_gst_thread:
@@ -239,7 +239,7 @@ def init_gst_app(host_id, cam_ip):
             thread_monitors[cam_ip].start()
             
 
-    logger.info(f"init_gst_app out thread_gstreamer: {thread_gstreamer}")
+    logger.debug(f"init_gst_app out thread_gstreamer: {thread_gstreamer}")
 
     return thread_gstreamer
 
@@ -599,7 +599,7 @@ def update_member(reservationCode, memberNo, keyNotified=True):
     return
 
 def get_active_members():
-    logger.info('get_active_members in')
+    logger.debug('get_active_members in')
 
     # Specify the table name
     tbl_member = os.environ['TBL_MEMBER']
@@ -641,18 +641,18 @@ def get_active_members():
             item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
             filtered_results.append(item)
         else:
-            logger.info(f"get_active_members, member {item['reservationCode']}-{item['memberNo']} filtered out with no faceEmbedding")
+            logger.debug(f"get_active_members, member {item['reservationCode']}-{item['memberNo']} filtered out with no faceEmbedding")
     
     results = filtered_results
 
     for item in results:
-        logger.info(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}")
+        logger.debug(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}")
         # logger.info(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}, keyNotified: {item['keyNotified']}")
 
     return results
 
 def fetch_members(forced=False):
-    logger.info('fetch_members in')
+    logger.debug('fetch_members in')
 
     global last_fetch_time
     global active_members
@@ -679,7 +679,7 @@ def fetch_members(forced=False):
             #     logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
 
     if thread_detector != None:
-        logger.info(f"fetch_members, Set active_members to thread_detector")
+        logger.debug(f"fetch_members, Set active_members to thread_detector")
         thread_detector.active_members = active_members
         
         
@@ -939,7 +939,7 @@ def stop_gstreamer_thread(thread_name):
 
 def start_gstreamer_thread(host_id, cam_ip):
 
-    logger.info(f"{cam_ip} start_gstreamer_thread, in with {host_id, cam_ip}")
+    logger.debug(f"{cam_ip} start_gstreamer_thread, in with {host_id, cam_ip}")
     
     global camera_items
     global thread_gstreamers
@@ -954,17 +954,17 @@ def start_gstreamer_thread(host_id, cam_ip):
     camera_items[cam_ip] = camera_item
 
     if camera_item is None:
-        logger.info(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
+        logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
         return None, False
     else:
         if not camera_item['isDetecting'] and not camera_item['isRecording']:
-            logger.info(f"{cam_ip} start_gstreamer_thread, camera_item has been set to idle")
+            logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item has been set to idle")
             return None, False
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
             if thread_gstreamers[cam_ip].is_alive():
-                logger.info(f"{cam_ip} start_gstreamer_thread, already started")
+                logger.debug(f"{cam_ip} start_gstreamer_thread, already started")
                 return thread_gstreamers[cam_ip], False
     
     params = {}
@@ -978,7 +978,7 @@ def start_gstreamer_thread(host_id, cam_ip):
     thread_gstreamers[cam_ip] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
     thread_gstreamers[cam_ip].start()
 
-    logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
+    logger.debug(f"{cam_ip} start_gstreamer_thread, starting...")
 
     return thread_gstreamers[cam_ip], True
 
@@ -1040,7 +1040,7 @@ def signal_handler(signum, frame):
     logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
 
 def monitor_stop_event(thread_gstreamer):
-    logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event in")
+    logger.debug(f"{thread_gstreamer.cam_ip} monitor_stop_event in")
     
     global thread_gstreamers
     global thread_monitors
@@ -1048,7 +1048,7 @@ def monitor_stop_event(thread_gstreamer):
     cam_ip = thread_gstreamer.cam_ip
 
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
-    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
+    logger.debug(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
     thread_gstreamer.join()  # Join the stopped thread
 
     
@@ -1061,7 +1061,7 @@ def monitor_stop_event(thread_gstreamer):
         if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:
                 thread_monitors[cam_ip] = None
-            logger.info(f"{cam_ip} monitor_stop_event restarting")
+            logger.debug(f"{cam_ip} monitor_stop_event restarting")
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
 
@@ -1114,7 +1114,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
             if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
-                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
+                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']) * 2)
                         # set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
 
                 if thread_detector is None:

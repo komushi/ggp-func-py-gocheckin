@@ -45,7 +45,7 @@ class OnvifConnector():
 
     @staticmethod
     def extract_notification(raw_payload):
-        logger.info(f"onvif.extract_notification in")
+        logger.debug(f"onvif.extract_notification in")
 
         # Parse the XML content
         root = ET.fromstring(raw_payload)
@@ -72,10 +72,10 @@ class OnvifConnector():
 
                 ip_address = urlparse(address).hostname
 
-                logger.info(f"onvif.extract_notification out ip_address {ip_address} is_motion_value {is_motion_value} utc_time {utc_time}")
+                logger.debug(f"onvif.extract_notification out ip_address {ip_address} is_motion_value {is_motion_value} utc_time {utc_time}")
                 return ip_address, utc_time, is_motion_value
             
-        logger.info(f"onvif.extract_notification out None")
+        logger.debug(f"onvif.extract_notification out None")
         return None, None, None
         
     def subscribe(self, camera_item, scanner_local_ip, http_port):
