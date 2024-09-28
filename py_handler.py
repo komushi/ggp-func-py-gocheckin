@@ -37,7 +37,8 @@ import face_recognition as fdm
 
 import gstreamer_threading as gst
 
-import onvif_process as onvif
+# import onvif_process as onvif
+from onvif_process import OnvifConnector
 
 import greengrasssdk
 iotClient = greengrasssdk.client("iot-data")
@@ -74,6 +75,7 @@ active_members = None
 # Initialize the face_app, uploader_app
 face_app = None
 uploader_app = None
+onvif_connectors = {}
 
 # Initialize the detectors
 thread_detector = None
@@ -364,7 +366,7 @@ def start_http_server():
                     content_length = int(self.headers['Content-Length'])
                     post_data = self.rfile.read(content_length)
 
-                    cam_ip, utc_time, is_motion_value = onvif.extract_notification(post_data)
+                    cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data)
                     # logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
 
                     if is_motion_value:
@@ -991,15 +993,15 @@ def signal_handler(signum, frame):
     for cam_ip in camera_items:
         try:
             camera_item = camera_items[cam_ip]
-            onvif.unsubscribe(camera_item)
+            onvif_connectors[cam_ip].unsubscribe(camera_item)
 
             if camera_item['onvif']['isSubscription']:
                 if 'onvifSubAddress' in camera_item:
                     if camera_item['onvifSubAddress'] is not None:
-                        onvif.unsubscribe(camera_item)
+                        onvif_connectors[cam_ip].unsubscribe(camera_item)
                         camera_item['onvifSubAddress'] = None
             elif camera_item['onvif']['isPullpoint']:
-                onvif.stop_pullpoint(camera_item)
+                onvif_connectors[cam_ip].stop_pullpoint(camera_item)
 
         except Exception as e:
             logger.error(f"Error handling unsubscribe, cam_ip:{cam_ip} Error:{e}")
@@ -1148,35 +1150,47 @@ def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
     
     global camera_items
+    global onvif_connectors
         
     for cam_ip in camera_items:
         try:
+            
+                
+
             if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:
+
+                if not (cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None):
+                    onvif_connectors[cam_ip] = OnvifConnector(camera_items[cam_ip])
+
                 if camera_items[cam_ip]['onvif']['isSubscription']:
-                    renew_response = onvif.renew(camera_items[cam_ip])
+                    renew_response = onvif_connectors[cam_ip].renew(camera_items[cam_ip])
 
                     if renew_response is None:
                         logger.info(f"subscribe_onvif renew_response {renew_response}")
-                        camera_items[cam_ip]['onvifSubAddress'] = onvif.subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
+                        camera_items[cam_ip]['onvifSubAddress'] = onvif_connectors[cam_ip].subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
 
                     logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
 
                 elif camera_items[cam_ip]['onvif']['isPullpoint']:
-                    camera_items[cam_ip]['onvifSubAddress'] = onvif.start_pullpoint(camera_items[cam_ip], motion_detection_queue)
+                    camera_items[cam_ip]['onvifSubAddress'] = onvif_connectors[cam_ip].start_pullpoint(camera_items[cam_ip], motion_detection_queue)
             else:
-                if camera_items[cam_ip]['onvif']['isSubscription']:
-                    if 'onvifSubAddress' in camera_items[cam_ip]:
-                        if camera_items[cam_ip]['onvifSubAddress'] is not None:
-                            onvif.unsubscribe(camera_items[cam_ip])
-                            camera_items[cam_ip]['onvifSubAddress'] = None
-                elif camera_items[cam_ip]['onvif']['isPullpoint']:
-                    onvif.stop_pullpoint(camera_items[cam_ip])
+                if cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None:
+                    if camera_items[cam_ip]['onvif']['isSubscription']:
+                        if 'onvifSubAddress' in camera_items[cam_ip]:
+                            if camera_items[cam_ip]['onvifSubAddress'] is not None:
+                                onvif_connectors[cam_ip].unsubscribe(camera_items[cam_ip])
+                                camera_items[cam_ip]['onvifSubAddress'] = None
+                    elif camera_items[cam_ip]['onvif']['isPullpoint']:
+                        onvif_connectors[cam_ip].stop_pullpoint(camera_items[cam_ip])
+
+                    onvif_connectors[cam_ip] = None
+                    del onvif_connectors[cam_ip]
                     
         except Exception as e:
             logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
             pass
     
-    timer = threading.Timer(3600, subscribe_onvif)
+    timer = threading.Timer(30, subscribe_onvif)
     timer.name = "Thread-SubscribeOnvif-Timer"
     timer.start()
 
