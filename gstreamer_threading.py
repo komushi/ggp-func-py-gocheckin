@@ -204,7 +204,7 @@ class StreamCapture(threading.Thread):
                 previous_pts_seconds = self.previous_pts / Gst.SECOND
                 delta = current_pts_seconds - previous_pts_seconds
 
-                if delta >= 0.1:
+                if delta >= 0.05:
                     self.decode_appsrc.emit('push-sample', sample)
             else:
                 self.decode_appsrc.emit('push-sample', sample)
