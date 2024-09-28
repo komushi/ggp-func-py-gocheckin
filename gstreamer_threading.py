@@ -188,6 +188,9 @@ class StreamCapture(threading.Thread):
         
         self.add_frame(sample)
 
+        if not self.is_feeding:
+            return Gst.FlowReturn.OK
+
         # Get the buffer from the sample
         buffer = sample.get_buffer()
 
@@ -204,7 +207,7 @@ class StreamCapture(threading.Thread):
                 previous_pts_seconds = self.previous_pts / Gst.SECOND
                 delta = current_pts_seconds - previous_pts_seconds
 
-                if delta >= 0.05:
+                if delta >= 1 / self.framerate:
                     self.decode_appsrc.emit('push-sample', sample)
             else:
                 self.decode_appsrc.emit('push-sample', sample)

@@ -142,6 +142,8 @@ class OnvifConnector():
 
             addressing_header = addressing_header_type(To=onvif_sub_address)
 
+            logger.info(f"onvif.unsubscribe addressing_header: {addressing_header}")
+
             result = subscription_service.Unsubscribe(_soapheaders=[addressing_header])
 
             logger.info(f"onvif.unsubscribe cam_ip: {camera_item['localIp']} result: {result}")
