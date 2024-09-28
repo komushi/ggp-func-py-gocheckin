@@ -144,6 +144,8 @@ class StreamCapture(threading.Thread):
 
         self.recordings = {}
 
+        self.feeding_timer = None
+
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
         caps = sample.get_caps()
