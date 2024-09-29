@@ -230,9 +230,11 @@ class StreamCapture(threading.Thread):
             return Gst.FlowReturn.ERROR
         
         self.add_frame(sample)
-        self.feeding_count += 1
 
         if self.is_feeding:
+            
+            self.feeding_count += 1
+
             # if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.1:
             #     self.last_sampling_time = crt_time
 
