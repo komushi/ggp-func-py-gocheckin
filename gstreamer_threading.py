@@ -177,7 +177,7 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
 
-    def on_new_sample(self, sink, _):
+    def on_new_sample_new(self, sink, _):
 
         sample = sink.emit('pull-sample')
 
@@ -217,25 +217,25 @@ class StreamCapture(threading.Thread):
 
         return Gst.FlowReturn.OK
 
-    def on_new_sample_old(self, sink, _):
-        crt_time = time.time()
+    def on_new_sample(self, sink, _):
+        # crt_time = time.time()
 
         sample = sink.emit('pull-sample')
 
         # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
 
-        if sample:
-            self.add_frame(sample)
+        if not sample:
+            return Gst.FlowReturn.ERROR
+        
+        self.add_frame(sample)
 
-            if self.is_feeding:
-                if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.1:
-                    self.last_sampling_time = crt_time
+        if self.is_feeding:
+            # if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.1:
+            #     self.last_sampling_time = crt_time
 
-                    ret = self.decode_appsrc.emit('push-sample', sample)
-                    if ret != Gst.FlowReturn.OK:
-                        logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
-
-                    # logger.info(f"{self.cam_ip} on_new_sample, decode_appsrc push-sample")
+            ret = self.decode_appsrc.emit('push-sample', sample)
+            if ret != Gst.FlowReturn.OK:
+                logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
         sample = None
         return Gst.FlowReturn.OK
@@ -479,37 +479,6 @@ class StreamCapture(threading.Thread):
 
         self.pipeline.set_state(Gst.State.NULL)
 
-    # def stop_decode_pipeline(self):
-
-    #     logger.info(f"{self.cam_ip} stop_decode_pipeline in")
-
-    #     decode_state_change_return = self.pipeline_decode.set_state(Gst.State.NULL)
-    #     logger.info(f"{self.cam_ip} stop_decode_pipeline, set_state NULL state_change_return: {decode_state_change_return}")
-
-    #     if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
-    #         logger.error(f"{self.cam_ip} stop_decode_pipeline out, decode_state_change_return is NOT SUCCESS")
-    #     else:
-    #         logger.info(f"{self.cam_ip} stop_decode_pipeline out, decode_state_change_return is SUCCESS")
-
-    # def start_decode_pipeline(self):
-
-    #     logger.info(f"{self.cam_ip} start_decode_pipeline")
-
-    #     decode_state_change_return = self.pipeline_decode.set_state(Gst.State.PLAYING)
-    #     logger.info(f"{self.cam_ip} start_decode_pipeline, set_state PLAYING state_change_return: {decode_state_change_return}")
-
-    #     if decode_state_change_return != Gst.StateChangeReturn.SUCCESS:
-    #         logger.error(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is NOT SUCCESS")
-    #     else:
-    #         logger.info(f"{self.cam_ip} start_decode_pipeline, decode_state_change_return is SUCCESS")
-
-    #     bus = self.pipeline_decode.get_bus()
-
-    #     while True:
-    #         message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
-
-    #         if message:
-    #             self.on_message_decode(bus, message)
 
     def feed_detecting(self, running_seconds):
         logger.info(f"{self.cam_ip} feed_detecting in")
@@ -517,21 +486,29 @@ class StreamCapture(threading.Thread):
         self.is_feeding = True
 
         if self.feeding_timer:
-            if self.feeding_timer.is_alive():
-                logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
-                return
+            logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
+            return
+            # if self.feeding_timer.is_alive():
+            #     logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
+            #     return
 
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
         self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
         self.feeding_timer.start()
 
+        logger.info(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
+
         logger.info(f"{self.cam_ip} feed_detecting out")
+
+        
 
     def stop_feeding(self):
         logger.info(f"{self.cam_ip} stop_feeding in")
 
         self.is_feeding = False
         self.feeding_timer = None
+
+        logger.info(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
 
         logger.info(f"{self.cam_ip} stop_feeding out")
 
