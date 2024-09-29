@@ -179,7 +179,7 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
 
-    def on_new_sample(self, sink, _):
+    def on_new_sample_old(self, sink, _):
 
         sample = sink.emit('pull-sample')
 
@@ -219,7 +219,7 @@ class StreamCapture(threading.Thread):
 
         return Gst.FlowReturn.OK
 
-    def on_new_sample_new(self, sink, _):
+    def on_new_sample(self, sink, _):
         # crt_time = time.time()
 
         sample = sink.emit('pull-sample')
