@@ -235,10 +235,7 @@ class StreamCapture(threading.Thread):
             
             self.feeding_count += 1
 
-            # if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.1:
-            #     self.last_sampling_time = crt_time
-
-            logger.error(f"{self.cam_ip} self.feeding_count % 3: {self.feeding_count % 3}, self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+            logger.debug(f"{self.cam_ip} self.feeding_count % 3: {self.feeding_count % 3}, self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
 
             if self.feeding_count % 3 == 0 or self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
