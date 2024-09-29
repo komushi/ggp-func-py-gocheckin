@@ -140,7 +140,9 @@ class StreamCapture(threading.Thread):
         self.last_sampling_time = None
         self.is_playing = False
         self.is_feeding = False
+        self.feeding_count = 0
         self.is_recording = False
+        self.running_seconds = 10
 
         self.recordings = {}
 
@@ -177,7 +179,7 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
 
-    def on_new_sample_new(self, sink, _):
+    def on_new_sample(self, sink, _):
 
         sample = sink.emit('pull-sample')
 
@@ -217,7 +219,7 @@ class StreamCapture(threading.Thread):
 
         return Gst.FlowReturn.OK
 
-    def on_new_sample(self, sink, _):
+    def on_new_sample_new(self, sink, _):
         # crt_time = time.time()
 
         sample = sink.emit('pull-sample')
@@ -228,10 +230,14 @@ class StreamCapture(threading.Thread):
             return Gst.FlowReturn.ERROR
         
         self.add_frame(sample)
+        self.feeding_count += 1
 
         if self.is_feeding:
             # if self.last_sampling_time is None or crt_time - self.last_sampling_time >= 0.1:
             #     self.last_sampling_time = crt_time
+
+            if self.feeding_count % 3 == 0 or self.feeding_count > self.framerate * self.running_seconds:
+                return Gst.FlowReturn.OK
 
             ret = self.decode_appsrc.emit('push-sample', sample)
             if ret != Gst.FlowReturn.OK:
@@ -483,14 +489,12 @@ class StreamCapture(threading.Thread):
     def feed_detecting(self, running_seconds):
         logger.info(f"{self.cam_ip} feed_detecting in")
 
-        self.is_feeding = True
-
-        if self.feeding_timer:
+        if self.is_feeding:
             logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
             return
-            # if self.feeding_timer.is_alive():
-            #     logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
-            #     return
+
+        self.is_feeding = True
+        self.running_seconds = running_seconds
 
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
         self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
@@ -506,7 +510,7 @@ class StreamCapture(threading.Thread):
         logger.info(f"{self.cam_ip} stop_feeding in")
 
         self.is_feeding = False
-        self.feeding_timer = None
+        self.feeding_count = 0
 
         logger.info(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
 
