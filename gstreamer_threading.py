@@ -531,6 +531,8 @@ class StreamCapture(threading.Thread):
         logger.info(f"{self.cam_ip} stop_feeding in")
 
         self.is_feeding = False
+        self.feeding_timer.join()
+        self.feeding_timer = None
 
         logger.info(f"{self.cam_ip} stop_feeding out")
 
