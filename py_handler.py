@@ -265,7 +265,9 @@ def start_http_server():
         allow_reuse_address = True
 
     class NewHandler(http.server.SimpleHTTPRequestHandler):
-        
+        def log_message(self, format, *args):
+            # Override this method to suppress logging
+            return
         
         def do_POST(self):
             global thread_detector
