@@ -1158,6 +1158,7 @@ def subscribe_onvif():
                     logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
 
                 elif camera_items[cam_ip]['onvif']['isPullpoint']:
+                    onvif_connectors[cam_ip].stop_pullpoint(camera_items[cam_ip])
                     camera_items[cam_ip]['onvifSubAddress'] = onvif_connectors[cam_ip].start_pullpoint(camera_items[cam_ip], motion_detection_queue)
             else:
                 if cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None:
