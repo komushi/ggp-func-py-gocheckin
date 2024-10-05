@@ -260,18 +260,18 @@ class OnvifConnector():
         return onvif_sub_address
 
 
-    def stop_pullpoint(self, camera_item):  
+    def unsubscribe_pullpoint(self, camera_item):
         onvif_sub_address = None
         if 'onvifSubAddress' in camera_item:
             onvif_sub_address = camera_item['onvifSubAddress']
 
         if onvif_sub_address is None:
-            logger.info(f"onvif.stop_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-            logger.info(f"onvif.stop_pullpoint out cam_ip: {camera_item['localIp']}")
+            logger.info(f"onvif.unsubscribe_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+            logger.info(f"onvif.unsubscribe_pullpoint out cam_ip: {camera_item['localIp']}")
 
             return
 
-        logger.info(f"onvif.stop_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+        logger.info(f"onvif.unsubscribe_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
 
         try:
 
@@ -289,13 +289,16 @@ class OnvifConnector():
 
             response = subscription_service.Unsubscribe(_soapheaders=[addressing_header])
 
-            logger.info(f"onvif.stop_pullpoint cam_ip: {camera_item['localIp']} response: {response}")
+            logger.info(f"onvif.unsubscribe_pullpoint cam_ip: {camera_item['localIp']} response: {response}")
 
 
         except Exception as e:
-            logger.error(f"onvif.stop_pullpoint, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
+            logger.error(f"onvif.unsubscribe_pullpoint, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
             traceback.print_exc()
             pass
+
+    def stop_pullpoint(self, camera_item):  
+        self.unsubscribe_pullpoint(camera_item)
         
         global thread_pullpoints
         thread_pullpoints[camera_item['localIp']].join()
