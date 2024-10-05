@@ -264,10 +264,14 @@ class OnvifConnector():
         if cam_ip in thread_pullpoints:
             if thread_pullpoints[cam_ip] is not None:
                 if thread_pullpoints[cam_ip].is_alive():
+                    logger.error(f"onvif.start_pullpoint, out, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
+
                     return onvif_sub_address
 
         thread_pullpoints[cam_ip] = threading.Thread(target=pull_messages, name=f"Thread-OnvifPull-{camera_item['localIp']}", args=(camera_item['localIp'], motion_detection_queue))
         thread_pullpoints[cam_ip].start()
+
+        logger.error(f"onvif.start_pullpoint, out, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
 
         return onvif_sub_address
 
@@ -303,6 +307,8 @@ class OnvifConnector():
 
             logger.info(f"onvif.unsubscribe_pullpoint cam_ip: {camera_item['localIp']} response: {response}")
 
+        except BrokenPipeError:
+            logger.error("onvif.unsubscribe_pullpoint, Client disconnected before the response could be sent.")
 
         except Exception as e:
             logger.error(f"onvif.unsubscribe_pullpoint, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
