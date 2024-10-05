@@ -215,7 +215,7 @@ class OnvifConnector():
                             if simple_item.attrib.get('Name') == "IsMotion":
                                 is_motion = simple_item.attrib.get('Value')
                                 utc_time = message_element.attrib.get('UtcTime')
-                                motion_detection_queue.put((ip_address, is_motion == 'True', utc_time), block=False)
+                                motion_detection_queue.put((ip_address, is_motion == 'true', utc_time), block=False)
                                 break
 
                         if utc_time is not None and is_motion is not None:
