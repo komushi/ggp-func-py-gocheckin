@@ -840,7 +840,7 @@ def fetch_motion_detection_queue():
         try:
             if not motion_detection_queue.empty():
                 cam_ip, is_motion_value, utc_time = motion_detection_queue.get_nowait()    
-                # logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
+                logger.info(f"Fetched from motion_detection_queue: {is_motion_value}")
 
                 if is_motion_value:
                     handle_notification(cam_ip, utc_time, is_motion_value)
