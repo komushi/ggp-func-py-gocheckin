@@ -262,8 +262,9 @@ class OnvifConnector():
             return onvif_sub_address
 
         if cam_ip in thread_pullpoints:
-            logger.info(f"onvif.start_pullpoint, out, thread_pullpoints already running, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
-            return onvif_sub_address
+            self.clear_pullmessage(camera_item)
+            # logger.info(f"onvif.start_pullpoint, out, thread_pullpoints already running, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
+            # return onvif_sub_address
 
         thread_pullpoints[cam_ip] = threading.Thread(target=pull_messages, name=f"Thread-OnvifPull-{camera_item['localIp']}", args=(camera_item['localIp'], motion_detection_queue))
         thread_pullpoints[cam_ip].start()
@@ -312,12 +313,21 @@ class OnvifConnector():
             traceback.print_exc()
             pass
 
-    def stop_pullpoint(self, camera_item):  
+    def stop_pullpoint(self, camera_item):
+        logger.info(f"onvif.stop_pullpoint in cam_ip: {camera_item['localIp']}")
+
+        self.clear_pullmessage(camera_item)
+
         self.unsubscribe_pullpoint(camera_item)
+
+        logger.info(f"onvif.stop_pullpoint out cam_ip: {camera_item['localIp']}")
+
+    def clear_pullmessage(self, camera_item):
+        logger.info(f"onvif.clear_pullmessage in cam_ip: {camera_item['localIp']}")
         
         global thread_pullpoints
         thread_pullpoints[camera_item['localIp']].join()
         thread_pullpoints[camera_item['localIp']] = None
         del thread_pullpoints[camera_item['localIp']]
 
-        logger.info(f"onvif.stop_pullpoint cam_ip: {camera_item['localIp']} out")
+        logger.info(f"onvif.clear_pullmessage out cam_ip: {camera_item['localIp']}")
