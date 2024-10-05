@@ -226,12 +226,19 @@ class OnvifConnector():
 
         global thread_pullpoints
 
+        onvif_sub_address = None
         if 'onvifSubAddress' in camera_item:
             onvif_sub_address = camera_item['onvifSubAddress']
         else:
             onvif_sub_address = None
+            
+        cam_ip = None
+        if 'localIp' in camera_item:
+            cam_ip = camera_item['localIp']
+        else:
+            cam_ip = None
 
-        logger.info(f"onvif.start_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+        logger.info(f"onvif.start_pullpoint in cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
 
         try:
 
@@ -248,14 +255,19 @@ class OnvifConnector():
 
 
         except Exception as e:
-            logger.error(f"onvif.start_pullpoint, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
+            logger.error(f"onvif.start_pullpoint, Exception during running, cam_ip: {cam_ip} Error: {e}")
             # traceback.print_exc()
             onvif_sub_address = None
 
             return onvif_sub_address
-        
-        thread_pullpoints[camera_item['localIp']] = threading.Thread(target=pull_messages, name=f"Thread-OnvifPull-{camera_item['localIp']}", args=(camera_item['localIp'], motion_detection_queue))
-        thread_pullpoints[camera_item['localIp']].start()
+
+        if cam_ip in thread_pullpoints:
+            if thread_pullpoints[cam_ip] is not None:
+                if thread_pullpoints[cam_ip].is_alive():
+                    return onvif_sub_address
+
+        thread_pullpoints[cam_ip] = threading.Thread(target=pull_messages, name=f"Thread-OnvifPull-{camera_item['localIp']}", args=(camera_item['localIp'], motion_detection_queue))
+        thread_pullpoints[cam_ip].start()
 
         return onvif_sub_address
 
@@ -303,5 +315,6 @@ class OnvifConnector():
         global thread_pullpoints
         thread_pullpoints[camera_item['localIp']].join()
         thread_pullpoints[camera_item['localIp']] = None
+        del thread_pullpoints[camera_item['localIp']]
 
         logger.info(f"onvif.stop_pullpoint cam_ip: {camera_item['localIp']} out")
