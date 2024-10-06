@@ -427,17 +427,17 @@ class StreamCapture(threading.Thread):
         logger.info(f"{self.cam_ip} stop_feeding out")
 
     def start_recording(self, utc_time):
-        logger.info(f"{self.cam_ip} start_recording in")
+        logger.debug(f"{self.cam_ip} start_recording in")
 
         if self.is_recording:
-            logger.warning(f"{self.cam_ip} start_recording out, Recording already started")
+            logger.debug(f"{self.cam_ip} start_recording out, Recording already started")
             return False
 
         with self.lock:
             self.is_recording = True
             self.recordings[utc_time] = datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
-        logger.info(f"{self.cam_ip} start_recording out")
+        logger.debug(f"{self.cam_ip} start_recording out")
 
         return True
 

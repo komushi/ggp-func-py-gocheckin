@@ -1124,16 +1124,16 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
 
     thread_gstreamer = None
     if cam_ip is not None and utc_time is not None and is_motion_value is not None:
-        logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+        logger.debug(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
         # if is_motion_value:
         thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
     else:
-        logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+        logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
         return
 
     if thread_gstreamer is not None:
 
-        logger.info(f"{cam_ip} handle_notification thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
+        logger.debug(f"{cam_ip} handle_notification thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
         if thread_gstreamer.is_playing:
 
             camera_item = camera_items[cam_ip]
@@ -1171,7 +1171,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']), utc_time)
 
 
-    logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+    logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
 
 def subscribe_onvif():
     logger.info(f"subscribe_onvif in")

@@ -49,7 +49,7 @@ fields @timestamp, @message
 ### 4-1. Query Check when state changes recently
 ```
 fields @timestamp, @message
-| filter @message like /192.168.11.206 Pipeline state changed from/
+| filter @message like /state changed from/
 | display @timestamp, @logStream, @message
 | sort @timestamp desc
 | limit 200
