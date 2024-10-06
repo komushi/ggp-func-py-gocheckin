@@ -81,11 +81,11 @@ class StreamCapture(threading.Thread):
 
         pipeline_str = ''
         if params['codec'] == 'h264':
-            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']}
+            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']} protocols=tcp
                                     ! queue ! rtph264depay name=m_rtph264depay 
                                     ! queue ! h264parse ! appsink name=m_appsink"""
         elif params['codec'] == 'h265':
-            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']}
+            pipeline_str = f"""rtspsrc name=m_rtspsrc location={params['rtsp_src']} protocols=tcp
                                     ! queue ! rtph265depay name=m_rtph265depay 
                                     ! queue ! h265parse ! appsink name=m_appsink"""
 
