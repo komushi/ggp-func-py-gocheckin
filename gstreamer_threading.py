@@ -179,46 +179,6 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
 
-    def on_new_sample_old(self, sink, _):
-
-        sample = sink.emit('pull-sample')
-
-        # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
-
-        if not sample:
-            return Gst.FlowReturn.ERROR
-        
-        self.add_frame(sample)
-
-        if not self.is_feeding:
-            return Gst.FlowReturn.OK
-
-        # Get the buffer from the sample
-        buffer = sample.get_buffer()
-
-        # Get the current buffer's PTS (Presentation Timestamp)
-        current_pts = buffer.pts
-
-        # Ensure the PTS is valid
-        if current_pts != Gst.CLOCK_TIME_NONE:
-            # Convert PTS to seconds (GStreamer timestamps are in nanoseconds)
-            current_pts_seconds = current_pts / Gst.SECOND
-
-            if self.previous_pts is not None:
-                # Calculate the delta between current and previous PTS
-                previous_pts_seconds = self.previous_pts / Gst.SECOND
-                delta = current_pts_seconds - previous_pts_seconds
-
-                if delta >= 1 / self.framerate:
-                    self.decode_appsrc.emit('push-sample', sample)
-            else:
-                self.decode_appsrc.emit('push-sample', sample)
-
-            # Store the current PTS as previous for the next comparison
-            self.previous_pts = current_pts
-
-        return Gst.FlowReturn.OK
-
     def on_new_sample(self, sink, _):
         # crt_time = time.time()
 
