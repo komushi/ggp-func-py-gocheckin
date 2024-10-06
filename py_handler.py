@@ -806,6 +806,8 @@ def fetch_scanner_output_queue():
                     video_key = message['payload']['video_key']
                     object_key = message['payload']['object_key']
 
+                    logger.info(f"fetch_scanner_output_queue, video_clipped received: {local_file_path}")
+
                     uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 
                     payload = {

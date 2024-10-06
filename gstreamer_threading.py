@@ -292,7 +292,7 @@ class StreamCapture(threading.Thread):
 
                 object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                logger.info(f"splitmuxsink-fragment-closed, New video file created at local_file_path {local_file_path} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
+                logger.info(f"New video file created at local_file_path {local_file_path} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
 
                 self.scanner_output_queue.put({
                     "type": "video_clipped",
