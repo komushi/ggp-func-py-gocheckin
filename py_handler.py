@@ -22,10 +22,10 @@ import time
 
 
 
-import requests
+# import requests
 
-import PIL.Image
-import numpy as np
+# import PIL.Image
+# import numpy as np
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
@@ -39,6 +39,8 @@ import gstreamer_threading as gst
 
 # import onvif_process as onvif
 from onvif_process import OnvifConnector
+
+import web_image_process as web_img
 
 import greengrasssdk
 iotClient = greengrasssdk.client("iot-data")
@@ -230,22 +232,22 @@ def init_gst_app(host_id, cam_ip):
     return thread_gstreamer
 
 
-def read_picture_from_url(url):
+# def read_picture_from_url(url):
 
-    # Download the image
-    response = requests.get(url)
-    response.raise_for_status()  # Ensure the request was successful
+#     # Download the image
+#     response = requests.get(url)
+#     response.raise_for_status()  # Ensure the request was successful
     
-    # Open the image from the downloaded content    
-    image = PIL.Image.open(io.BytesIO(response.content)).convert("RGB")
+#     # Open the image from the downloaded content    
+#     image = PIL.Image.open(io.BytesIO(response.content)).convert("RGB")
     
-    # Convert the image to a numpy array
-    image_array = np.array(image)
+#     # Convert the image to a numpy array
+#     image_array = np.array(image)
     
-    # Rearrange the channels from RGB to BGR
-    image_bgr = image_array[:, :, [2, 1, 0]]
+#     # Rearrange the channels from RGB to BGR
+#     image_bgr = image_array[:, :, [2, 1, 0]]
     
-    return image_bgr, image
+#     return image_bgr, image
 
 def stop_http_server():
     global httpd
@@ -316,7 +318,7 @@ def start_http_server():
 
                     logger.info('/recognise POST %s', json.dumps(event))
 
-                    image_bgr, org_image = read_picture_from_url(event['faceImgUrl'])
+                    image_bgr, org_image = web_img.read_picture_from_url(event['faceImgUrl'])
 
                     # reference_faces = face_app.get(image_bgr)
                     reference_faces = self.analyze_faces(image_bgr)
