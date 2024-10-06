@@ -852,7 +852,7 @@ def fetch_motion_detection_queue():
             traceback.print_exc()
             pass
         
-        # time.sleep(1)
+        time.sleep(0.5)
 
 
 
