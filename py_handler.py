@@ -55,7 +55,8 @@ def get_local_ip():
 
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.getLogger('ipc_client').setLevel(logging.WARN)
 
 shutting_down = False
 
@@ -477,7 +478,7 @@ def query_camera_item(host_id, cam_ip):
 
 def query_camera_items(host_id):
 
-    logger.info(f"query_camera_items, in with {host_id} ...")
+    logger.debug(f"query_camera_items, in with {host_id} ...")
 
     # Specify the table name
     tbl_asset = os.environ['TBL_ASSET']
@@ -495,7 +496,7 @@ def query_camera_items(host_id):
     # Print the items returned by the query
     camera_item_list = response.get('Items', [None])
 
-    logger.info(f'query_camera_items out {camera_item_list}')
+    logger.debug(f'query_camera_items out {camera_item_list}')
 
     return camera_item_list
 
@@ -1065,7 +1066,7 @@ def monitor_stop_event(thread_gstreamer):
 
 
 def set_recording_time(cam_ip, delay, utc_time):
-    logger.info(f'set_recording_time, cam_ip: {cam_ip}')
+    logger.info(f'set_recording_time, cam_ip: {cam_ip} utc_time: {utc_time}')
     global recording_timers
 
     if cam_ip in recording_timers:

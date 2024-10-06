@@ -222,7 +222,7 @@ class OnvifConnector():
                                 break
 
                         if utc_time is not None and is_motion is not None:
-                            logger.info(f"onvif.start_pullpoint.pull_messages Motion detected: utc_time: {utc_time} is_motion: {is_motion}")
+                            logger.info(f"onvif.start_pullpoint.pull_messages Motion detected: cam_ip: {ip_address} utc_time: {utc_time} is_motion: {is_motion}")
 
                 except Exception as e:
                     pass
