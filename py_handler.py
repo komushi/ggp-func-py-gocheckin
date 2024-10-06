@@ -835,7 +835,7 @@ def fetch_scanner_output_queue():
             logger.error(f"fetch_scanner_output_queue, Exception during running, Error: {e}")
             traceback.print_exc()
             pass
-        # time.sleep(1)
+        time.sleep(0.1)
 
 def fetch_motion_detection_queue():
     while True:
