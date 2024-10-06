@@ -59,7 +59,7 @@ class OnvifConnector():
 
                 # Extract SubscriptionReference Address and get the host/IP
                 address_element = root.find(".//{http://www.w3.org/2005/08/addressing}Address")
-                address = address_element.text if address_element is not None else client_ip
+                address = address_element.text if address_element is not None else None
                 
                 # Extract IsMotion as a boolean
                 is_motion_element = root.find(".//{http://www.onvif.org/ver10/schema}SimpleItem[@Name='IsMotion']")
@@ -72,6 +72,8 @@ class OnvifConnector():
                 # Log the extracted values
 
                 ip_address = urlparse(address).hostname
+                if not ip_address:
+                    ip_address = client_ip
 
                 logger.debug(f"onvif.extract_notification out ip_address {ip_address} is_motion_value {is_motion_value} utc_time {utc_time}")
                 return ip_address, utc_time, is_motion_value
