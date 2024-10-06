@@ -25,7 +25,7 @@ import time
 # import requests
 
 # import PIL.Image
-# import numpy as np
+import numpy as np
 
 import boto3
 from boto3.dynamodb.conditions import Attr, Key
