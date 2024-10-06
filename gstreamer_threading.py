@@ -222,7 +222,7 @@ class StreamCapture(threading.Thread):
         return Gst.FlowReturn.OK
 
     def save_frames_as_video(self, utc_time_object):
-        logger.info(f"{self.cam_ip} save_frames_as_video in")
+        logger.debug(f"{self.cam_ip} save_frames_as_video in")
 
         date_folder = utc_time_object.strftime("%Y-%m-%d")
         time_filename = utc_time_object.strftime("%H:%M:%S")
@@ -242,12 +242,12 @@ class StreamCapture(threading.Thread):
         self.clear_all_frames()
         frames = None
 
-        logger.info(f'Available threads after save_task: {", ".join(thread.name for thread in threading.enumerate())}')
+        logger.debug(f'Available threads after save_task: {", ".join(thread.name for thread in threading.enumerate())}')
 
-        logger.info(f"{self.cam_ip} save_frames_as_video out")
+        logger.debug(f"{self.cam_ip} save_frames_as_video out")
 
     def save_task(self, frames, utc_time_object):
-        logger.info(f"{self.cam_ip} save_task in date_folder with {len(frames)} frames.")
+        logger.debug(f"{self.cam_ip} save_task in date_folder with {len(frames)} frames.")
 
         try:
 
@@ -317,7 +317,7 @@ class StreamCapture(threading.Thread):
             # Set pipeline to NULL state once processing is complete
             save_pipeline.set_state(Gst.State.NULL)
 
-        logger.info(f"{self.cam_ip} save_task out")
+        logger.debug(f"{self.cam_ip} save_task out")
 
 
     def run(self):
@@ -397,10 +397,10 @@ class StreamCapture(threading.Thread):
 
 
     def feed_detecting(self, running_seconds):
-        logger.info(f"{self.cam_ip} feed_detecting in")
+        logger.debug(f"{self.cam_ip} feed_detecting in")
 
         if self.is_feeding:
-            logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
+            logger.debug(f"{self.cam_ip} feed_detecting out, already feeding")
             return
 
         self.is_feeding = True
@@ -410,21 +410,21 @@ class StreamCapture(threading.Thread):
         self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
         self.feeding_timer.start()
 
-        logger.info(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
+        logger.debug(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
 
-        logger.info(f"{self.cam_ip} feed_detecting out")
+        logger.debug(f"{self.cam_ip} feed_detecting out")
 
         
 
     def stop_feeding(self):
-        logger.info(f"{self.cam_ip} stop_feeding in")
+        logger.debug(f"{self.cam_ip} stop_feeding in")
 
         self.is_feeding = False
         self.feeding_count = 0
 
-        logger.info(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
+        logger.debug(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
 
-        logger.info(f"{self.cam_ip} stop_feeding out")
+        logger.debug(f"{self.cam_ip} stop_feeding out")
 
     def start_recording(self, utc_time):
         logger.debug(f"{self.cam_ip} start_recording in")
@@ -443,10 +443,10 @@ class StreamCapture(threading.Thread):
 
 
     def stop_recording(self, utc_time):
-        logger.info(f"{self.cam_ip} stop_recording in")
+        logger.debug(f"{self.cam_ip} stop_recording in")
 
         if not self.is_recording:
-            logger.warning(f"{self.cam_ip} start_recording out, already stopped")
+            logger.debug(f"{self.cam_ip} start_recording out, already stopped")
             return False
         
         with self.lock:
@@ -455,7 +455,7 @@ class StreamCapture(threading.Thread):
         self.save_frames_as_video(self.recordings[utc_time])
         del self.recordings[utc_time]
 
-        logger.info(f"{self.cam_ip} stop_recording out")
+        logger.debug(f"{self.cam_ip} stop_recording out")
 
         return True
 
