@@ -356,7 +356,7 @@ def start_http_server():
                     content_length = int(self.headers['Content-Length'])
                     post_data = self.rfile.read(content_length)
 
-                    cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data)
+                    cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data, self.client_address[0])
                     logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
 
                     if is_motion_value:

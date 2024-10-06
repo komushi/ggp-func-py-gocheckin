@@ -45,7 +45,7 @@ class OnvifConnector():
         self.thread_pullpoints = {}
 
     @staticmethod
-    def extract_notification(raw_payload):
+    def extract_notification(raw_payload, client_ip):
         logger.debug(f"onvif.extract_notification in")
 
         # Parse the XML content
@@ -59,7 +59,7 @@ class OnvifConnector():
 
                 # Extract SubscriptionReference Address and get the host/IP
                 address_element = root.find(".//{http://www.w3.org/2005/08/addressing}Address")
-                address = address_element.text if address_element is not None else None
+                address = address_element.text if address_element is not None else client_ip
                 
                 # Extract IsMotion as a boolean
                 is_motion_element = root.find(".//{http://www.onvif.org/ver10/schema}SimpleItem[@Name='IsMotion']")
