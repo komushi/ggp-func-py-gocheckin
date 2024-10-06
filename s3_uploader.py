@@ -40,14 +40,14 @@ class S3Uploader():
             response = connection.getresponse()
             if response.status == 200:
                 self.credentials = json.loads(response.read().decode())['credentials']
-                print(f"Credentials retrieved")
+                logger.debug(f"Credentials retrieved")
             else:
                 raise Exception(f"Failed to get credentials: {response.status}, {repr(response)}")
         else:
             expiration = dateutil.parser.isoparse(self.credentials['expiration'])
             time_remaining = expiration - datetime.now(timezone.utc)
 
-            print(f"Credentials will expire at {expiration}, Time remaining: {time_remaining}")
+            logger.debug(f"Credentials will expire at {expiration}, Time remaining: {time_remaining}")
 
             if time_remaining.total_seconds() < 60:
                 self.credentials = None
@@ -166,7 +166,7 @@ class S3Uploader():
     
     def put_object(self, object_key, local_file_path):
         try:
-            logger.info(f"put_object, in local_file_path: {local_file_path}, object_key: {object_key}")
+            logger.debug(f"put_object, in local_file_path: {local_file_path}, object_key: {object_key}")
             
             self.get_temporary_credentials()
 
@@ -177,7 +177,7 @@ class S3Uploader():
             
             if response.status_code == 200:
                 os.remove(local_file_path)
-                logger.info(f"put_object, File {local_file_path} uploaded as object_key: {object_key} and removed successfully")
+                logger.info(f"put_object, File uploaded as {object_key}.")
             else:
                 logger.error(f"put_object, Failed to upload object_key: {object_key}, {local_file_path}, status: {response.status_code}")
         except Exception as e:
