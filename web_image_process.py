@@ -7,7 +7,7 @@ import numpy as np
 def read_picture_from_url(url):
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     }
 
     cookies = {
@@ -15,7 +15,7 @@ def read_picture_from_url(url):
     }
 
     # Download the image
-    response = requests.get(url, cookies=cookies, headers=headers, allow_redirects=True)
+    response = requests.get(url, cookies=cookies, headers=headers)
     response.raise_for_status()  # Ensure the request was successful
     
     # Open the image from the downloaded content    
