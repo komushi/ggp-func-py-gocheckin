@@ -357,7 +357,7 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
 
                     cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data)
-                    # logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
+                    logger.info(f"Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
 
                     if is_motion_value:
                         handle_notification(cam_ip, utc_time, is_motion_value)
@@ -1089,7 +1089,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
         # if is_motion_value:
         thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
     else:
-        logger.info(f"handle_notification out")
+        logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
         return
 
     if thread_gstreamer is not None:
