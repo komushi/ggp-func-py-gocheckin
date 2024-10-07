@@ -83,14 +83,14 @@ fields @timestamp, @message
 | limit 200
 ```
 
-## 5. To find if splitmuxsink not unlink issues
-### 5-1. Query
+## 6
 ```
 fields @timestamp, @message
-| filter @message like /unlink_and_remove_splitmuxsink/ or @message like /stop_recording/
+| filter @message like /File uploaded as/ or @message like /New video file created at local_file_path/
 | display @timestamp, @logStream, @message
 | sort @timestamp desc
 | limit 200
+
 ```
 
 # gst query to check IPC issues
