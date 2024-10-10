@@ -63,7 +63,6 @@ class StreamCommands(Enum):
 #     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
 
 ext = ".mp4"
-max_seconds = 2
 
 class StreamCapture(threading.Thread):
 
@@ -168,7 +167,7 @@ class StreamCapture(threading.Thread):
 
             # Only discard frames if not recording
             if not self.is_recording:
-                while self.buffer and current_time - self.buffer[0][0] > max_seconds:
+                while self.buffer and current_time - self.buffer[0][0] > int(os.environ['PRE_RECORDING_SEC']):
                     self.buffer.popleft()
 
     def get_all_frames(self):
