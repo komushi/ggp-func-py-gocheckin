@@ -167,7 +167,7 @@ class StreamCapture(threading.Thread):
 
             # Only discard frames if not recording
             if not self.is_recording:
-                while self.buffer and current_time - self.buffer[0][0] > int(os.environ['PRE_RECORDING_SEC']):
+                while self.buffer and current_time - self.buffer[0][0] > float(os.environ['PRE_RECORDING_SEC']):
                     self.buffer.popleft()
 
     def get_all_frames(self):
