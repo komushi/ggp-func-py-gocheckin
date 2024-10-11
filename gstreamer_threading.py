@@ -194,9 +194,9 @@ class StreamCapture(threading.Thread):
             
             self.feeding_count += 1
 
-            logger.debug(f"{self.cam_ip} self.feeding_count % 2: {self.feeding_count % 2}, self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+            logger.debug(f"{self.cam_ip} self.feeding_count % os.environ['SKIP_DETECTING_RATE']: {self.feeding_count % int(os.environ['SKIP_DETECTING_RATE'])}, self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
 
-            if self.feeding_count % 2 == 0 or self.feeding_count > self.framerate * self.running_seconds:
+            if self.feeding_count % int(os.environ['SKIP_DETECTING_RATE']) == 0 or self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
             ret = self.decode_appsrc.emit('push-sample', sample)
