@@ -90,18 +90,14 @@ class StreamCapture(threading.Thread):
             pipeline_str_decode = f"""
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec
-                ! queue ! videoconvert ! videorate  ! video/x-raw,format=BGR,framerate=5/1
+                ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
         elif self.codec == 'h265':
             pipeline_str_decode = f"""
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
-                ! queue ! videoconvert ! videorate ! video/x-raw,format=BGR,framerate=5/1
+                ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
-            # pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
-            #     ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
-            #     ! queue ! videoconvert ! videorate drop-only=true max-rate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))} ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
-            #     ! queue ! appsink name=m_appsink"""
 
         # Create the empty pipeline
         self.pipeline_decode = Gst.parse_launch(pipeline_str_decode)
@@ -165,7 +161,79 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
 
+    # def on_new_sample_decode(self, sink, _):
+    #     sample = sink.emit('pull-sample')
+
+    #     if sample:
+    #         buffer = sample.get_buffer()
+    #         if not buffer:
+    #             logger.error("on_new_sample_decode: Received sample with no buffer")
+    #             return Gst.FlowReturn.OK
+            
+    #         buffer_size = buffer.get_size()
+    #         if buffer_size == 0:
+    #             logger.error("on_new_sample_decode: Buffer is empty (size 0)")
+    #             return Gst.FlowReturn.OK
+
+    #         # Print the sample timestamp and buffer size
+    #         pts = buffer.pts
+    #         if pts != Gst.CLOCK_TIME_NONE:
+    #             timestamp = pts / Gst.SECOND  # Convert nanoseconds to seconds
+    #             logger.info(f"on_new_sample_decode: Sample timestamp: {timestamp} seconds, Buffer size: {buffer_size} bytes")
+    #         else:
+    #             logger.error("on_new_sample_decode: buffer.pts None")
+
+
+    #         self.decoding_count += 1
+    #         logger.info(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
+
+    #         sample = None
+
+    #     return Gst.FlowReturn.OK
+
+    # def on_new_sample(self, sink, _):
+    #     sample = sink.emit('pull-sample')
+
+    #     if self.is_feeding:
+    #         if sample:            
+    #             self.feeding_count += 1 
+
+    #             self.decode_appsrc.emit('push-sample', sample)
+    #             logger.info(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
+
+    #     return Gst.FlowReturn.OK
+
+    def on_new_sample(self, sink, _):
+        sample = sink.emit('pull-sample')
+
+        # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
+
+        if not sample:
+            return Gst.FlowReturn.ERROR
+        
+        self.add_frame(sample)
+
+        if self.is_feeding:
+            
+            self.feeding_count += 1
+
+            logger.info(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+
+            if self.feeding_count > self.framerate * self.running_seconds:
+                return Gst.FlowReturn.OK
+
+            ret = self.decode_appsrc.emit('push-sample', sample)
+            if ret != Gst.FlowReturn.OK:
+                logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+
+        sample = None
+        return Gst.FlowReturn.OK
+
     def on_new_sample_decode(self, sink, _):
+        if float(os.environ['DETECTING_RATE_PERCENT']) * self.feeding_count < self.decoding_count:
+            sample = sink.emit('pull-sample')
+            return Gst.FlowReturn.OK
+
         sample = sink.emit('pull-sample')
 
         if sample:
@@ -179,74 +247,16 @@ class StreamCapture(threading.Thread):
                 logger.error("on_new_sample_decode: Buffer is empty (size 0)")
                 return Gst.FlowReturn.OK
 
-            # Print the sample timestamp and buffer size
-            pts = buffer.pts
-            if pts != Gst.CLOCK_TIME_NONE:
-                timestamp = pts / Gst.SECOND  # Convert nanoseconds to seconds
-                logger.info(f"on_new_sample_decode: Sample timestamp: {timestamp} seconds, Buffer size: {buffer_size} bytes")
-            else:
-                logger.error("on_new_sample_decode: buffer.pts None")
+            arr = self.gst_to_opencv(sample)
 
+            if not self.cam_queue.full():
+                self.decoding_count += 1
+                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
-            self.decoding_count += 1
-            logger.info(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
+                logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put decoding_count: {self.decoding_count}")
 
-            sample = None
-
+        sample = None
         return Gst.FlowReturn.OK
-
-    def on_new_sample(self, sink, _):
-        sample = sink.emit('pull-sample')
-
-        if self.is_feeding:
-            if sample:            
-                self.feeding_count += 1 
-
-                self.decode_appsrc.emit('push-sample', sample)
-                logger.info(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
-
-        return Gst.FlowReturn.OK
-
-    # def on_new_sample(self, sink, _):
-    #     sample = sink.emit('pull-sample')
-
-    #     # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
-
-    #     if not sample:
-    #         return Gst.FlowReturn.ERROR
-        
-    #     self.add_frame(sample)
-
-    #     if self.is_feeding:
-            
-    #         self.feeding_count += 1
-
-    #         logger.info(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
-
-    #         if self.feeding_count > self.framerate * self.running_seconds:
-    #             return Gst.FlowReturn.OK
-
-    #         ret = self.decode_appsrc.emit('push-sample', sample)
-    #         if ret != Gst.FlowReturn.OK:
-    #             logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
-
-    #     sample = None
-    #     return Gst.FlowReturn.OK
-
-    # def on_new_sample_decode(self, sink, _):
-    #     sample = sink.emit('pull-sample')
-
-    #     if sample:
-    #         arr = self.gst_to_opencv(sample)
-
-    #         if not self.cam_queue.full():
-    #             self.decoding_count += 1
-    #             self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
-
-    #             logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put decoding_count: {self.decoding_count}")
-
-    #     sample = None
-    #     return Gst.FlowReturn.OK
 
     def save_frames_as_video(self, utc_time_object):
         logger.debug(f"{self.cam_ip} save_frames_as_video in")
