@@ -44,24 +44,6 @@ class StreamCommands(Enum):
     VIDEO_CLIPPED = 7
     STOP = 8
 
-
-# h264 or h265
-# pipeline_str_h264 = f"""rtspsrc name=m_rtspsrc 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph264depay name=m_rtphdepay
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h264parse
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h264 name=m_avdec 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
-
-# pipeline_str_h265 = f"""rtspsrc name=m_rtspsrc 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! rtph265depay name=m_rtphdepay 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! h265parse
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! avdec_h265 name=m_avdec
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videoconvert name=m_videoconvert 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! videorate name=m_videorate 
-#     ! queue max-size-buffers=0 max-size-time=0 max-size-bytes=0 ! appsink name=m_appsink"""
-
 ext = ".mp4"
 
 class StreamCapture(threading.Thread):
@@ -104,17 +86,17 @@ class StreamCapture(threading.Thread):
             appsink.connect("new-sample", self.on_new_sample, {})
 
         pipeline_str_decode = ''
-        if params['codec'] == 'h264':
+        if self.codec == 'h264':
             pipeline_str_decode = f"""
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec
-                ! queue ! videoconvert ! video/x-raw, format=BGR
+                ! queue ! videoconvert ! videorate ! video/x-raw,format=BGR,framerate={round(self.framerate * os.environ['DETECTING_RATE_PERCENT'])}/1
                 ! queue ! appsink name=m_appsink"""
-        elif params['codec'] == 'h265':
+        elif self.codec == 'h265':
             pipeline_str_decode = f"""
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
-                ! queue ! videoconvert ! video/x-raw, format=BGR
+                ! queue ! videoconvert ! videorate ! video/x-raw,format=BGR,framerate={round(self.framerate * os.environ['DETECTING_RATE_PERCENT'])}/1
                 ! queue ! appsink name=m_appsink"""
 
         # Create the empty pipeline
@@ -194,9 +176,9 @@ class StreamCapture(threading.Thread):
             
             self.feeding_count += 1
 
-            logger.debug(f"{self.cam_ip} self.feeding_count % os.environ['SKIP_DETECTING_RATE']: {self.feeding_count % int(os.environ['SKIP_DETECTING_RATE'])}, self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+            logger.debug(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
 
-            if self.feeding_count % int(os.environ['SKIP_DETECTING_RATE']) == 0 or self.feeding_count > self.framerate * self.running_seconds:
+            if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
             ret = self.decode_appsrc.emit('push-sample', sample)
@@ -257,15 +239,15 @@ class StreamCapture(threading.Thread):
 
             local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], self.cam_ip, date_folder, time_filename + ext)
 
-            # save_pipeline = Gst.parse_launch(f'''
-            #     appsrc name=m_appsrc emit-signals=true is-live=true format=time
-            #     ! h265parse ! splitmuxsink name=m_sink location={local_file_path} max-size-time=20000000000
-            # ''')
+            save_pipeline_str = ''
+            if self.codec == 'h264':
+                save_pipeline_str = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
+                    ! h264parse ! mp4mux ! filesink name=m_sink location={local_file_path}"""
+            elif self.codec == 'h265':
+                save_pipeline_str = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
+                    ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}"""
 
-            save_pipeline = Gst.parse_launch(f'''
-                appsrc name=m_appsrc emit-signals=true is-live=true format=time
-                ! h265parse ! mp4mux ! filesink name=m_sink location={local_file_path}
-            ''')
+            save_pipeline = Gst.parse_launch(save_pipeline_str)
 
             appsrc = save_pipeline.get_by_name('m_appsrc')
 
