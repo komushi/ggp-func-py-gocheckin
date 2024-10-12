@@ -165,27 +165,26 @@ class StreamCapture(threading.Thread):
         with self.lock:
             self.buffer.clear()
 
-    def on_new_sample(self, sink, _):
-        sample = sink.emit('pull-sample')
-
-        if self.is_feeding:
-            
-            self.feeding_count += 1 
-
-            if self.feeding_count > self.framerate * self.running_seconds:
-                return Gst.FlowReturn.OK
-
-            self.decode_appsrc.emit('push-sample', sample)
-            logger.info(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
-
-        return Gst.FlowReturn.OK
-
     def on_new_sample_decode(self, sink, _):
         sample = sink.emit('pull-sample')
 
         if sample:
             self.decoding_count += 1
             logger.info(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
+
+            sample = None
+
+        return Gst.FlowReturn.OK
+
+    def on_new_sample(self, sink, _):
+        sample = sink.emit('pull-sample')
+
+        if self.is_feeding:
+            if sample:            
+                self.feeding_count += 1 
+
+                self.decode_appsrc.emit('push-sample', sample)
+                logger.info(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
         return Gst.FlowReturn.OK
 
