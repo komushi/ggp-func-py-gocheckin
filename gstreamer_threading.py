@@ -101,7 +101,7 @@ class StreamCapture(threading.Thread):
             pipeline_str_decode = f"""
                 appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
-                ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR
+                ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
 
         # Create the empty pipeline
