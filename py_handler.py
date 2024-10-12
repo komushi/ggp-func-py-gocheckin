@@ -130,7 +130,7 @@ def function_handler(event, context):
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event:
-            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', True)
+            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', True, forced=True)
 
 def fetch_camera_items():
     logger.debug(f"fetch_camera_items in")
@@ -196,7 +196,7 @@ def init_gst_apps():
 
     for cam_ip in camera_items:
         try:
-            init_gst_app(os.environ['HOST_ID'], cam_ip)
+            init_gst_app(os.environ['HOST_ID'], cam_ip, forced=False)
         except Exception as e:
             logger.error(f"Error handling init_gst_apps: {e}")
             traceback.print_exc()
@@ -209,17 +209,20 @@ def init_gst_apps():
     logger.info(f"init_gst_apps out")
 
 
-def init_gst_app(host_id, cam_ip):
+def init_gst_app(host_id, cam_ip, forced=False):
+    if forced:
+        logger.info(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}, forced: {forced}")
+
     logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
 
     global thread_monitors
 
-    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip)
+    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
     logger.debug(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
     if thread_gstreamer is not None:
-        if is_new_gst_thread:
+        if is_new_gst_thread and not forced:
             if cam_ip in thread_monitors:
                 if thread_monitors[cam_ip] is not None:
                     thread_monitors[cam_ip].join()
@@ -229,6 +232,9 @@ def init_gst_app(host_id, cam_ip):
             
 
     logger.debug(f"init_gst_app out thread_gstreamer: {thread_gstreamer}")
+
+    if forced:
+        logger.info(f"init_gst_app out thread_gstreamer: {thread_gstreamer}, forced: {forced}")
 
     return thread_gstreamer
 
@@ -742,8 +748,8 @@ def claim_cameras():
 
         logger.info(f"claim_cameras published {data}")
 
-    # Reschedule the claim cameras function for every 5 minutes (300 seconds)
-    timer = threading.Timer(300, claim_cameras)
+    # Reschedule the claim cameras function for every 2 minutes (120 seconds)
+    timer = threading.Timer(120, claim_cameras)
     timer.name = "Thread-ClaimCameras-Timer"
     timer.start()
     # timer.join()
@@ -936,10 +942,13 @@ def stop_gstreamer_thread(thread_name):
             thread_gstreamers[thread_name] = None
             logger.info(f"stop_gstreamer_thread, {thread_name} received, thread_gstreamer was just shut down.")
 
-def start_gstreamer_thread(host_id, cam_ip):
+def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
-    logger.debug(f"{cam_ip} start_gstreamer_thread, in with {host_id, cam_ip}")
+    logger.debug(f"{cam_ip} start_gstreamer_thread in")
     
+    if forced:
+        logger.info(f"{cam_ip} start_gstreamer_thread in forced: {forced}")
+
     global camera_items
     global thread_gstreamers
     camera_item = None
@@ -956,9 +965,10 @@ def start_gstreamer_thread(host_id, cam_ip):
         logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
         return None, False
     else:
-        if not camera_item['isDetecting'] and not camera_item['isRecording']:
-            logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item has been set to idle")
-            return None, False
+        if not forced:
+            if not camera_item['isDetecting'] and not camera_item['isRecording']:
+                logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item has been set to idle")
+                return None, False
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
@@ -978,6 +988,9 @@ def start_gstreamer_thread(host_id, cam_ip):
     thread_gstreamers[cam_ip].start()
 
     logger.debug(f"{cam_ip} start_gstreamer_thread, starting...")
+
+    if forced:
+        logger.info(f"{cam_ip} start_gstreamer_thread starting... forced: {forced}")
 
     return thread_gstreamers[cam_ip], True
 
@@ -1088,14 +1101,17 @@ def set_recording_time(cam_ip, delay, utc_time):
 #     detection_timer.name = f"Thread-SamplingStopper-{thread_gstreamer.cam_ip}"
 #     detection_timer.start()
 
-def handle_notification(cam_ip, utc_time, is_motion_value):
+def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
+    if forced:
+        logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
+
     global thread_detector
 
     thread_gstreamer = None
     if cam_ip is not None and utc_time is not None and is_motion_value is not None:
         logger.debug(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
         # if is_motion_value:
-        thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip)
+        thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip, forced)
     else:
         logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
         return
@@ -1108,7 +1124,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
             camera_item = camera_items[cam_ip]
 
             # detect
-            if camera_item['isDetecting']:
+            if camera_item['isDetecting'] or forced:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
                         thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
@@ -1134,13 +1150,16 @@ def handle_notification(cam_ip, utc_time, is_motion_value):
                     thread_detector.start_detection()
 
             # record 
-            if camera_item['isRecording']:
+            if camera_item['isRecording'] or forced:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip].start_recording(utc_time):
                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']), utc_time)
 
 
     logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+
+    if forced:
+        logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
 
 def subscribe_onvif():
     logger.info(f"subscribe_onvif in")
