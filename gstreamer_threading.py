@@ -171,9 +171,23 @@ class StreamCapture(threading.Thread):
         if sample:
             buffer = sample.get_buffer()
             if not buffer:
-                logger.info("on_new_sample_decode: Received sample with no buffer")
+                logger.error("on_new_sample_decode: Received sample with no buffer")
                 return Gst.FlowReturn.OK
             
+            buffer_size = buffer.get_size()
+            if buffer_size == 0:
+                logger.error("on_new_sample_decode: Buffer is empty (size 0)")
+                return Gst.FlowReturn.OK
+
+            # Print the sample timestamp and buffer size
+            pts = buffer.pts
+            if pts != Gst.CLOCK_TIME_NONE:
+                timestamp = pts / Gst.SECOND  # Convert nanoseconds to seconds
+                logger.info(f"on_new_sample_decode: Sample timestamp: {timestamp} seconds, Buffer size: {buffer_size} bytes")
+            else:
+                logger.error("on_new_sample_decode: buffer.pts None")
+
+
             self.decoding_count += 1
             logger.info(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
