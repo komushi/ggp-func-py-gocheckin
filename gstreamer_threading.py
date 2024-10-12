@@ -217,7 +217,7 @@ class StreamCapture(threading.Thread):
             
             self.feeding_count += 1
 
-            logger.info(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+            logger.info(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
@@ -231,7 +231,7 @@ class StreamCapture(threading.Thread):
 
     def on_new_sample_decode(self, sink, _):
         if float(os.environ['DETECTING_RATE_PERCENT']) * self.feeding_count < self.decoding_count:
-            logger.warning("on_new_sample_decode: need to clear buffer")
+            logger.warning(f"on_new_sample_decode decoding_count:  {self.decoding_count}")
             sample = sink.emit('pull-sample')
             return Gst.FlowReturn.OK
 
@@ -254,7 +254,7 @@ class StreamCapture(threading.Thread):
                 self.decoding_count += 1
                 self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
-                logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put decoding_count: {self.decoding_count}")
+                logger.info(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
         sample = None
         return Gst.FlowReturn.OK
