@@ -179,13 +179,13 @@ class StreamCapture(threading.Thread):
 
     #     return Gst.FlowReturn.OK
 
-    # def on_new_sample_decode(self, sink, _):
-    #     sample = sink.emit('pull-sample')
+    def on_new_sample_decode(self, sink, _):
+        sample = sink.emit('pull-sample')
 
-    #     if sample:
-    #         logger.info(f"{self.cam_ip} on_new_sample_decode")
+        if sample:
+            logger.info(f"{self.cam_ip} on_new_sample_decode")
 
-    #     return Gst.FlowReturn.OK
+        return Gst.FlowReturn.OK
 
     def on_new_sample(self, sink, _):
         sample = sink.emit('pull-sample')
@@ -213,19 +213,19 @@ class StreamCapture(threading.Thread):
         sample = None
         return Gst.FlowReturn.OK
 
-    def on_new_sample_decode(self, sink, _):
-        sample = sink.emit('pull-sample')
+    # def on_new_sample_decode(self, sink, _):
+    #     sample = sink.emit('pull-sample')
 
-        if sample:
-            arr = self.gst_to_opencv(sample)
+    #     if sample:
+    #         arr = self.gst_to_opencv(sample)
 
-            if not self.cam_queue.full():
-                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+    #         if not self.cam_queue.full():
+    #             self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
 
-                logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put")
+    #             logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put")
 
-        sample = None
-        return Gst.FlowReturn.OK
+    #     sample = None
+    #     return Gst.FlowReturn.OK
 
     def save_frames_as_video(self, utc_time_object):
         logger.debug(f"{self.cam_ip} save_frames_as_video in")
