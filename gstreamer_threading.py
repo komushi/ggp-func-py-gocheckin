@@ -169,6 +169,11 @@ class StreamCapture(threading.Thread):
         sample = sink.emit('pull-sample')
 
         if sample:
+            buffer = sample.get_buffer()
+            if not buffer:
+                logger.info("on_new_sample_decode: Received sample with no buffer")
+                return Gst.FlowReturn.OK
+            
             self.decoding_count += 1
             logger.info(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
