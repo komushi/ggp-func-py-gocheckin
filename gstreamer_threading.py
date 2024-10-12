@@ -231,6 +231,7 @@ class StreamCapture(threading.Thread):
 
     def on_new_sample_decode(self, sink, _):
         if float(os.environ['DETECTING_RATE_PERCENT']) * self.feeding_count < self.decoding_count:
+            logger.warning("on_new_sample_decode: need to clear buffer")
             sample = sink.emit('pull-sample')
             return Gst.FlowReturn.OK
 
