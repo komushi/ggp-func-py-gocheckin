@@ -180,7 +180,7 @@ class StreamCapture(threading.Thread):
             
             self.feeding_count += 1
 
-            logger.debug(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+            logger.info(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
 
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
