@@ -165,46 +165,67 @@ class StreamCapture(threading.Thread):
             self.buffer.clear()
 
     def on_new_sample(self, sink, _):
-        # crt_time = time.time()
-
         sample = sink.emit('pull-sample')
-
-        # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
-
-        if not sample:
-            return Gst.FlowReturn.ERROR
-        
-        self.add_frame(sample)
 
         if self.is_feeding:
             
-            self.feeding_count += 1
-
-            logger.info(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+            self.feeding_count += 1 
 
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
-            ret = self.decode_appsrc.emit('push-sample', sample)
-            if ret != Gst.FlowReturn.OK:
-                logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+            self.decode_appsrc.emit('push-sample', sample)
+            logger.info(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
-        sample = None
         return Gst.FlowReturn.OK
 
     def on_new_sample_decode(self, sink, _):
         sample = sink.emit('pull-sample')
 
         if sample:
-            arr = self.gst_to_opencv(sample)
+            logger.info(f"{self.cam_ip} on_new_sample_decode")
 
-            if not self.cam_queue.full():
-                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
-
-                logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put")
-
-        sample = None
         return Gst.FlowReturn.OK
+
+    # def on_new_sample(self, sink, _):
+    #     sample = sink.emit('pull-sample')
+
+    #     # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
+
+    #     if not sample:
+    #         return Gst.FlowReturn.ERROR
+        
+    #     self.add_frame(sample)
+
+    #     if self.is_feeding:
+            
+    #         self.feeding_count += 1
+
+    #         logger.info(f"{self.cam_ip} self.feeding_count: {self.feeding_count}, self.framerate * self.running_seconds: {self.framerate * self.running_seconds}")
+
+    #         if self.feeding_count > self.framerate * self.running_seconds:
+    #             return Gst.FlowReturn.OK
+
+    #         ret = self.decode_appsrc.emit('push-sample', sample)
+    #         if ret != Gst.FlowReturn.OK:
+    #             logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+
+    #     sample = None
+    #     return Gst.FlowReturn.OK
+
+    # def on_new_sample_decode(self, sink, _):
+    #     sample = sink.emit('pull-sample')
+
+    #     if sample:
+    #         arr = self.gst_to_opencv(sample)
+
+    #         if not self.cam_queue.full():
+    #             self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+
+    #             logger.info(f"{self.cam_ip} on_new_sample_decode, cam_queue put")
+
+    #     sample = None
+    #     return Gst.FlowReturn.OK
 
     def save_frames_as_video(self, utc_time_object):
         logger.debug(f"{self.cam_ip} save_frames_as_video in")
