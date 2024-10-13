@@ -181,7 +181,7 @@ class StreamCapture(threading.Thread):
             buffer = sample.get_buffer()
             caps = sample.get_caps()
             structure = caps.get_structure(0)
-            framerate_num, framerate_denom = caps.get_structure(0).get_fraction("framerate")
+            framerate_bool, framerate_num, framerate_denom = caps.get_structure(0).get_fraction("framerate")
 
             if framerate_num == 0:
                 new_structure = structure.copy()
