@@ -166,9 +166,6 @@ class StreamCapture(threading.Thread):
 
         if not sample:
             return Gst.FlowReturn.ERROR
-        
-        caps = sample.get_caps()
-        logger.info(f"{self.cam_ip} on_new_sample caps: {caps.to_string()}")
 
         self.add_frame(sample)
 
@@ -180,6 +177,9 @@ class StreamCapture(threading.Thread):
 
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
+
+            caps = sample.get_caps()
+            logger.info(f"{self.cam_ip} on_new_sample caps: {caps.to_string()}")
 
             ret = self.decode_appsrc.emit('push-sample', sample)
             if ret != Gst.FlowReturn.OK:
