@@ -184,10 +184,8 @@ class StreamCapture(threading.Thread):
             framerate_value = caps.get_structure(0).get_fraction("framerate")
 
             if framerate_value[1] == 0:
-                Gst.Value.set_fraction(framerate_value, int(self.framerate), 1)
-
                 new_structure = structure.copy()
-                new_structure.set_value("framerate", framerate_value)
+                new_structure.set_value("framerate", int(self.framerate))
 
                 new_caps = Gst.Caps.new_empty()
                 new_caps.append_structure(new_structure)
