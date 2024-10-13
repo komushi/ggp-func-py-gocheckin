@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 Gst.init(None)
-Gst.debug_set_default_threshold(Gst.DebugLevel.FIXME)
+
+Gst.debug_set_default_threshold("4")
 
 class StreamMode(Enum):
     INIT_STREAM = 1
@@ -181,21 +182,30 @@ class StreamCapture(threading.Thread):
             buffer = sample.get_buffer()
             caps = sample.get_caps()
             structure = caps.get_structure(0)
-            framerate_value = caps.get_structure(0).get_fraction("framerate")
+            new_structure = structure.copy()
+            new_structure.set_value("framerate", 0)
+            new_caps = Gst.Caps.new_empty()
+            new_caps.append_structure(new_structure)
+            new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
 
-            if framerate_value[1] == 0:
-                new_structure = structure.copy()
-                new_structure.set_value("framerate", int(self.framerate))
+            # buffer = sample.get_buffer()
+            # caps = sample.get_caps()
+            # structure = caps.get_structure(0)
+            # framerate_value = caps.get_structure(0).get_fraction("framerate")
 
-                new_caps = Gst.Caps.new_empty()
-                new_caps.append_structure(new_structure)
+            # if framerate_value[1] == 0:
+            #     new_structure = structure.copy()
+            #     new_structure.set_value("framerate", int(self.framerate))
 
-                new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
+            #     new_caps = Gst.Caps.new_empty()
+            #     new_caps.append_structure(new_structure)
 
-                logger.debug(f"{self.cam_ip} on_new_sample caps: {caps.to_string()}")
-                logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_caps.to_string()}")
-            else:
-                new_sample = sample
+            #     new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
+
+            #     logger.debug(f"{self.cam_ip} on_new_sample caps: {caps.to_string()}")
+            #     logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_caps.to_string()}")
+            # else:
+            #     new_sample = sample
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
