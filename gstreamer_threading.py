@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 Gst.init(None)
-Gst.debug_set_default_threshold(Gst.DebugLevel.FIXME)
+Gst.debug_set_default_threshold(Gst.DebugLevel.WARNING)
 
 class StreamMode(Enum):
     INIT_STREAM = 1
