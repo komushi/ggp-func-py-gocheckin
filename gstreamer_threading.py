@@ -178,10 +178,26 @@ class StreamCapture(threading.Thread):
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
+            buffer = sample.get_buffer()
             caps = sample.get_caps()
-            logger.info(f"{self.cam_ip} on_new_sample caps: {caps.to_string()}")
+            structure = caps.get_structure(0)
+            framerate_num, framerate_denom = caps.get_structure(0).get_fraction("framerate")
 
-            ret = self.decode_appsrc.emit('push-sample', sample)
+            if framerate_num == 0:
+                new_structure = structure.copy()
+                new_structure.set_value("framerate", Gst.Fraction(int(self.framerate), 1))
+
+                new_caps = Gst.Caps.new_empty()
+                new_caps.append_structure(new_structure)
+
+                new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
+
+                logger.debug(f"{self.cam_ip} on_new_sample caps: {caps.to_string()}")
+                logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_caps.to_string()}")
+            else:
+                new_sample = sample
+
+            ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
                 logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
