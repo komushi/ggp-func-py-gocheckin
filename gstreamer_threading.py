@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 Gst.init(None)
-# Gst.debug_set_default_threshold(Gst.DebugLevel.ERROR)
+# Gst.debug_set_default_threshold(Gst.DebugLevel.INFO)
 
 class StreamMode(Enum):
     INIT_STREAM = 1
@@ -87,14 +87,12 @@ class StreamCapture(threading.Thread):
 
         pipeline_str_decode = ''
         if self.codec == 'h264':
-            pipeline_str_decode = f"""
-                appsrc name=m_appsrc emit-signals=true is-live=true format=time
+            pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue ! h264parse ! queue ! avdec_h264 name=m_avdec
                 ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
         elif self.codec == 'h265':
-            pipeline_str_decode = f"""
-                appsrc name=m_appsrc emit-signals=true is-live=true format=time
+            pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
                 ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
