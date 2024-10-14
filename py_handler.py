@@ -217,7 +217,7 @@ def init_gst_app(host_id, cam_ip, forced=False):
 
     global thread_monitors
 
-    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip)
 
     logger.debug(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
@@ -941,12 +941,9 @@ def stop_gstreamer_thread(thread_name):
             thread_gstreamers[thread_name] = None
             logger.info(f"stop_gstreamer_thread, {thread_name} received, thread_gstreamer was just shut down.")
 
-def start_gstreamer_thread(host_id, cam_ip, forced=False):
+def start_gstreamer_thread(host_id, cam_ip):
 
     logger.debug(f"{cam_ip} start_gstreamer_thread in")
-    
-    if forced:
-        logger.info(f"{cam_ip} start_gstreamer_thread in forced: {forced}")
 
     global camera_items
     global thread_gstreamers
@@ -964,10 +961,9 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
         logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item cannot be found")
         return None, False
     
-    if not forced:
-        if not camera_item['isDetecting'] and not camera_item['isRecording']:
-            logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
-            return None, False
+    if not camera_item['isDetecting'] and not camera_item['isRecording']:
+        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
+        return None, False
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
