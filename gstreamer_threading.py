@@ -184,7 +184,7 @@ class StreamCapture(threading.Thread):
             caps = sample.get_caps()
             structure = caps.get_structure(0)
             new_structure = structure.copy()
-            new_structure.set_value("framerate", 0)
+            new_structure.set_value("framerate", 13)
             new_caps = Gst.Caps.new_empty()
             new_caps.append_structure(new_structure)
             new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
