@@ -961,9 +961,9 @@ def start_gstreamer_thread(host_id, cam_ip):
         logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item cannot be found")
         return None, False
     
-    if not camera_item['isDetecting'] and not camera_item['isRecording']:
-        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
-        return None, False
+    # if not camera_item['isDetecting'] and not camera_item['isRecording']:
+    #     logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
+    #     return None, False
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
@@ -1116,7 +1116,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
             camera_item = camera_items[cam_ip]
 
             # detect
-            if camera_item['isDetecting']:
+            if camera_item['isDetecting'] or forced:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
                         thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
@@ -1142,7 +1142,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
                     thread_detector.start_detection()
 
             # record 
-            if camera_item['isRecording']:
+            if camera_item['isRecording'] or forced:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip].start_recording(utc_time):
                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']), utc_time)
