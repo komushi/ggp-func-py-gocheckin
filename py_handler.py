@@ -960,7 +960,7 @@ def start_gstreamer_thread(host_id, cam_ip):
         logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item cannot be found")
         return None, False
     
-    if not camera_item['isDetecting'] or not camera_item['isRecording']:
+    if not camera_item['isDetecting'] and not camera_item['isRecording']:
         logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
         return None, False
 
