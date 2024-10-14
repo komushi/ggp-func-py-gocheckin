@@ -558,7 +558,7 @@ def get_active_reservations():
     items = response.get('Items', [])
 
     for item in items:
-        logger.info(item)
+        logger.debug(item)
 
     logger.info('get_active_reservations out')
 
@@ -803,7 +803,6 @@ def fetch_scanner_output_queue():
             message = None
             if not scanner_output_queue.empty():
                 message = scanner_output_queue.get_nowait()    
-                # logger.info(f"Fetched from scanner_output_queue: {repr(message)}")
             
             if not message is None and 'type' in message:
                 if message['type'] == 'guest_detected':
@@ -961,9 +960,9 @@ def start_gstreamer_thread(host_id, cam_ip):
         logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item cannot be found")
         return None, False
     
-    # if not camera_item['isDetecting'] and not camera_item['isRecording']:
-    #     logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
-    #     return None, False
+    if not camera_item['isDetecting'] or not camera_item['isRecording']:
+        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
+        return None, False
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
@@ -1116,7 +1115,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
             camera_item = camera_items[cam_ip]
 
             # detect
-            if camera_item['isDetecting'] or forced:
+            if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
                         thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
@@ -1142,7 +1141,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
                     thread_detector.start_detection()
 
             # record 
-            if camera_item['isRecording'] or forced:
+            if camera_item['isRecording']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip].start_recording(utc_time):
                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']), utc_time)
