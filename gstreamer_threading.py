@@ -201,6 +201,9 @@ class StreamCapture(threading.Thread):
             else:
                 new_sample = sample
 
+            
+            logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
+
             # if framerate_value[1] == 0:
             #     new_structure = structure.copy()
             #     new_structure.set_value("framerate", int(self.framerate))
