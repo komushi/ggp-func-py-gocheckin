@@ -1,3 +1,4 @@
+import re
 import gi
 
 gi.require_version('Gst', '1.0')
@@ -180,19 +181,25 @@ class StreamCapture(threading.Thread):
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
-            buffer = sample.get_buffer()
             caps = sample.get_caps()
             structure = caps.get_structure(0)
-            new_structure = structure.copy()
-            new_structure.set_value("framerate", 13)
-            new_caps = Gst.Caps.new_empty()
-            new_caps.append_structure(new_structure)
-            new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
+            framerate_value = structure.get_fraction("framerate")
+            
+            if framerate_value[1] == 0:
+                caps_string = caps.to_string()
 
-            # buffer = sample.get_buffer()
-            # caps = sample.get_caps()
-            # structure = caps.get_structure(0)
-            # framerate_value = caps.get_structure(0).get_fraction("framerate")
+                new_caps_string = re.sub(
+                    r'framerate=\(fraction\)\d+/\d+',
+                    f'framerate=(fraction){self.framerate}/1',
+                    caps_string
+                )
+
+                new_caps = Gst.Caps.from_string(new_caps_string)
+                buffer = sample.get_buffer()
+
+                new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
+            else:
+                new_sample = sample
 
             # if framerate_value[1] == 0:
             #     new_structure = structure.copy()

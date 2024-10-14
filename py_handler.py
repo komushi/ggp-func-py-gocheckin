@@ -961,7 +961,11 @@ def start_gstreamer_thread(host_id, cam_ip):
         return None, False
     
     if not camera_item['isDetecting'] and not camera_item['isRecording']:
-        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
+        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is neither detecting nor recording")
+        return None, False
+
+    if not camera_item['onvif']['isSubscription'] and not camera_item['onvif']['isPullpoint']:
+        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is neither subscription nor pullpoint")
         return None, False
 
     if cam_ip in thread_gstreamers:
