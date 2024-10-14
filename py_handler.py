@@ -495,7 +495,6 @@ def query_camera_items(host_id):
     # Retrieve item from the table
     response = table.query(
         KeyConditionExpression=Key('hostId').eq(host_id),
-        # FilterExpression=Attr('category').eq('CAMERA') & (Attr('isDetecting').eq(True) | Attr('isRecording').eq(True))
         FilterExpression=Attr('category').eq('CAMERA')
     )
     
@@ -962,18 +961,18 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
     camera_items[cam_ip] = camera_item
 
     if camera_item is None:
-        logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
+        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item cannot be found")
         return None, False
-    else:
-        if not forced:
-            if not camera_item['isDetecting'] and not camera_item['isRecording']:
-                logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item has been set to idle")
-                return None, False
+    
+    if not forced:
+        if not camera_item['isDetecting'] and not camera_item['isRecording']:
+            logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is not detecting, not recording")
+            return None, False
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
             if thread_gstreamers[cam_ip].is_alive():
-                logger.debug(f"{cam_ip} start_gstreamer_thread, already started")
+                logger.info(f"{cam_ip} start_gstreamer_thread not starting, already started")
                 return thread_gstreamers[cam_ip], False
     
     params = {}
@@ -987,10 +986,7 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
     thread_gstreamers[cam_ip] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
     thread_gstreamers[cam_ip].start()
 
-    logger.debug(f"{cam_ip} start_gstreamer_thread, starting...")
-
-    if forced:
-        logger.info(f"{cam_ip} start_gstreamer_thread starting... forced: {forced}")
+    logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
 
     return thread_gstreamers[cam_ip], True
 
@@ -1124,7 +1120,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
             camera_item = camera_items[cam_ip]
 
             # detect
-            if camera_item['isDetecting'] or forced:
+            if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
                         thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
@@ -1150,7 +1146,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
                     thread_detector.start_detection()
 
             # record 
-            if camera_item['isRecording'] or forced:
+            if camera_item['isRecording']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip].start_recording(utc_time):
                         set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']), utc_time)
@@ -1169,8 +1165,6 @@ def subscribe_onvif():
         
     for cam_ip in camera_items:
         try:
-            
-                
 
             if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:
 
