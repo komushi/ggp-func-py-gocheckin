@@ -105,9 +105,9 @@ class StreamCapture(threading.Thread):
 
         # source params
         self.decode_appsrc = self.pipeline_decode.get_by_name('m_appsrc')
-        if self.decode_appsrc is not None:
-            self.decode_appsrc.connect('need-data', self.on_need_data, {})
-            self.decode_appsrc.connect('push-sample', self.on_push_sample, {})
+        # if self.decode_appsrc is not None:
+        #     self.decode_appsrc.connect('need-data', self.on_need_data, {})
+        #     self.decode_appsrc.connect('push-sample', self.on_push_sample, {})
 
         # sink params
         appsink_decode = self.pipeline_decode.get_by_name('m_appsink')
@@ -135,18 +135,18 @@ class StreamCapture(threading.Thread):
         self.feeding_timer = None
         self.previous_pts = None
 
-    def on_need_data(self, appsrc, length, args):
-        # This function gets triggered when appsrc needs data.
-        # No direct sample pushing happens here, but you can inspect caps here too if needed
-        logger.debug("appsrc needs data!")
+    # def on_need_data(self, appsrc, length, args):
+    #     # This function gets triggered when appsrc needs data.
+    #     # No direct sample pushing happens here, but you can inspect caps here too if needed
+    #     logger.debug("appsrc needs data!")
 
-    def on_push_sample(self, appsrc, sample, args):
-        caps = sample.get_caps()
+    # def on_push_sample(self, appsrc, sample, args):
+    #     caps = sample.get_caps()
 
-        # Check the caps info here (this can be used to inspect the sample being pushed)
-        logger.info(f"on_push_sample Pushing sample with caps: {caps.to_string()}")
+    #     # Check the caps info here (this can be used to inspect the sample being pushed)
+    #     logger.info(f"on_push_sample Pushing sample with caps: {caps.to_string()}")
 
-        return Gst.FlowReturn.OK
+    #     return Gst.FlowReturn.OK
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
