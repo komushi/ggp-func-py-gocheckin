@@ -113,10 +113,10 @@ def function_handler(event, context):
     context_vars = vars(context)
     topic = context_vars['client_context'].custom['subject']
 
-    logger.info('function_handler topic: %s', str(topic))
+    logger.debug('function_handler topic: %s', str(topic))
 
     if topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner":
-        logger.info('function_handler init_scanner')
+        logger.debug('function_handler init_scanner')
 
         if 'model' in event:
             logger.info(f"function_handler init_scanner changing model to {str(topic)}")
@@ -162,7 +162,7 @@ def fetch_camera_items():
     logger.debug(f"fetch_camera_items out")
 
 def init_uploader_app():
-    logger.info(f"init_uploader_app in")
+    logger.debug(f"init_uploader_app in")
 
     global uploader_app
     if uploader_app is None:
@@ -173,7 +173,7 @@ def init_uploader_app():
                 bucket_name=os.environ['VIDEO_BUCKET']
             )
     
-    logger.info(f"init_uploader_app out")
+    logger.debug(f"init_uploader_app out")
 
 def init_face_app(model='buffalo_sc'):
     class FaceAnalysisChild(FaceAnalysis):
@@ -1160,7 +1160,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
         logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
 
 def subscribe_onvif():
-    logger.info(f"subscribe_onvif in")
+    logger.debug(f"subscribe_onvif in")
     
     global camera_items
     global onvif_connectors
@@ -1177,7 +1177,7 @@ def subscribe_onvif():
                     renew_response = onvif_connectors[cam_ip].renew(camera_items[cam_ip])
 
                     if renew_response is None:
-                        logger.info(f"subscribe_onvif renew_response {renew_response}")
+                        logger.debug(f"subscribe_onvif renew_response {renew_response}")
                         camera_items[cam_ip]['onvifSubAddress'] = onvif_connectors[cam_ip].subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
 
                     logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
@@ -1206,7 +1206,7 @@ def subscribe_onvif():
     timer.name = "Thread-SubscribeOnvif-Timer"
     timer.start()
 
-    logger.info(f"subscribe_onvif out")
+    logger.debug(f"subscribe_onvif out")
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)

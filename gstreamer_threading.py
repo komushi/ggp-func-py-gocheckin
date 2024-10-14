@@ -80,7 +80,7 @@ class StreamCapture(threading.Thread):
         appsink = self.pipeline.get_by_name('m_appsink')
         if  appsink is not None:
             
-            logger.info(f"{self.cam_ip} appsink not None")
+            logger.debug(f"{self.cam_ip} appsink not None")
 
             appsink.set_property('max-buffers', 100)
             appsink.set_property('drop', True)
@@ -105,6 +105,9 @@ class StreamCapture(threading.Thread):
 
         # source params
         self.decode_appsrc = self.pipeline_decode.get_by_name('m_appsrc')
+        if self.decode_appsrc is not None:
+            self.decode_appsrc.connect('need-data', self.on_need_data, {})
+            self.decode_appsrc.connect('push-sample', self.on_push_sample, {})
 
         # sink params
         appsink_decode = self.pipeline_decode.get_by_name('m_appsink')
@@ -131,6 +134,19 @@ class StreamCapture(threading.Thread):
 
         self.feeding_timer = None
         self.previous_pts = None
+
+    def on_need_data(self, appsrc, length, args):
+        # This function gets triggered when appsrc needs data.
+        # No direct sample pushing happens here, but you can inspect caps here too if needed
+        logger.debug("appsrc needs data!")
+
+    def on_push_sample(self, appsrc, sample, args):
+        caps = sample.get_caps()
+
+        # Check the caps info here (this can be used to inspect the sample being pushed)
+        logger.info(f"on_push_sample Pushing sample with caps: {caps.to_string()}")
+
+        return Gst.FlowReturn.OK
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
@@ -164,8 +180,6 @@ class StreamCapture(threading.Thread):
 
     def on_new_sample(self, sink, _):
         sample = sink.emit('pull-sample')
-
-        # logger.info(f"{self.cam_ip} on_new_sample, sample caps: {caps.to_string()}")
 
         if not sample:
             return Gst.FlowReturn.ERROR
@@ -235,7 +249,7 @@ class StreamCapture(threading.Thread):
 
         if sample:
             caps = sample.get_caps()
-            logger.info(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
+            logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
             buffer = sample.get_buffer()
             if not buffer:
@@ -410,14 +424,14 @@ class StreamCapture(threading.Thread):
         if not self.is_playing:
 
             playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.info(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return}")
+            logger.debug(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return}")
 
             if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
                 logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
                 time.sleep(interval)
                 return self.start_playing(count)
             else:
-                logger.info(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
+                logger.debug(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
                 return True
 
         else:
@@ -543,7 +557,7 @@ class StreamCapture(threading.Thread):
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
-                logger.info(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
+                logger.debug(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
         elif message.type == Gst.MessageType.WARNING:
             logger.warning(f"Warning message {message.parse_warning()}： {message.type}")
         elif message.type == Gst.MessageType.ELEMENT:
