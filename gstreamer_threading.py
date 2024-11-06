@@ -28,8 +28,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 Gst.init(None)
 
-
-Gst.debug_set_default_threshold(os.environ['GST_DEBUG_LEVEL'])
+if 'GST_DEBUG_LEVEL' in os.environ:
+    Gst.debug_set_default_threshold(os.environ['GST_DEBUG_LEVEL'])
 
 class StreamMode(Enum):
     INIT_STREAM = 1
