@@ -1170,7 +1170,8 @@ def subscribe_onvif():
     for cam_ip in camera_items:
         try:
 
-            if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:
+            # if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:
+            if 'isDetecting' in camera_items[cam_ip] or 'isRecording' in camera_items[cam_ip]:
 
                 if not (cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None):
                     onvif_connectors[cam_ip] = OnvifConnector(camera_items[cam_ip])
