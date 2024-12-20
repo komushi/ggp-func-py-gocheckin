@@ -163,6 +163,91 @@ class S3Uploader():
     #         ExpiresIn=self.expires_in)
 
     #     return url
+
+    # def boto3_gen_kms_presigned_url(self, object_key, method='put_object'):
+    #     import boto3
+
+    #     aws_access_key_id = self.credentials["accessKeyId"]
+    #     aws_secret_access_key = self.credentials["secretAccessKey"]
+    #     aws_session_token = self.credentials["sessionToken"]
+
+    #     session = boto3.session.Session(
+    #         aws_access_key_id = aws_access_key_id,
+    #         aws_secret_access_key = aws_secret_access_key,
+    #         aws_session_token = aws_session_token
+    #     )
+
+    #     # get s3 presign
+    #     url = session.client('s3').generate_presigned_url(
+    #         ClientMethod=method,
+    #         Params={
+    #             'Bucket': self.bucket_name,
+    #             'Key': object_key,
+    #             'ServerSideEncryption': 'aws:kms',
+    #             'SSEKMSKeyId': self.kms_key_id
+    #         },
+    #         ExpiresIn=self.expires_in)
+
+    #     return url
+
+    # def generate_kms_presigned_url(self, object_key, http_method='PUT'):
+
+    #     region = os.environ['REGION']
+    #     service = "s3"
+    #     host = "s3.amazonaws.com"
+    #     endpoint = f"https://{os.environ['BUCKET_NAME']}.{host}"
+
+    #     timestamp = datetime.now(timezone.utc)
+    #     amz_datetime = timestamp.strftime("%Y%m%dT%H%M%SZ")
+    #     datetime_str = timestamp.strftime("%Y%m%d")
+
+    #     access_key = self.credentials["accessKeyId"]
+    #     secret_key = self.credentials["secretAccessKey"]
+    #     security_token = self.credentials["sessionToken"]
+
+    #     # Canonical request components
+    #     canonical_uri = urllib.parse.quote("/" + object_key)
+    #     algorithm_str = "AWS4-HMAC-SHA256"
+    #     credential_scope = f'{datetime_str}/{region}/{service}/aws4_request'
+
+    #     signed_headers = "host"
+    #     canonical_headers = f'host:{os.environ["BUCKET_NAME"]}.{host}\n'
+    #     payload_hash = "UNSIGNED-PAYLOAD"
+
+    #     # Query parameters with SSE-KMS support
+    #     canonical_query_params = {
+    #         'X-Amz-Algorithm': algorithm_str,
+    #         'X-Amz-Credential': f'{access_key}/{credential_scope}',
+    #         'X-Amz-Date': amz_datetime,
+    #         'X-Amz-Expires': self.expires_in,
+    #         'X-Amz-Security-Token': security_token,
+    #         'X-Amz-SignedHeaders': signed_headers,
+    #         'x-amz-server-side-encryption': 'aws:kms',
+    #         'x-amz-server-side-encryption-aws-kms-key-id': os.environ['KMS_KEY_ID']  # KMS Key ID
+    #     }
+
+    #     # Canonical request and string to sign
+    #     canonical_request = (
+    #         f'{http_method}\n{canonical_uri}\n'
+    #         f'{urllib.parse.urlencode(canonical_query_params)}\n'
+    #         f'{canonical_headers}\n{signed_headers}\n{payload_hash}'
+    #     )
+
+    #     string_to_sign = (
+    #         f'{algorithm_str}\n{amz_datetime}\n'
+    #         f'{credential_scope}\n'
+    #         f'{hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()}'
+    #     )
+
+    #     signing_key = self.get_signature_key(secret_key, datetime_str, region, service)
+    #     signature_str = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    #     # Generate the presigned URL
+    #     canonical_query_params['X-Amz-Signature'] = signature_str
+    #     presigned_request_url = f'{endpoint}{canonical_uri}?{urllib.parse.urlencode(canonical_query_params)}'
+
+    #     return presigned_request_url
+
     
     def put_object(self, object_key, local_file_path):
         try:
