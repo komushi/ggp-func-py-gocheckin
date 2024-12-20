@@ -953,10 +953,9 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
     if camera_item is None:
         camera_item = query_camera_item(host_id, cam_ip)        
-    
-    camera_items[cam_ip] = camera_item
+        camera_items[cam_ip] = camera_item
 
-    logger.debug(f"{cam_ip} start_gstreamer_thread camera_item {json.dumps(camera_item)}")
+    logger.debug(f"{cam_ip} start_gstreamer_thread camera_item {camera_item}")
 
     if camera_item is None:
         logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item cannot be found")
