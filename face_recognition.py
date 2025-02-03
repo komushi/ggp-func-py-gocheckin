@@ -79,7 +79,13 @@ class FaceRecognition(threading.Thread):
                                             if memberKey not in self.captured_members:
 
                                                 self.captured_members[memberKey] = {
-                                                    "equipmentId": os.environ['AWS_IOT_THING_NAME'],
+                                                    "hostId": os.environ['HOST_ID'],
+                                                    "propertyCode": os.environ['PROPERTY_CODE'],
+                                                    "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+                                                    "coreName": os.environ['AWS_IOT_THING_NAME'],
+                                                    "equipmentId": cam_info['cam_uuid'],
+                                                    "equipmentName": cam_info['cam_name'],
+                                                    "cameraIp": cam_info['cam_ip'],
                                                     "reservationCode": active_member['reservationCode'],
                                                     "listingId": active_member['listingId'],
                                                     "memberNo": int(str(active_member['memberNo'])),
@@ -117,6 +123,7 @@ class FaceRecognition(threading.Thread):
 
                                                     self.captured_members[memberKey]['checkInImgKey'] = checkin_object_key
                                                     self.captured_members[memberKey]['propertyImgKey'] = property_object_key
+                                                    self.captured_members[memberKey]['keyNotified'] = keyNotified
 
                                                     snapshot_payload = {
                                                         "hostId": os.environ['HOST_ID'],

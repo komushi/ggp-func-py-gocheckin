@@ -838,6 +838,12 @@ def fetch_scanner_output_queue():
                                 payload=json.dumps(message['payload'])
                             )
 
+                    iotClient.publish(
+                        topic=f"gocheckin/member_detected",
+                        payload=json.dumps(message['payload'])
+                    )
+
+
                 elif message['type'] == 'video_clipped':
                     thread_video_uploader = threading.Thread(target=upload_video_clip, name=f"Thread-VideoUploader-{message['payload']['start_datetime']}", args=(message,))
                     thread_video_uploader.start()
