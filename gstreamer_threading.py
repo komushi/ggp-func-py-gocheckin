@@ -338,6 +338,9 @@ class StreamCapture(threading.Thread):
             bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS)
 
             if not self.scanner_output_queue.full():
+
+                
+                logger.info(f"""!!!scanner_output_queue is not full!!! {self.scanner_output_queue.qsize()}""")
                 
                 video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
@@ -360,6 +363,8 @@ class StreamCapture(threading.Thread):
                         "end_datetime": end_datetime
                     }
                 }, block=False)
+            else:
+                logger.info(f"""!!!scanner_output_queue is not full!!! {self.scanner_output_queue.qsize()}""")
 
         except Exception as e:
             logger.error(f"{self.cam_ip} save_task, Exception during running, Error: {e}")
