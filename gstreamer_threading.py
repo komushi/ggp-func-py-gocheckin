@@ -478,6 +478,7 @@ class StreamCapture(threading.Thread):
         # Check if the timer exists before trying to cancel
         if hasattr(self, 'feeding_timer') and self.feeding_timer is not None:
             self.feeding_timer.cancel()
+            self.feeding_timer = None
 
         self.is_feeding = False
         self.feeding_count = 0
