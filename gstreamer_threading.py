@@ -456,11 +456,13 @@ class StreamCapture(threading.Thread):
 
         # Cancel any existing timer if it exists
         if self.feeding_timer is not None:
+            logger.info(f"{self.cam_ip} feed_detecting before cancel feeding_timer")
             self.feeding_timer.cancel()
             self.feeding_timer = None
+            logger.info(f"{self.cam_ip} feed_detecting after cancel feeding_timer")
 
         if self.is_feeding:
-            logger.debug(f"{self.cam_ip} feed_detecting out, already feeding")
+            logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
             return
 
         self.is_feeding = True
@@ -479,8 +481,10 @@ class StreamCapture(threading.Thread):
         logger.info(f"{self.cam_ip} stop_feeding in")
         # Check if the timer exists before trying to cancel
         if self.feeding_timer is not None:
+            logger.info(f"{self.cam_ip} stop_feeding before cancel feeding_timer")
             self.feeding_timer.cancel()
             self.feeding_timer = None
+            logger.info(f"{self.cam_ip} stop_feeding after cancel feeding_timer")
 
         self.is_feeding = False
         self.feeding_count = 0
