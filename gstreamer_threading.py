@@ -452,11 +452,12 @@ class StreamCapture(threading.Thread):
         self.pipeline.set_state(Gst.State.NULL)
 
     def feed_detecting(self, running_seconds):
-        logger.debug(f"{self.cam_ip} feed_detecting in")
+        logger.info(f"{self.cam_ip} feed_detecting in")
 
         # Cancel any existing timer if it exists
-        if hasattr(self, 'feeding_timer') and self.feeding_timer is not None:
+        if self.feeding_timer is not None:
             self.feeding_timer.cancel()
+            self.feeding_timer = None
 
         if self.is_feeding:
             logger.debug(f"{self.cam_ip} feed_detecting out, already feeding")
@@ -470,13 +471,14 @@ class StreamCapture(threading.Thread):
         self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
         self.feeding_timer.start()
 
-        logger.debug(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
-        logger.debug(f"{self.cam_ip} feed_detecting out")
+        logger.info(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
+        logger.info(f"{self.cam_ip} feed_detecting out")
 
 
     def stop_feeding(self):
+        logger.info(f"{self.cam_ip} stop_feeding in")
         # Check if the timer exists before trying to cancel
-        if hasattr(self, 'feeding_timer') and self.feeding_timer is not None:
+        if self.feeding_timer is not None:
             self.feeding_timer.cancel()
             self.feeding_timer = None
 
@@ -484,8 +486,8 @@ class StreamCapture(threading.Thread):
         self.feeding_count = 0
         self.decoding_count = 0
 
-        logger.debug(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
-        logger.debug(f"{self.cam_ip} stop_feeding out")
+        logger.info(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
+        logger.info(f"{self.cam_ip} stop_feeding out")
 
     # def feed_detecting(self, running_seconds):
     #     logger.debug(f"{self.cam_ip} feed_detecting in")
