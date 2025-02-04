@@ -1133,8 +1133,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
             if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
-                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['INIT_RUNNING_TIME']))
-                        # set_sampling_time(thread_gstreamers[cam_ip], int(os.environ['INIT_RUNNING_TIME']))
+                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['DETECT_RUNNING_TIME']))
 
                 if thread_detector is None:
                     params = {}
@@ -1159,7 +1158,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
             if camera_item['isRecording']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip].start_recording(utc_time):
-                        set_recording_time(cam_ip, int(os.environ['INIT_RUNNING_TIME']), utc_time)
+                        set_recording_time(cam_ip, int(os.environ['RECORD_RUNNING_TIME']), utc_time)
 
 
     logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
