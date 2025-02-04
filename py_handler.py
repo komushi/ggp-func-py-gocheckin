@@ -806,6 +806,12 @@ def fetch_scanner_output_queue():
             
             if not message is None and 'type' in message:
                 if message['type'] == 'guest_detected':
+                    if 'payload' in message:
+                        if 'cam_ip' in message['payload']:
+                            cam_ip = message['payload']['cam_ip']
+
+                            thread_gstreamers[cam_ip].stop_feeding()
+                    
                     if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message):
                         local_file_path = message['local_file_path']
                         property_object_key = message['payload']['propertyImgKey']
@@ -838,10 +844,11 @@ def fetch_scanner_output_queue():
                                 payload=json.dumps(message['payload'])
                             )
 
-                    iotClient.publish(
-                        topic=f"gocheckin/member_detected",
-                        payload=json.dumps(message['payload'])
-                    )
+                    if 'payload' in message:
+                        iotClient.publish(
+                            topic=f"gocheckin/member_detected",
+                            payload=json.dumps(message['payload'])
+                        )
 
 
                 elif message['type'] == 'video_clipped':
