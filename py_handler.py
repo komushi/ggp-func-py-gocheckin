@@ -1217,7 +1217,7 @@ def subscribe_onvif():
             logger.error(f"subscribe_onvif, Exception during running, Error: {e}")
             pass
     
-    timer = threading.Timer(120, subscribe_onvif)
+    timer = threading.Timer(1800, subscribe_onvif)
     timer.name = "Thread-SubscribeOnvif-Timer"
     timer.start()
 
