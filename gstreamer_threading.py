@@ -455,7 +455,7 @@ class StreamCapture(threading.Thread):
         logger.info(f"{self.cam_ip} feed_detecting in")
 
         if self.is_feeding:
-            logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
+            logger.debug(f"{self.cam_ip} feed_detecting out, already feeding")
             return
 
         # Cancel any existing timer if it exists
