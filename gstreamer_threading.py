@@ -119,7 +119,8 @@ class StreamCapture(threading.Thread):
             appsink_decode.connect("new-sample", self.on_new_sample_decode, {})
         
         self.stop_event = threading.Event()
-        self.buffer = deque()
+        self.recording_buffer = deque()
+        self.detecting_buffer = deque()
         self.lock = threading.Lock()
 
         self.last_sampling_time = None
@@ -163,20 +164,35 @@ class StreamCapture(threading.Thread):
     def add_frame(self, sample):
         with self.lock:
             current_time = time.time()
-            self.buffer.append((current_time, sample))
+            self.recording_buffer.append((current_time, sample))
+            self.detecting_buffer.append((current_time, sample))
 
             # Only discard frames if not recording
             if not self.is_recording:
-                while self.buffer and current_time - self.buffer[0][0] > float(os.environ['PRE_RECORDING_SEC']):
-                    self.buffer.popleft()
+                while self.recording_buffer and current_time - self.recording_buffer[0][0] > float(os.environ['PRE_RECORDING_SEC']):
+                    self.recording_buffer.popleft()
 
+            # Only discard frames if not recording
+            if not self.is_feeding:
+                while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_RECORDING_SEC']):
+                    self.detecting_buffer.popleft()
+                    
     def get_all_frames(self):
         with self.lock:
-            return list(self.buffer)
+            return list(self.recording_buffer)
 
     def clear_all_frames(self):
         with self.lock:
-            self.buffer.clear()
+            self.recording_buffer.clear()
+
+    def push_detecting_buffer(self):
+        for single_buffer in self.detecting_buffer:
+            ret = self.decode_appsrc.emit('push-sample', single_buffer[1])
+            if ret != Gst.FlowReturn.OK:
+                logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+
+        with self.lock:
+            self.detecting_buffer.clear()
 
     def on_new_sample(self, sink, _):
         sample = sink.emit('pull-sample')
@@ -187,6 +203,8 @@ class StreamCapture(threading.Thread):
         self.add_frame(sample)
 
         if self.is_feeding:
+
+            self.push_detecting_buffer()
             
             self.feeding_count += 1
 
