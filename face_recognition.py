@@ -142,7 +142,7 @@ class FaceRecognition(threading.Thread):
                                                     }
 
                                                     self.scanner_output_queue.put({
-                                                        "type": "guest_detected",
+                                                        "type": "member_detected",
                                                         "keyNotified": keyNotified,
                                                         "payload": self.captured_members[memberKey],
                                                         "local_file_path": local_file_path,

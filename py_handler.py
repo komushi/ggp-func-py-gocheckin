@@ -805,14 +805,12 @@ def fetch_scanner_output_queue():
                 message = scanner_output_queue.get_nowait()    
             
             if not message is None and 'type' in message:
-                if message['type'] == 'guest_detected':
-                    if 'payload' in message:
-                        if 'cam_ip' in message['payload']:
-                            cam_ip = message['payload']['cam_ip']
-
-                            logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
-
-                            thread_gstreamers[cam_ip].stop_feeding()
+                if message['type'] == 'member_detected':
+                    # if 'payload' in message:
+                    #     if 'cam_ip' in message['payload']:
+                    cam_ip = message['payload']['cam_ip']
+                    logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
+                    thread_gstreamers[cam_ip].stop_feeding()
                     
                     if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message):
                         local_file_path = message['local_file_path']
@@ -821,7 +819,7 @@ def fetch_scanner_output_queue():
 
                         uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
 
-                        logger.info(f"fetch_scanner_output_queue, guest_detected with IoT Publish snapshot_payload: {snapshot_payload}")
+                        logger.info(f"fetch_scanner_output_queue, member_detected with IoT Publish snapshot_payload: {snapshot_payload}")
 
                         iotClient.publish(
                             topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
