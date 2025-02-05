@@ -810,6 +810,8 @@ def fetch_scanner_output_queue():
                         if 'cam_ip' in message['payload']:
                             cam_ip = message['payload']['cam_ip']
 
+                            logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
+
                             thread_gstreamers[cam_ip].stop_feeding()
                     
                     if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message):
