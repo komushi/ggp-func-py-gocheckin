@@ -271,6 +271,8 @@ class StreamCapture(threading.Thread):
         sample = sink.emit('pull-sample')
 
         if sample:
+            logger.debug(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
+
             caps = sample.get_caps()
             logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
@@ -487,9 +489,10 @@ class StreamCapture(threading.Thread):
             self.feeding_timer.cancel()
             self.feeding_timer = None
             logger.debug(f"{self.cam_ip} feed_detecting after cancel feeding_timer")
-            
-        self.is_feeding = True
-        self.running_seconds = running_seconds
+
+        with self.detecting_lock:            
+            self.is_feeding = True
+            self.running_seconds = running_seconds
 
         # Create a new timer
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
@@ -509,9 +512,10 @@ class StreamCapture(threading.Thread):
             self.feeding_timer = None
             logger.debug(f"{self.cam_ip} stop_feeding after cancel feeding_timer")
 
-        self.is_feeding = False
-        self.feeding_count = 0
-        self.decoding_count = 0
+        with self.detecting_lock:
+            self.is_feeding = False
+            self.feeding_count = 0
+            self.decoding_count = 0
 
         logger.debug(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
         logger.info(f"{self.cam_ip} stop_feeding out")
