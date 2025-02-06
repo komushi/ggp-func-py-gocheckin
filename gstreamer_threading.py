@@ -271,7 +271,7 @@ class StreamCapture(threading.Thread):
         sample = sink.emit('pull-sample')
 
         if sample:
-            logger.debug(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
+            logger.info(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
 
             caps = sample.get_caps()
             logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
@@ -365,7 +365,7 @@ class StreamCapture(threading.Thread):
             if not self.scanner_output_queue.full():
 
                 
-                logger.info(f"""!!!scanner_output_queue is not full!!! {self.scanner_output_queue.qsize()}""")
+                logger.debug(f"""!!!scanner_output_queue is NOT FULL!!! {self.scanner_output_queue.qsize()}""")
                 
                 video_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
@@ -389,7 +389,7 @@ class StreamCapture(threading.Thread):
                     }
                 }, block=False)
             else:
-                logger.info(f"""!!!scanner_output_queue is not full!!! {self.scanner_output_queue.qsize()}""")
+                logger.error(f"""!!!scanner_output_queue is FULL!!! {self.scanner_output_queue.qsize()}""")
 
         except Exception as e:
             logger.error(f"{self.cam_ip} save_task, Exception during running, Error: {e}")
