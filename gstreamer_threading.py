@@ -247,12 +247,17 @@ class StreamCapture(threading.Thread):
         return Gst.FlowReturn.OK
 
     def on_new_sample_decode(self, sink, _):
-        if float(os.environ['DETECTING_RATE_PERCENT']) * self.feeding_count < self.decoding_count:
-            logger.debug(f"on_new_sample_decode decoding_count:  {self.decoding_count}")
-            # sample = sink.emit('pull-sample')
-            return Gst.FlowReturn.OK
 
         sample = sink.emit('pull-sample')
+
+        # if float(os.environ['DETECTING_RATE_PERCENT']) * self.feeding_count < self.decoding_count:
+        #     logger.debug(f"on_new_sample_decode decoding_count:  {self.decoding_count}")
+        #     sample = None
+        #     return Gst.FlowReturn.OK
+
+        if not self.is_feeding:
+            sample = None
+            return Gst.FlowReturn.OK
 
         if sample:
             logger.info(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
