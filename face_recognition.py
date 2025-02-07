@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 import sys
 import os
 import threading
-import queue
 import traceback
 import numpy as np
 

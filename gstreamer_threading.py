@@ -162,24 +162,14 @@ class StreamCapture(threading.Thread):
             dtype=np.uint8)
         return arr
 
-    def add_frame(self, sample):
+    def add_recording_frame(self, sample, current_time):
         with self.recording_lock:
-            current_time = time.time()
             self.recording_buffer.append((current_time, sample))
 
             # Only discard frames if not recording
             if not self.is_recording:
                 while self.recording_buffer and current_time - self.recording_buffer[0][0] > float(os.environ['PRE_RECORDING_SEC']):
                     self.recording_buffer.popleft()
-
-        with self.detecting_lock:
-            current_time = time.time()
-            self.detecting_buffer.append((current_time, sample))
-
-            # Only discard frames if not detecting
-            if not self.is_feeding:
-                while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_DETECTING_SEC']):
-                    self.detecting_buffer.popleft()
 
     def get_all_frames(self):
         with self.recording_lock:
@@ -190,23 +180,41 @@ class StreamCapture(threading.Thread):
             self.recording_buffer.clear()
 
     def push_detecting_buffer(self):
+        logger.info(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
+
         with self.detecting_lock:
             for single_buffer in self.detecting_buffer:
                 ret = self.decode_appsrc.emit('push-sample', single_buffer[1])
+
                 if ret != Gst.FlowReturn.OK:
-                    logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+                    logger.error(f"{self.cam_ip} push_detecting_buffer, Error pushing sample to decode_appsrc: {ret}")
+
+                self.feeding_count += 1
 
             self.detecting_buffer.clear()
+
+    def add_detecting_frame(self, sample, current_time):
+        with self.detecting_lock:
+            self.detecting_buffer.append((current_time, sample))
+
+            # Only discard frames if not detecting
+            while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_DETECTING_SEC']):
+                self.detecting_buffer.popleft()
 
     def on_new_sample(self, sink, _):
         sample = sink.emit('pull-sample')
 
         if not sample:
             return Gst.FlowReturn.ERROR
+        
+        current_time = time.time()
 
-        self.add_frame(sample)
+        self.add_recording_frame(sample, current_time)
 
-        if self.is_feeding:
+        if not self.is_feeding:
+            self.add_detecting_frame(sample, current_time)
+
+        else:
 
             self.push_detecting_buffer()
             
@@ -238,6 +246,7 @@ class StreamCapture(threading.Thread):
                 new_sample = sample
             
             logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
+            logger.info(f"{self.cam_ip} on_new_sample get_info: {new_sample.get_info().to_string()}")
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
