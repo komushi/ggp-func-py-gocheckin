@@ -172,14 +172,14 @@ class StreamCapture(threading.Thread):
                 while self.recording_buffer and current_time - self.recording_buffer[0][0] > float(os.environ['PRE_RECORDING_SEC']):
                     self.recording_buffer.popleft()
 
-        with self.detecting_lock:
-            current_time = time.time()
-            self.detecting_buffer.append((current_time, sample))
+        # with self.detecting_lock:
+        #     current_time = time.time()
+        #     self.detecting_buffer.append((current_time, sample))
 
-            # Only discard frames if not detecting
-            if not self.is_feeding:
-                while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_DETECTING_SEC']):
-                    self.detecting_buffer.popleft()
+        #     # Only discard frames if not detecting
+        #     if not self.is_feeding:
+        #         while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_DETECTING_SEC']):
+        #             self.detecting_buffer.popleft()
 
     def get_all_frames(self):
         with self.recording_lock:
@@ -189,15 +189,14 @@ class StreamCapture(threading.Thread):
         with self.recording_lock:
             self.recording_buffer.clear()
 
-    def push_detecting_buffer(self):
-        with self.detecting_lock:
-            for single_buffer in self.detecting_buffer:
-                ret = self.decode_appsrc.emit('push-sample', single_buffer[1])
-                if ret != Gst.FlowReturn.OK:
-                    logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+    # def push_detecting_buffer(self):
+    #     with self.detecting_lock:
+    #         for single_buffer in self.detecting_buffer:
+    #             ret = self.decode_appsrc.emit('push-sample', single_buffer[1])
+    #             if ret != Gst.FlowReturn.OK:
+    #                 logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
-            
-            self.detecting_buffer.clear()
+    #         self.detecting_buffer.clear()
 
     def on_new_sample(self, sink, _):
         sample = sink.emit('pull-sample')
@@ -209,7 +208,7 @@ class StreamCapture(threading.Thread):
 
         if self.is_feeding:
 
-            self.push_detecting_buffer()
+            # self.push_detecting_buffer()
             
             self.feeding_count += 1
 
@@ -239,6 +238,7 @@ class StreamCapture(threading.Thread):
                 new_sample = sample
 
             
+            logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
             logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
 
             # if framerate_value[1] == 0:
