@@ -281,7 +281,7 @@ class StreamCapture(threading.Thread):
             logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
             sample_info = sample.get_info()
-            logger.debug(f"{self.cam_ip} on_new_sample_decode new_caps: {sample_info.to_string()}")
+            # logger.debug(f"{self.cam_ip} on_new_sample_decode new_caps: {sample_info.to_string()}")
 
             buffer = sample.get_buffer()
             if not buffer:
