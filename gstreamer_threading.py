@@ -215,42 +215,48 @@ class StreamCapture(threading.Thread):
             self.add_detecting_frame(sample, current_time)
 
         else:
-
             self.push_detecting_buffer()
             
-            self.feeding_count += 1
-
             logger.debug(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
-            caps = sample.get_caps()
-            structure = caps.get_structure(0)
-            framerate_value = structure.get_fraction("framerate")
+            sample_caps = sample.get_caps()
+            structure = sample_caps.get_structure(0)
+            sample_framerate = (structure.get_fraction("framerate"))[1]
+            sample_info = sample.get_info()
+            sample_buffer = sample.get_buffer()
+            sample_segment = sample.get_segment()
             
-            if framerate_value[1] == 0:
-                caps_string = caps.to_string()
+            if sample_framerate == 0 or sample_info is None:
+                caps_string = sample_caps.to_string()
+                if sample_framerate == 0:
+                    caps_string = re.sub(
+                        r'framerate=\(fraction\)\d+/\d+',
+                        f'framerate=(fraction){self.framerate}/1',
+                        caps_string
+                    )
 
-                new_caps_string = re.sub(
-                    r'framerate=\(fraction\)\d+/\d+',
-                    f'framerate=(fraction){self.framerate}/1',
-                    caps_string
-                )
+                    sample_caps = Gst.Caps.from_string(caps_string)
 
-                new_caps = Gst.Caps.from_string(new_caps_string)
-                buffer = sample.get_buffer()
+                if sample_info is None:
+                    sample_info = Gst.Structure.new_empty("timing")
+                    sample_info.set_value("timestamp", current_time)
 
-                new_sample = Gst.Sample.new(buffer, new_caps, sample.get_segment(), sample.get_info())
+                new_sample = Gst.Sample.new(sample_buffer, sample_caps, sample_segment, sample_info)
+
             else:
                 new_sample = sample
             
             logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
-            logger.info(f"{self.cam_ip} on_new_sample get_info: {new_sample.get_info().to_string()}")
+            logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_info().to_string()}")
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
                 logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
+
+            self.feeding_count += 1
 
         sample = None
         return Gst.FlowReturn.OK
@@ -274,6 +280,9 @@ class StreamCapture(threading.Thread):
             caps = sample.get_caps()
             logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
+            sample_info = sample.get_info()
+            logger.info(f"{self.cam_ip} on_new_sample new_caps: {sample_info.to_string()}")
+
             buffer = sample.get_buffer()
             if not buffer:
                 logger.error("on_new_sample_decode: Received sample with no buffer")
@@ -288,7 +297,7 @@ class StreamCapture(threading.Thread):
 
             if not self.cam_queue.full():
                 self.decoding_count += 1
-                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name}), block=False)
+                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "sample_info": sample_info}), block=False)
 
                 logger.debug(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
