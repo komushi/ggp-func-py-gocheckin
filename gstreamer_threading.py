@@ -261,7 +261,6 @@ class StreamCapture(threading.Thread):
                 new_sample = sample
             
             logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
-            logger.debug(f"{self.cam_ip} on_new_sample get_info: {new_sample.get_info().to_string()}")
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
