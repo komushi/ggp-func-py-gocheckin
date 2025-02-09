@@ -268,7 +268,6 @@ class StreamCapture(threading.Thread):
         return Gst.FlowReturn.OK
 
     def probe_callback(self, pad, info):
-        logger.info(f"probe_callback info: {info.type}")
         if info.type & Gst.PadProbeType.BUFFER:
             # Get the sample from the pad
             sample = Gst.Sample.new(info.get_buffer(), pad.get_current_caps(), None, None)
@@ -278,10 +277,13 @@ class StreamCapture(threading.Thread):
                 if sample_info:
                     # Get the timestamp from the info structure
                     if sample_info.has_field("timestamp"):
+                        logger.info(f"probe_callback timestamp")
                         orig_timestamp = sample_info.get_value("timestamp")
                         current_time = time.time()
                         delay = current_time - orig_timestamp
                         logger.info(f"probe_callback delay: {delay:.3f} seconds, current_time: {current_time}, orig_timestamp: {orig_timestamp}")
+                else:
+                    logger.info(f"probe_callback sample_info empty")
             
         return Gst.PadProbeReturn.OK
 
