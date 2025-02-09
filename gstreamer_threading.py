@@ -180,7 +180,7 @@ class StreamCapture(threading.Thread):
             self.recording_buffer.clear()
 
     def push_detecting_buffer(self):
-        logger.info(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
+        logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
 
         with self.detecting_lock:
             for single_buffer in self.detecting_buffer:
@@ -237,10 +237,10 @@ class StreamCapture(threading.Thread):
                     f'framerate=(fraction){self.framerate}/1',
                     caps_string
                 )
-            new_caps = Gst.Caps.from_string(caps_string)
 
-            new_structure = new_caps.get_structure(0)
-            new_structure.set_value("x-custom-meta", "your_custom_data")
+            caps_string += ", x-custom-meta=(string)your_custom_data"
+
+            new_caps = Gst.Caps.from_string(caps_string)
             
             new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
             
@@ -272,7 +272,7 @@ class StreamCapture(threading.Thread):
             logger.debug(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
 
             caps = sample.get_caps()
-            logger.info(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
+            logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
             sample_info = sample.get_info()
             # logger.debug(f"{self.cam_ip} on_new_sample_decode new_caps: {sample_info.to_string()}")
