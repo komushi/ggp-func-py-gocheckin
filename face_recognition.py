@@ -65,6 +65,9 @@ class FaceRecognition(threading.Thread):
 
                                 if len(faces) == 0:
                                     logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {cam_info['cam_ip']}")
+                                else:
+                                    if cam_info['sample_info'] is not None:
+                                        logger.info(f"after getting {len(faces)} face(s) with sample_info: {cam_info['sample_info'].to_string()}")
 
                                 for face in faces:
                                     for active_member in self.active_members:

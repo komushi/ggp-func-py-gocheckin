@@ -229,7 +229,7 @@ class StreamCapture(threading.Thread):
             sample_buffer = sample.get_buffer()
             sample_segment = sample.get_segment()
             
-            if sample_framerate == 0:
+            if sample_framerate == 0 or sample_info is None:
                 caps_string = sample_caps.to_string()
                 if sample_framerate == 0:
                     caps_string = re.sub(
