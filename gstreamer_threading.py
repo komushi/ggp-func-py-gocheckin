@@ -6,6 +6,7 @@ gi.require_version('GstPbutils', '1.0')
 
 from gi.repository import Gst
 from gi.repository import GstPbutils
+from gi.repository import GLib
 
 import uuid
 
@@ -143,6 +144,8 @@ class StreamCapture(threading.Thread):
         self.feeding_timer = None
         self.previous_pts = None
 
+        self.timestamp_quark = GLib.quark_from_string("my_custom_timestamp")
+
     # def on_need_data(self, appsrc, length, args):
     #     # This function gets triggered when appsrc needs data.
     #     # No direct sample pushing happens here, but you can inspect caps here too if needed
@@ -235,7 +238,7 @@ class StreamCapture(threading.Thread):
             sample_buffer = sample.get_buffer()
             sample_segment = sample.get_segment()
             
-            if sample_framerate == 0 or sample_info is None:
+            if sample_framerate == 0 is None:
                 caps_string = sample_caps.to_string()
                 if sample_framerate == 0:
                     caps_string = re.sub(
@@ -246,9 +249,11 @@ class StreamCapture(threading.Thread):
 
                     sample_caps = Gst.Caps.from_string(caps_string)
 
-                if sample_info is None:
-                    sample_info = Gst.Structure.new_empty("timing")
-                    sample_info.set_value("timestamp", current_time)
+                # if sample_info is None:
+                #     sample_info = Gst.Structure.new_empty("timing")
+                #     sample_info.set_value("timestamp", current_time)
+
+                sample_buffer.set_qdata(self.timestamp_quark, current_time)
 
                 new_sample = Gst.Sample.new(sample_buffer, sample_caps, sample_segment, sample_info)
 
@@ -269,21 +274,12 @@ class StreamCapture(threading.Thread):
 
     def probe_callback(self, pad, info):
         if info.type & Gst.PadProbeType.BUFFER:
-            # Get the sample from the pad
-            sample = Gst.Sample.new(info.get_buffer(), pad.get_current_caps(), None, None)
-            if sample:
-                # Get the info structure from the sample
-                sample_info = sample.get_info()
-                if sample_info:
-                    # Get the timestamp from the info structure
-                    if sample_info.has_field("timestamp"):
-                        logger.info(f"probe_callback timestamp")
-                        orig_timestamp = sample_info.get_value("timestamp")
-                        current_time = time.time()
-                        delay = current_time - orig_timestamp
-                        logger.info(f"probe_callback delay: {delay:.3f} seconds, current_time: {current_time}, orig_timestamp: {orig_timestamp}")
-                else:
-                    logger.info(f"probe_callback sample_info empty")
+            info.get_buffer().set_qdata(self.timestamp_quark, current_time)
+            orig_timestamp = info.get_buffer().get_qdata(self.timestamp_quark)
+            current_time = time.time()
+            delay = current_time - orig_timestamp
+
+            logger.info(f"probe_callback delay: {delay:.3f} seconds, current_time: {current_time}, orig_timestamp: {orig_timestamp}")
             
         return Gst.PadProbeReturn.OK
 
