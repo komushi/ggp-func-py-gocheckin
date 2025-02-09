@@ -223,29 +223,24 @@ class StreamCapture(threading.Thread):
                 return Gst.FlowReturn.OK
 
             sample_caps = sample.get_caps()
+            caps_string = sample_caps.to_string()
+            caps_string += f",x-custom-meta=(string)${current_time}"
             structure = sample_caps.get_structure(0)
             sample_framerate = (structure.get_fraction("framerate"))[1]
             sample_info = sample.get_info()
             sample_buffer = sample.get_buffer()
             sample_segment = sample.get_segment()
             
-            if sample_framerate == 0 or sample_info is None:
-                caps_string = sample_caps.to_string()
+            if sample_framerate == 0:
                 if sample_framerate == 0:
                     caps_string = re.sub(
                         r'framerate=\(fraction\)\d+/\d+',
                         f'framerate=(fraction){self.framerate}/1',
                         caps_string
                     )
-
-                    caps_string += f",x-custom-meta=(string)${current_time}"
-
-                    sample_caps = Gst.Caps.from_string(caps_string)
-
-                new_sample = Gst.Sample.new(sample_buffer, sample_caps, sample_segment, sample_info)
-
-            else:
-                new_sample = sample
+            new_caps = Gst.Caps.from_string(caps_string)
+            
+            new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
             
             logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")            
 
