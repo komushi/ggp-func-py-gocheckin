@@ -96,7 +96,7 @@ class StreamCapture(threading.Thread):
                 ! queue ! appsink name=m_appsink"""
         elif self.codec == 'h265':
             pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
-                ! queue ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
+                ! queue name=queue_after_appsrc ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
                 ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
 
@@ -108,6 +108,15 @@ class StreamCapture(threading.Thread):
         # if self.decode_appsrc is not None:
         #     self.decode_appsrc.connect('need-data', self.on_need_data, {})
         #     self.decode_appsrc.connect('push-sample', self.on_push_sample, {})
+
+        queue_after_appsrc = self.pipeline_decode.get_by_name('queue_after_appsrc')
+        if queue_after_appsrc:
+            sink_pad = queue_after_appsrc.get_static_pad('sink')
+            if sink_pad:
+                sink_pad.add_probe(
+                    Gst.PadProbeType.BUFFER,  # We only need buffer probes for samples
+                    self.probe_callback
+                )
 
         # sink params
         appsink_decode = self.pipeline_decode.get_by_name('m_appsink')
@@ -637,3 +646,12 @@ class StreamCapture(threading.Thread):
         elif message.type == Gst.MessageType.ELEMENT:
             structure = message.get_structure()
             logger.debug(f"New ELEMENT detected: {structure.get_name()}")
+
+    def probe_callback(self, pad, info):
+        if info.type & Gst.PadProbeType.BUFFER:
+
+            pad.get_current_caps()
+
+            logger.info(f"probe_callback: {pad.get_current_caps().to_string()}")
+            
+        return Gst.PadProbeReturn.OK
