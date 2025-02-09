@@ -247,7 +247,8 @@ class StreamCapture(threading.Thread):
                     caps_string
                 )
 
-            caps_string += f", x-custom-meta=(string)myvalue"
+            caps_string += ", x-custom-meta=(string)"
+            caps_string += str(current_time)
 
             new_caps = Gst.Caps.from_string(caps_string)
             
