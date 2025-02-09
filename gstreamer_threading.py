@@ -105,9 +105,11 @@ class StreamCapture(threading.Thread):
 
         # source params
         self.decode_appsrc = self.pipeline_decode.get_by_name('m_appsrc')
-        # if self.decode_appsrc is not None:
-        #     self.decode_appsrc.connect('need-data', self.on_need_data, {})
-        #     self.decode_appsrc.connect('push-sample', self.on_push_sample, {})
+        if self.decode_appsrc is not None:
+            self.decode_appsrc.add_probe(
+                Gst.PadProbeType.BUFFER,  # We only need buffer probes for samples
+                self.probe_callback
+            )
 
         # sink params
         appsink_decode = self.pipeline_decode.get_by_name('m_appsink')
@@ -180,7 +182,7 @@ class StreamCapture(threading.Thread):
             self.recording_buffer.clear()
 
     def push_detecting_buffer(self):
-        logger.info(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
+        logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
 
         with self.detecting_lock:
             for single_buffer in self.detecting_buffer:
@@ -250,7 +252,7 @@ class StreamCapture(threading.Thread):
                 new_sample = sample
             
             logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
-            logger.info(f"{self.cam_ip} on_new_sample get_info: {new_sample.get_info().to_string()}")
+            logger.debug(f"{self.cam_ip} on_new_sample get_info: {new_sample.get_info().to_string()}")
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
@@ -260,6 +262,23 @@ class StreamCapture(threading.Thread):
 
         sample = None
         return Gst.FlowReturn.OK
+
+    def probe_callback(self, pad, info):
+        if info.type & Gst.PadProbeType.BUFFER:
+            # Get the sample from the pad
+            sample = Gst.Sample.new(info.get_buffer(), pad.get_current_caps(), None, None)
+            if sample:
+                # Get the info structure from the sample
+                sample_info = sample.get_info()
+                if sample_info:
+                    # Get the timestamp from the info structure
+                    if sample_info.has_field("timestamp"):
+                        orig_timestamp = sample_info.get_value("timestamp")
+                        current_time = time.time()
+                        delay = current_time - orig_timestamp
+                        logger.info(f"probe_callback delay: {delay:.3f} seconds, current_time: {current_time}, orig_timestamp: {orig_timestamp}")
+            
+        return Gst.PadProbeReturn.OK
 
     def on_new_sample_decode(self, sink, _):
 
@@ -275,7 +294,7 @@ class StreamCapture(threading.Thread):
             return Gst.FlowReturn.OK
 
         if sample:
-            logger.info(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
+            logger.debug(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
 
             caps = sample.get_caps()
             logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
