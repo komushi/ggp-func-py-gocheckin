@@ -187,15 +187,6 @@ class StreamCapture(threading.Thread):
     def clear_all_frames(self):
         with self.recording_lock:
             self.recording_buffer.clear()
-
-    def probe_callback(self, pad, info):
-        if info.type & Gst.PadProbeType.BUFFER:
-
-            pad.get_current_caps()
-
-            logger.info(f"probe_callback: {pad.get_current_caps().to_string()}")
-            
-        return Gst.PadProbeReturn.OK
     
     def push_detecting_buffer(self):
         logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
@@ -256,13 +247,13 @@ class StreamCapture(threading.Thread):
                     caps_string
                 )
 
-            caps_string += ", x-custom-meta=(string)your_custom_data"
+            caps_string += f", x-custom-meta=(string)${current_time}"
 
             new_caps = Gst.Caps.from_string(caps_string)
             
             new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
             
-            logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")            
+            logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")            
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
@@ -272,6 +263,15 @@ class StreamCapture(threading.Thread):
 
         sample = None
         return Gst.FlowReturn.OK
+
+    def probe_callback(self, pad, info):
+        if info.type & Gst.PadProbeType.BUFFER:
+
+            pad.get_current_caps()
+
+            logger.info(f"probe_callback: {pad.get_current_caps().to_string()}")
+            
+        return Gst.PadProbeReturn.OK
 
     def on_new_sample_decode(self, sink, _):
 
@@ -290,7 +290,7 @@ class StreamCapture(threading.Thread):
             logger.debug(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
 
             caps = sample.get_caps()
-            logger.info(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
+            logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
             buffer = sample.get_buffer()
             if not buffer:
