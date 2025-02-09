@@ -229,7 +229,7 @@ class StreamCapture(threading.Thread):
             sample_buffer = sample.get_buffer()
             sample_segment = sample.get_segment()
             
-            if sample_framerate == 0 or sample_info is None:
+            if sample_framerate == 0:
                 caps_string = sample_caps.to_string()
                 if sample_framerate == 0:
                     caps_string = re.sub(
@@ -240,17 +240,12 @@ class StreamCapture(threading.Thread):
 
                     sample_caps = Gst.Caps.from_string(caps_string)
 
-                if sample_info is None:
-                    sample_info = Gst.Structure.new_empty("timing")
-                    sample_info.set_value("timestamp", current_time)
-
                 new_sample = Gst.Sample.new(sample_buffer, sample_caps, sample_segment, sample_info)
 
             else:
                 new_sample = sample
             
-            logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")
-            logger.info(f"{self.cam_ip} on_new_sample get_info: {new_sample.get_info().to_string()}")
+            logger.info(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")            
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
