@@ -103,6 +103,9 @@ class StreamCapture(threading.Thread):
         # Create the empty pipeline
         self.pipeline_decode = Gst.parse_launch(pipeline_str_decode)
 
+        # source params
+        self.decode_appsrc = self.pipeline_decode.get_by_name('m_appsrc')
+
         queue_after_appsrc = self.pipeline_decode.get_by_name('queue_after_appsrc')
         if queue_after_appsrc:
             sink_pad = queue_after_appsrc.get_static_pad('sink')
