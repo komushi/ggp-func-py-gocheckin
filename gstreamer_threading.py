@@ -268,6 +268,7 @@ class StreamCapture(threading.Thread):
         return Gst.FlowReturn.OK
 
     def probe_callback(self, pad, info):
+        logger.info(f"probe_callback info: {info}")
         if info.type & Gst.PadProbeType.BUFFER:
             # Get the sample from the pad
             sample = Gst.Sample.new(info.get_buffer(), pad.get_current_caps(), None, None)
