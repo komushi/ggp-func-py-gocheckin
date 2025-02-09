@@ -238,6 +238,9 @@ class StreamCapture(threading.Thread):
                     caps_string
                 )
             new_caps = Gst.Caps.from_string(caps_string)
+
+            new_structure = new_caps.get_structure(0)
+            new_structure.set_value("x-custom-meta", "your_custom_data")
             
             new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
             
