@@ -188,6 +188,15 @@ class StreamCapture(threading.Thread):
         with self.recording_lock:
             self.recording_buffer.clear()
 
+    def probe_callback(self, pad, info):
+        if info.type & Gst.PadProbeType.BUFFER:
+
+            pad.get_current_caps()
+
+            logger.info(f"probe_callback: {pad.get_current_caps().to_string()}")
+            
+        return Gst.PadProbeReturn.OK
+    
     def push_detecting_buffer(self):
         logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
 
@@ -281,10 +290,7 @@ class StreamCapture(threading.Thread):
             logger.debug(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
 
             caps = sample.get_caps()
-            logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
-
-            sample_info = sample.get_info()
-            # logger.debug(f"{self.cam_ip} on_new_sample_decode new_caps: {sample_info.to_string()}")
+            logger.info(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
             buffer = sample.get_buffer()
             if not buffer:
@@ -647,11 +653,3 @@ class StreamCapture(threading.Thread):
             structure = message.get_structure()
             logger.debug(f"New ELEMENT detected: {structure.get_name()}")
 
-    def probe_callback(self, pad, info):
-        if info.type & Gst.PadProbeType.BUFFER:
-
-            pad.get_current_caps()
-
-            logger.info(f"probe_callback: {pad.get_current_caps().to_string()}")
-            
-        return Gst.PadProbeReturn.OK
