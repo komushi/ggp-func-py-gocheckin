@@ -28,7 +28,9 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-Gst.init(None)
+ext = ".mp4"
+
+# Gst.init(None)
 
 if 'GST_DEBUG_LEVEL' in os.environ:
     Gst.debug_set_default_threshold(os.environ['GST_DEBUG_LEVEL'])
@@ -48,8 +50,6 @@ class StreamCommands(Enum):
     MOTION_END = 6
     VIDEO_CLIPPED = 7
     STOP = 8
-
-ext = ".mp4"
 
 class StreamCapture(threading.Thread):
 
