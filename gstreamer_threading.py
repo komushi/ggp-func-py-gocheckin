@@ -238,6 +238,8 @@ class StreamCapture(threading.Thread):
                         caps_string
                     )
 
+                    caps_string += f",x-custom-meta=(string)${current_time}"
+
                     sample_caps = Gst.Caps.from_string(caps_string)
 
                 new_sample = Gst.Sample.new(sample_buffer, sample_caps, sample_segment, sample_info)
@@ -270,10 +272,10 @@ class StreamCapture(threading.Thread):
             return Gst.FlowReturn.OK
 
         if sample:
-            logger.info(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
+            logger.debug(f"{self.cam_ip} on_new_sample_decode is_feeding: {self.is_feeding}")
 
             caps = sample.get_caps()
-            logger.debug(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
+            logger.info(f"{self.cam_ip} on_new_sample_decode caps: {caps.to_string()}")
 
             sample_info = sample.get_info()
             # logger.debug(f"{self.cam_ip} on_new_sample_decode new_caps: {sample_info.to_string()}")
@@ -292,7 +294,7 @@ class StreamCapture(threading.Thread):
 
             if not self.cam_queue.full():
                 self.decoding_count += 1
-                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "sample_info": sample_info}), block=False)
+                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "sample_info": "empty"}), block=False)
 
                 logger.debug(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
