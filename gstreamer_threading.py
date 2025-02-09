@@ -313,7 +313,6 @@ class StreamCapture(threading.Thread):
                 return Gst.FlowReturn.OK
             
             pts = buffer.pts
-            logger.info(f"{self.cam_ip} on_new_sample_decode pts: {pts}")
             
             frame_time = None
             with self.metadata_lock:

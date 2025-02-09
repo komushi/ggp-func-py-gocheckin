@@ -58,16 +58,20 @@ class FaceRecognition(threading.Thread):
                     if not self.cam_queue.empty():
                         cmd, raw_img, cam_info = self.cam_queue.get(False)
 
-                        if cmd == gst.StreamCommands.FRAME:
+                        if cmd == gst.StreamCommands.FRAME and cam_info['frame_time'] is not None:
                             if raw_img is not None and self.active_members:
                                 self.inference_begins_at = time.time()
-                                faces = self.face_app.get(raw_img)
 
-                                if len(faces) == 0:
-                                    logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {cam_info['cam_ip']}")
+                                faces = []
+                                if self.inference_begins_at - float(cam_info['frame_time']) > 1.0:
+                                    logger.error(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                 else:
-                                    if cam_info['frame_time'] is not None:
-                                        logger.info(f"after getting {len(faces)} face(s) with frame_time: {cam_info['frame_time']}")
+                                    logger.debug(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
+                                    faces = self.face_app.get(raw_img)
+
+                                # if len(faces) == 0:
+                                #     logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {cam_info['cam_ip']}")
+
 
                                 for face in faces:
                                     for active_member in self.active_members:
