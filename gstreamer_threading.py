@@ -247,13 +247,11 @@ class StreamCapture(threading.Thread):
                     caps_string
                 )
 
-            caps_string += f", x-custom-meta=(string)${current_time}"
+            caps_string += f", x-custom-meta=(fraction)${current_time}"
 
             new_caps = Gst.Caps.from_string(caps_string)
             
             new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
-            
-            logger.debug(f"{self.cam_ip} on_new_sample new_caps: {new_sample.get_caps().to_string()}")            
 
             ret = self.decode_appsrc.emit('push-sample', new_sample)
             if ret != Gst.FlowReturn.OK:
