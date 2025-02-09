@@ -22,6 +22,8 @@ from collections import deque
 
 import traceback
 
+from typing import Dict, Any
+
 # Setup logging to stdout
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -53,6 +55,8 @@ class StreamCapture(threading.Thread):
 
     def __init__(self, params, scanner_output_queue, cam_queue):
         super().__init__(name=f"Thread-Gst-{params['cam_ip']}")
+
+        Gst.init(None)
 
         # params
         self.cam_queue = cam_queue
@@ -144,7 +148,11 @@ class StreamCapture(threading.Thread):
         self.recordings = {}
 
         self.feeding_timer = None
-        self.previous_pts = None
+
+        # Dictionary to store metadata for each buffer
+        self.metadata_store: Dict[int, Any] = {}
+        self.metadata_lock = threading.Lock()
+
 
     # def on_need_data(self, appsrc, length, args):
     #     # This function gets triggered when appsrc needs data.
@@ -266,9 +274,17 @@ class StreamCapture(threading.Thread):
     def probe_callback(self, pad, info):
         if info.type & Gst.PadProbeType.BUFFER:
 
-            pad.get_current_caps()
+            buffer = info.get_buffer()
+            pts = buffer.pts  # Use PTS as unique identifier
+            
+            structure = pad.get_current_caps().get_structure(0)
 
-            logger.info(f"probe_callback: {pad.get_current_caps().to_string()}")
+            with self.metadata_lock:
+                self.metadata_store[pts] = structure.get_value("x-custom-meta")
+                # Clean up old metadata (keep last 100 entries)
+                if len(self.metadata_store) > 100:
+                    oldest_pts = min(self.metadata_store.keys())
+                    self.metadata_store.pop(oldest_pts, None)
             
         return Gst.PadProbeReturn.OK
 
@@ -296,6 +312,16 @@ class StreamCapture(threading.Thread):
                 logger.error("on_new_sample_decode: Received sample with no buffer")
                 return Gst.FlowReturn.OK
             
+            pts = buffer.pts
+            logger.info(f"{self.cam_ip} on_new_sample_decode pts: {pts}")
+            
+            frame_time = None
+            with self.metadata_lock:
+                frame_time = self.metadata_store.get(pts)
+                logger.debug(f"{self.cam_ip} on_new_sample_decode frame_time: {frame_time}")
+                # Clean up used metadata
+                self.metadata_store.pop(pts, None)
+
             buffer_size = buffer.get_size()
             if buffer_size == 0:
                 logger.error("on_new_sample_decode: Buffer is empty (size 0)")
@@ -305,7 +331,7 @@ class StreamCapture(threading.Thread):
 
             if not self.cam_queue.full():
                 self.decoding_count += 1
-                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "sample_info": "empty"}), block=False)
+                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "frame_time": frame_time}), block=False)
 
                 logger.debug(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
@@ -531,6 +557,9 @@ class StreamCapture(threading.Thread):
             self.is_feeding = False
             self.feeding_count = 0
             self.decoding_count = 0
+
+        with self.metadata_lock:
+            self.metadata_store.clear()
 
         logger.debug(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
         logger.info(f"{self.cam_ip} stop_feeding out")
