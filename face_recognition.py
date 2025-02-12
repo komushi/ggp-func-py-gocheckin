@@ -63,10 +63,10 @@ class FaceRecognition(threading.Thread):
                                 self.inference_begins_at = time.time()
 
                                 faces = []
-                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['PRE_DETECTING_SEC']) * 60:
+                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['PRE_DETECTING_SEC']) * 10:
                                     logger.error(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                 else:
-                                    logger.debug(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
+                                    logger.info(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                     faces = self.face_app.get(raw_img)
 
                                 # if len(faces) == 0:
@@ -165,8 +165,8 @@ class FaceRecognition(threading.Thread):
 
                 
         except Exception as e:
-            logger.info(f"Caught exception during running {self.name}")
-            logger.info(e)
+            logger.error(f"Caught exception during running {self.name}")
+            logger.error(e)
             traceback.print_exc()
     
     def stop_detection(self):

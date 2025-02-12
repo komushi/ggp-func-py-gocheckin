@@ -517,7 +517,7 @@ class StreamCapture(threading.Thread):
         self.pipeline.set_state(Gst.State.NULL)
 
     def feed_detecting(self, running_seconds):
-        logger.info(f"{self.cam_ip} feed_detecting in")
+        logger.debug(f"{self.cam_ip} feed_detecting in")
 
         if self.is_feeding:
             logger.debug(f"{self.cam_ip} feed_detecting out, already feeding")
@@ -540,11 +540,11 @@ class StreamCapture(threading.Thread):
         self.feeding_timer.start()
 
         logger.debug(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
-        logger.info(f"{self.cam_ip} feed_detecting out")
+        logger.debug(f"{self.cam_ip} feed_detecting out")
 
 
     def stop_feeding(self):
-        logger.info(f"{self.cam_ip} stop_feeding in")
+        logger.debug(f"{self.cam_ip} stop_feeding in")
         # Check if the timer exists before trying to cancel
         if self.feeding_timer is not None:
             logger.debug(f"{self.cam_ip} stop_feeding before cancel feeding_timer")
@@ -561,7 +561,7 @@ class StreamCapture(threading.Thread):
             self.metadata_store.clear()
 
         logger.debug(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
-        logger.info(f"{self.cam_ip} stop_feeding out")
+        logger.debug(f"{self.cam_ip} stop_feeding out")
 
     # def feed_detecting(self, running_seconds):
     #     logger.debug(f"{self.cam_ip} feed_detecting in")

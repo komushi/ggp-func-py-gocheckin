@@ -211,7 +211,7 @@ def init_gst_apps():
 
 def init_gst_app(host_id, cam_ip, forced=False):
     if forced:
-        logger.info(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}, forced: {forced}")
+        logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}, forced: {forced}")
 
     logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
 
@@ -234,7 +234,7 @@ def init_gst_app(host_id, cam_ip, forced=False):
     logger.debug(f"init_gst_app out thread_gstreamer: {thread_gstreamer}")
 
     if forced:
-        logger.info(f"init_gst_app out thread_gstreamer: {thread_gstreamer}, forced: {forced}")
+        logger.debug(f"init_gst_app out thread_gstreamer: {thread_gstreamer}, forced: {forced}")
 
     return thread_gstreamer
 
@@ -417,7 +417,7 @@ def start_http_server():
 
 
 def get_host_item():
-    logger.info('get_host_item in')
+    logger.debug('get_host_item in')
 
     # Specify the table name
     tbl_host = os.environ['TBL_HOST']
@@ -437,7 +437,7 @@ def get_host_item():
         return None
     
 def get_property_item(host_id):
-    logger.info('get_property_item in')
+    logger.debug('get_property_item in')
 
     # Specify the table name
     tbl_asset = os.environ['TBL_ASSET']
@@ -461,7 +461,7 @@ def get_property_item(host_id):
 
 def query_camera_item(host_id, cam_ip):
 
-    logger.info(f"query_camera_item, in with {host_id} {cam_ip} ...")
+    logger.debug(f"query_camera_item, in with {host_id} {cam_ip} ...")
 
     # Specify the table name
     tbl_asset = os.environ['TBL_ASSET']
@@ -478,7 +478,7 @@ def query_camera_item(host_id, cam_ip):
     # Print the items returned by the query
     camera_item = response.get('Items', [None])[0]
 
-    logger.info(f'query_camera_item out {camera_item}')
+    logger.debug(f'query_camera_item out {camera_item}')
 
     return camera_item
 
@@ -530,7 +530,7 @@ def query_camera_items(host_id):
 
 
 def get_active_reservations():
-    logger.info('get_active_reservations in')
+    logger.debug('get_active_reservations in')
 
     # Specify the table name
     tbl_reservation = os.environ['TBL_RESERVATION']
@@ -560,12 +560,12 @@ def get_active_reservations():
     for item in items:
         logger.debug(item)
 
-    logger.info('get_active_reservations out')
+    logger.debug('get_active_reservations out')
 
     return items
 
 def update_member(reservationCode, memberNo, keyNotified=True):
-    logger.info('update_member in')
+    logger.debug('update_member in')
 
     # Specify the table name
     tbl_member = os.environ['TBL_MEMBER']
@@ -588,9 +588,9 @@ def update_member(reservationCode, memberNo, keyNotified=True):
         },
         ReturnValues='UPDATED_NEW'
     )
-    logger.info(f"update_member update_item: {repr(response)}")
+    logger.debug(f"update_member update_item: {repr(response)}")
 
-    logger.info('update_member out')
+    logger.debug('update_member out')
 
     return
 
@@ -680,7 +680,7 @@ def fetch_members(forced=False):
         
         
 def initialize_env_var():
-    logger.info('initialize_env_var in')
+    logger.debug('initialize_env_var in')
 
     try:
         host_item = get_host_item()
@@ -704,7 +704,7 @@ def initialize_env_var():
         timer.start()
         # timer.join()
         
-        logger.info(f"initialize_env_var out HOST_ID:{os.environ['HOST_ID']} IDENTITY_ID:{os.environ['IDENTITY_ID']} PROPERTY_CODE{os.environ['PROPERTY_CODE']} CRED_PROVIDER_HOST{os.environ['CRED_PROVIDER_HOST']}")
+        logger.debug(f"initialize_env_var out HOST_ID:{os.environ['HOST_ID']} IDENTITY_ID:{os.environ['IDENTITY_ID']} PROPERTY_CODE{os.environ['PROPERTY_CODE']} CRED_PROVIDER_HOST{os.environ['CRED_PROVIDER_HOST']}")
     except Exception as e:
         # Log the exception
         logger.error(f"initialize_env_var error: {e}", exc_info=True)
@@ -713,7 +713,7 @@ def initialize_env_var():
         sys.exit(1)
 
 def claim_cameras():
-    logger.info(f"claim_cameras in")
+    logger.debug(f"claim_cameras in")
     for cam_ip in camera_items:
         if cam_ip in thread_gstreamers:
             thread_gstreamer = thread_gstreamers[cam_ip]
@@ -730,7 +730,7 @@ def claim_cameras():
                         topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
                         payload=json.dumps(data)
                     )
-                    logger.info(f"claim_cameras published {data}")
+                    logger.debug(f"claim_cameras published {data}")
                     continue
 
         data = {
@@ -745,7 +745,7 @@ def claim_cameras():
             payload=json.dumps(data)
         )
 
-        logger.info(f"claim_cameras published {data}")
+        logger.debug(f"claim_cameras published {data}")
 
     # Reschedule the claim cameras function for every 2 minutes (120 seconds)
     timer = threading.Timer(600, claim_cameras)
@@ -867,7 +867,7 @@ def fetch_motion_detection_queue():
         try:
             if not motion_detection_queue.empty():
                 cam_ip, is_motion_value, utc_time = motion_detection_queue.get_nowait()    
-                logger.info(f"Fetched from motion_detection_queue: {is_motion_value}")
+                logger.debug(f"Fetched from motion_detection_queue: {is_motion_value}")
 
                 if is_motion_value:
                     handle_notification(cam_ip, utc_time, is_motion_value)
@@ -1091,7 +1091,7 @@ def monitor_stop_event(thread_gstreamer):
 
 
 def set_recording_time(cam_ip, delay, utc_time):
-    logger.info(f'set_recording_time, cam_ip: {cam_ip} utc_time: {utc_time}')
+    logger.debug(f'set_recording_time, cam_ip: {cam_ip} utc_time: {utc_time}')
     global recording_timers
 
     if cam_ip in recording_timers:
@@ -1115,7 +1115,7 @@ def set_recording_time(cam_ip, delay, utc_time):
 
 def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
     if forced:
-        logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
+        logger.debug(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
 
     global thread_detector
 
@@ -1170,7 +1170,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
     logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
 
     if forced:
-        logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
+        logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
 
 def subscribe_onvif():
     logger.debug(f"subscribe_onvif in")
