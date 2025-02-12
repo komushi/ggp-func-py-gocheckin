@@ -1,7 +1,7 @@
 # import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import sys
 import os
 import threading
@@ -64,7 +64,7 @@ class FaceRecognition(threading.Thread):
 
                                 faces = []
                                 if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']):
-                                    logger.error(f"{cam_info['cam_ip']} inference_begins_at: {(datetime.datetime.fromtimestamp(self.inference_begins_at, datetime.timezone.utc) + datetime.timedelta(hours=9)).isoformat().split("T")[1]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
+                                    logger.error(f"{cam_info['cam_ip']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S')} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                 else:
                                     logger.info(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                     faces = self.face_app.get(raw_img)
