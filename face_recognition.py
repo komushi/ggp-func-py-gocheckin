@@ -50,7 +50,7 @@ class FaceRecognition(threading.Thread):
 
                 if self.stop_event.is_set():
                     if self.cam_queue.empty():
-                        time.sleep(0.1)
+                        time.sleep(0.5)
                     else:
                         cmd, _, _ = self.cam_queue.get(False)
                 else:
@@ -63,7 +63,7 @@ class FaceRecognition(threading.Thread):
                                 self.inference_begins_at = time.time()
 
                                 faces = []
-                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['PRE_DETECTING_SEC']) * 2:
+                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['PRE_DETECTING_SEC']) * 60:
                                     logger.error(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                 else:
                                     logger.debug(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
@@ -161,7 +161,7 @@ class FaceRecognition(threading.Thread):
                                                     self.captured_members[memberKey]['similarity'] = sim
                                         
                     else:
-                        time.sleep(0.1)
+                        time.sleep(0.5)
 
                 
         except Exception as e:
