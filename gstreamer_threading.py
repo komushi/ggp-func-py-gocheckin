@@ -197,7 +197,7 @@ class StreamCapture(threading.Thread):
             self.recording_buffer.clear()
     
     def push_detecting_buffer(self):
-        logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
+        logger.info(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
 
         with self.detecting_lock:
             for single_buffer in self.detecting_buffer:
