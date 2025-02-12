@@ -197,7 +197,7 @@ class StreamCapture(threading.Thread):
             self.recording_buffer.clear()
     
     def push_detecting_buffer(self):
-        logger.info(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
+        logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
 
         with self.detecting_lock:
             for single_buffer in self.detecting_buffer:
@@ -214,7 +214,7 @@ class StreamCapture(threading.Thread):
         with self.detecting_lock:
             self.detecting_buffer.append((current_time, sample))
 
-            # Only discard frames if not detecting
+            # discard frames
             while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_DETECTING_SEC']):
                 self.detecting_buffer.popleft()
 
@@ -229,10 +229,11 @@ class StreamCapture(threading.Thread):
         self.add_recording_frame(sample, current_time)
 
         if not self.is_feeding:
-            self.add_detecting_frame(sample, current_time)
+            # self.add_detecting_frame(sample, current_time)
+            None
 
         else:
-            self.push_detecting_buffer()
+            # self.push_detecting_buffer()
             
             logger.debug(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
