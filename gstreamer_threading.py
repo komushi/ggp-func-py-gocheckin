@@ -234,7 +234,7 @@ class StreamCapture(threading.Thread):
         else:
             self.push_detecting_buffer()
             
-            logger.info(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
+            logger.debug(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
