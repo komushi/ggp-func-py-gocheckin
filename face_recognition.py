@@ -64,8 +64,8 @@ class FaceRecognition(threading.Thread):
 
                                 faces = []
                                 logger.info(f"{cam_info['cam_ip']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
-                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 5:
-                                    logger.debug(f"{cam_info['cam_ip']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
+                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 10:
+                                    logger.error(f"{cam_info['cam_ip']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                 else:
                                     # logger.info(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                     logger.debug(f"{cam_info['cam_ip']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
@@ -78,7 +78,7 @@ class FaceRecognition(threading.Thread):
                                 for face in faces:
                                     for active_member in self.active_members:
                                         sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
-                                        logger.info(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {cam_info['cam_ip']}")
+                                        logger.debug(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {cam_info['cam_ip']}")
 
                                         local_file_path = ''
 
