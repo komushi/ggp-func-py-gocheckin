@@ -64,7 +64,7 @@ class FaceRecognition(threading.Thread):
 
                                 faces = []
                                 logger.info(f"{cam_info['cam_ip']} {cam_info['pts']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
-                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 10:
+                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 50:
                                     logger.error(f"{cam_info['cam_ip']} {cam_info['pts']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
                                 else:
                                     # logger.info(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
