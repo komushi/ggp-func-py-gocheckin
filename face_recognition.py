@@ -25,7 +25,6 @@ class FaceRecognition(threading.Thread):
         self.scanner_output_queue = scanner_output_queue
         self.stop_event = threading.Event()
 
-        self.inference_begins_at = 0
         self.face_app = params['face_app']
 
         if 'active_members' in params:
@@ -49,121 +48,119 @@ class FaceRecognition(threading.Thread):
             while True:
 
                 if self.stop_event.is_set():
-                    if self.cam_queue.empty():
-                        time.sleep(0.5)
-                    else:
-                        cmd, _, _ = self.cam_queue.get(False)
+                    if not self.cam_queue.empty():
+                    #     time.sleep(0.5)
+                    # else:
+                        _, _, _ = self.cam_queue.get(False)
                 else:
 
                     if not self.cam_queue.empty():
-                        cmd, raw_img, cam_info = self.cam_queue.get(False)
+                        _, raw_img, cam_info = self.cam_queue.get(False)
 
-                        if cmd == gst.StreamCommands.FRAME and cam_info['frame_time'] is not None:
-                            if raw_img is not None and self.active_members:
-                                self.inference_begins_at = time.time()
+                        current_time = time.time()
 
-                                faces = []
-                                logger.info(f"{cam_info['cam_ip']} {cam_info['pts']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
-                                if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 50:
-                                    logger.error(f"{cam_info['cam_ip']} {cam_info['pts']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
-                                else:
-                                    # logger.info(f"{cam_info['cam_ip']} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
-                                    logger.debug(f"{cam_info['cam_ip']} {cam_info['pts']} inference_begins_at: {datetime.fromtimestamp(time.time(), timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {self.inference_begins_at - float(cam_info['frame_time'])} in seconds.")
-                                    faces = self.face_app.get(raw_img)
+                        logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} current_time: {datetime.fromtimestamp(current_time, timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
 
-                                # if len(faces) == 0:
-                                #     logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {cam_info['cam_ip']}")
+                        faces = self.face_app.get(raw_img)
+                        
+                        # if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 50:
+                        #     logger.error(f"{cam_info['cam_ip']} pts: {cam_info['pts']} current_time: {datetime.fromtimestamp(current_time, timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
+                        # else:
+                        #     faces = self.face_app.get(raw_img)
+
+                        # if len(faces) == 0:
+                        #     logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {cam_info['cam_ip']}")
 
 
-                                for face in faces:
-                                    for active_member in self.active_members:
-                                        sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
-                                        logger.debug(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {cam_info['cam_ip']}")
+                        for face in faces:
+                            for active_member in self.active_members:
+                                sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
+                                logger.debug(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - self.inference_begins_at} location: {cam_info['cam_ip']}")
 
-                                        local_file_path = ''
+                                local_file_path = ''
 
-                                        if sim >= self.face_threshold:
-                                            memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
-                                            if memberKey not in self.captured_members:
+                                if sim >= self.face_threshold:
+                                    memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
+                                    if memberKey not in self.captured_members:
 
-                                                self.captured_members[memberKey] = {
-                                                    "hostId": os.environ['HOST_ID'],
-                                                    "propertyCode": os.environ['PROPERTY_CODE'],
-                                                    "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
-                                                    "coreName": os.environ['AWS_IOT_THING_NAME'],
-                                                    "equipmentId": cam_info['cam_uuid'],
-                                                    "equipmentName": cam_info['cam_name'],
-                                                    "cameraIp": cam_info['cam_ip'],
-                                                    "reservationCode": active_member['reservationCode'],
-                                                    "listingId": active_member['listingId'],
-                                                    "memberNo": int(str(active_member['memberNo'])),
-                                                    "fullName": active_member['fullName'],
-                                                    "similarity": sim,
-                                                    "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-                                                }
+                                        self.captured_members[memberKey] = {
+                                            "hostId": os.environ['HOST_ID'],
+                                            "propertyCode": os.environ['PROPERTY_CODE'],
+                                            "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+                                            "coreName": os.environ['AWS_IOT_THING_NAME'],
+                                            "equipmentId": cam_info['cam_uuid'],
+                                            "equipmentName": cam_info['cam_name'],
+                                            "cameraIp": cam_info['cam_ip'],
+                                            "reservationCode": active_member['reservationCode'],
+                                            "listingId": active_member['listingId'],
+                                            "memberNo": int(str(active_member['memberNo'])),
+                                            "fullName": active_member['fullName'],
+                                            "similarity": sim,
+                                            "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                                        }
 
-                                                keyNotified = False
-                                                if 'keyNotified' in active_member:
-                                                    if active_member['keyNotified']:
-                                                        keyNotified = active_member['keyNotified']
+                                        keyNotified = False
+                                        if 'keyNotified' in active_member:
+                                            if active_member['keyNotified']:
+                                                keyNotified = active_member['keyNotified']
 
-                                                now = datetime.now(timezone.utc)
-                                                date_folder = now.strftime("%Y-%m-%d")
-                                                time_filename = now.strftime("%H:%M:%S")
-                                                ext = ".jpg"
+                                        now = datetime.now(timezone.utc)
+                                        date_folder = now.strftime("%Y-%m-%d")
+                                        time_filename = now.strftime("%H:%M:%S")
+                                        ext = ".jpg"
 
-                                                local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], cam_info['cam_ip'], date_folder, time_filename + ext)
-                                                if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], cam_info['cam_ip'], date_folder)):
-                                                    os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], cam_info['cam_ip'], date_folder))
+                                        local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], cam_info['cam_ip'], date_folder, time_filename + ext)
+                                        if not os.path.exists(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], cam_info['cam_ip'], date_folder)):
+                                            os.makedirs(os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], cam_info['cam_ip'], date_folder))
 
-                                                bbox = face.bbox.astype(int)
-                                                img = raw_img.astype(np.uint8)
-                                                cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
-                                                cv2.putText(img, f"{active_member['fullName']}:{str(round(sim, 2))}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-                                                cv2.imwrite(local_file_path, img)
+                                        bbox = face.bbox.astype(int)
+                                        img = raw_img.astype(np.uint8)
+                                        cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+                                        cv2.putText(img, f"{active_member['fullName']}:{str(round(sim, 2))}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+                                        cv2.imwrite(local_file_path, img)
 
-                                                logger.info(f"Newly checkIn snapshot taken at {local_file_path}")
+                                        logger.info(f"Newly checkIn snapshot taken at {local_file_path}")
 
-                                                if not self.scanner_output_queue.full():
-                                                    checkin_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/listings/{active_member['listingId']}/{active_member['reservationCode']}/checkIn/{str(active_member['memberNo'])}{ext}"""
-                                                    property_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{cam_info['cam_ip']}/{date_folder}/{time_filename}{ext}"""
-                                                    snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{cam_info['cam_ip']}/{date_folder}/{time_filename}{ext}"""
+                                        if not self.scanner_output_queue.full():
+                                            checkin_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/listings/{active_member['listingId']}/{active_member['reservationCode']}/checkIn/{str(active_member['memberNo'])}{ext}"""
+                                            property_object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{cam_info['cam_ip']}/{date_folder}/{time_filename}{ext}"""
+                                            snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{cam_info['cam_ip']}/{date_folder}/{time_filename}{ext}"""
 
-                                                    self.captured_members[memberKey]['checkInImgKey'] = checkin_object_key
-                                                    self.captured_members[memberKey]['propertyImgKey'] = property_object_key
-                                                    self.captured_members[memberKey]['keyNotified'] = keyNotified
+                                            self.captured_members[memberKey]['checkInImgKey'] = checkin_object_key
+                                            self.captured_members[memberKey]['propertyImgKey'] = property_object_key
+                                            self.captured_members[memberKey]['keyNotified'] = keyNotified
 
-                                                    snapshot_payload = {
-                                                        "hostId": os.environ['HOST_ID'],
-                                                        "propertyCode": os.environ['PROPERTY_CODE'],
-                                                        "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
-                                                        "coreName": os.environ['AWS_IOT_THING_NAME'],
-                                                        "equipmentId": cam_info['cam_uuid'],
-                                                        "equipmentName": cam_info['cam_name'],
-                                                        "cameraIp": cam_info['cam_ip'],
-                                                        "recordStart": self.captured_members[memberKey]['recordTime'],
-                                                        "recordEnd": self.captured_members[memberKey]['recordTime'],
-                                                        "identityId": os.environ['IDENTITY_ID'],
-                                                        "s3level": 'private',
-                                                        "videoKey": '',
-                                                        "snapshotKey": snapshot_key
-                                                    }
+                                            snapshot_payload = {
+                                                "hostId": os.environ['HOST_ID'],
+                                                "propertyCode": os.environ['PROPERTY_CODE'],
+                                                "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+                                                "coreName": os.environ['AWS_IOT_THING_NAME'],
+                                                "equipmentId": cam_info['cam_uuid'],
+                                                "equipmentName": cam_info['cam_name'],
+                                                "cameraIp": cam_info['cam_ip'],
+                                                "recordStart": self.captured_members[memberKey]['recordTime'],
+                                                "recordEnd": self.captured_members[memberKey]['recordTime'],
+                                                "identityId": os.environ['IDENTITY_ID'],
+                                                "s3level": 'private',
+                                                "videoKey": '',
+                                                "snapshotKey": snapshot_key
+                                            }
 
-                                                    self.scanner_output_queue.put({
-                                                        "type": "member_detected",
-                                                        "keyNotified": keyNotified,
-                                                        "payload": self.captured_members[memberKey],
-                                                        "cam_ip": cam_info['cam_ip'],
-                                                        "local_file_path": local_file_path,
-                                                        "snapshot_payload": snapshot_payload
-                                                    }, block=False)
+                                            self.scanner_output_queue.put({
+                                                "type": "member_detected",
+                                                "keyNotified": keyNotified,
+                                                "payload": self.captured_members[memberKey],
+                                                "cam_ip": cam_info['cam_ip'],
+                                                "local_file_path": local_file_path,
+                                                "snapshot_payload": snapshot_payload
+                                            }, block=False)
 
-                                            else:
-                                                if self.captured_members[memberKey]['similarity'] < sim:
-                                                    self.captured_members[memberKey]['similarity'] = sim
+                                    else:
+                                        if self.captured_members[memberKey]['similarity'] < sim:
+                                            self.captured_members[memberKey]['similarity'] = sim
                                         
-                    else:
-                        time.sleep(0.5)
+                    # else:
+                    #     time.sleep(0.5)
 
                 
         except Exception as e:
