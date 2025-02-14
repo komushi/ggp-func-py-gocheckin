@@ -73,18 +73,16 @@ class FaceRecognition(threading.Thread):
 
                         logger.debug(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age}")
 
-                        faces = []
-                        faces = self.face_app.get(raw_img)
-                        logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
+                        # faces = []
+                        # faces = self.face_app.get(raw_img)
+                        # logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
                         
-                        # if current_time - float(cam_info['frame_time']) > float(os.environ['AGE_DETECTING_SEC'])    :
-                        #     logger.error(f"{cam_info['cam_ip']} pts: {cam_info['pts']} age: {current_time - float(cam_info['frame_time'])}")
-                        #     faces = []
-                        #     raw_img = None
-                        # else:
-                        #     faces = self.face_app.get(raw_img)
-                        #     logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} age: {current_time - float(cam_info['frame_time'])} duration: {time.time() - current_time} face(s): {len(faces)}")
-
+                        if age > float(os.environ['AGE_DETECTING_SEC']):
+                            logger.debug(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age}")
+                            continue
+                        else:
+                            faces = self.face_app.get(raw_img)
+                            logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
 
                         for face in faces:
                             for active_member in self.active_members:
