@@ -152,6 +152,7 @@ class StreamCapture(threading.Thread):
         # Dictionary to store metadata for each buffer
         self.metadata_store: Dict[int, Any] = {}
         self.metadata_lock = threading.Lock()
+        
 
 
     # def on_need_data(self, appsrc, length, args):
@@ -222,7 +223,6 @@ class StreamCapture(threading.Thread):
 
         sample_caps = sample.get_caps()
         caps_string = sample_caps.to_string()
-        # caps_string += f",x-custom-meta=(string)${current_time}"
         structure = sample_caps.get_structure(0)
         sample_framerate = (structure.get_fraction("framerate"))[1]
         sample_info = sample.get_info()
@@ -236,7 +236,7 @@ class StreamCapture(threading.Thread):
                 caps_string
             )
 
-        caps_string += ", x-custom-meta=(string)"
+        caps_string += ", x-current-time=(string)"
         caps_string += str(current_time)
 
         new_caps = Gst.Caps.from_string(caps_string)
@@ -267,29 +267,6 @@ class StreamCapture(threading.Thread):
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
-            # sample_caps = sample.get_caps()
-            # caps_string = sample_caps.to_string()
-            # # caps_string += f",x-custom-meta=(string)${current_time}"
-            # structure = sample_caps.get_structure(0)
-            # sample_framerate = (structure.get_fraction("framerate"))[1]
-            # sample_info = sample.get_info()
-            # sample_buffer = sample.get_buffer()
-            # sample_segment = sample.get_segment()
-            
-            # if sample_framerate == 0:
-            #     caps_string = re.sub(
-            #         r'framerate=\(fraction\)\d+/\d+',
-            #         f'framerate=(fraction){self.framerate}/1',
-            #         caps_string
-            #     )
-
-            # caps_string += ", x-custom-meta=(string)"
-            # caps_string += str(current_time)
-
-            # new_caps = Gst.Caps.from_string(caps_string)
-            
-            # new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
-
             ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample, current_time))
             if ret != Gst.FlowReturn.OK:
                 logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
@@ -308,7 +285,7 @@ class StreamCapture(threading.Thread):
             structure = pad.get_current_caps().get_structure(0)
 
             with self.metadata_lock:
-                self.metadata_store[pts] = structure.get_value("x-custom-meta")
+                self.metadata_store[pts] = structure.get_value("x-current-time")
                 # Clean up old metadata (keep last 100 entries)
                 if len(self.metadata_store) > 100:
                     oldest_pts = min(self.metadata_store.keys())
