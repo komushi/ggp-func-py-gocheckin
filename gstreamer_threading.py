@@ -152,21 +152,9 @@ class StreamCapture(threading.Thread):
         # Dictionary to store metadata for each buffer
         self.metadata_store: Dict[int, Any] = {}
         self.metadata_lock = threading.Lock()
-        
 
+        self.detecting_txn = None
 
-    # def on_need_data(self, appsrc, length, args):
-    #     # This function gets triggered when appsrc needs data.
-    #     # No direct sample pushing happens here, but you can inspect caps here too if needed
-    #     logger.debug("appsrc needs data!")
-
-    # def on_push_sample(self, appsrc, sample, args):
-    #     caps = sample.get_caps()
-
-    #     # Check the caps info here (this can be used to inspect the sample being pushed)
-    #     logger.info(f"on_push_sample Pushing sample with caps: {caps.to_string()}")
-
-    #     return Gst.FlowReturn.OK
 
     def gst_to_opencv(self, sample):
         buf = sample.get_buffer()
@@ -335,7 +323,7 @@ class StreamCapture(threading.Thread):
 
             if not self.cam_queue.full():
                 self.decoding_count += 1
-                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "frame_time": frame_time, "pts": pts}), block=False)
+                self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "frame_time": frame_time, "pts": pts, "detecting_txn": self.detecting_txn}), block=False)
 
                 logger.debug(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
@@ -538,6 +526,7 @@ class StreamCapture(threading.Thread):
         with self.detecting_lock:            
             self.is_feeding = True
             self.running_seconds = running_seconds
+            self.detecting_txn = str(uuid.uuid4())
 
         # Create a new timer
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
