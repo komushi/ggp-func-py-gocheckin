@@ -111,7 +111,7 @@ class FaceRecognition(threading.Thread):
                                             "memberNo": int(str(active_member['memberNo'])),
                                             "fullName": active_member['fullName'],
                                             "similarity": sim,
-                                            "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                                            "recordTime": datetime.fromtimestamp(float(cam_info['frame_time']), timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
                                         }
 
                                         keyNotified = False
@@ -119,9 +119,8 @@ class FaceRecognition(threading.Thread):
                                             if active_member['keyNotified']:
                                                 keyNotified = active_member['keyNotified']
 
-                                        now = datetime.now(timezone.utc)
-                                        date_folder = now.strftime("%Y-%m-%d")
-                                        time_filename = now.strftime("%H:%M:%S")
+                                        date_folder = datetime.fromtimestamp(float(cam_info['frame_time']), timezone.utc).strftime("%Y-%m-%d")
+                                        time_filename = datetime.fromtimestamp(float(cam_info['frame_time']), timezone.utc).strftime("%H:%M:%S")
                                         ext = ".jpg"
 
                                         local_file_path = os.path.join(os.environ['VIDEO_CLIPPING_LOCATION'], cam_info['cam_ip'], date_folder, time_filename + ext)
