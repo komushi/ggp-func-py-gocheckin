@@ -72,7 +72,7 @@ class FaceRecognition(threading.Thread):
                             raw_img = None
                         else:
                             faces = self.face_app.get(raw_img)
-                            logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} age: {current_time - float(cam_info['frame_time'])} face(s): {len(faces)}  duration: {time.time() - current_time}")
+                            logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} age: {current_time - float(cam_info['frame_time'])} duration: {time.time() - current_time} face(s): {len(faces)}")
 
                         # if len(faces) == 0:
                         #     logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - current_time} at {cam_info['cam_ip']}")
@@ -81,11 +81,12 @@ class FaceRecognition(threading.Thread):
                         for face in faces:
                             for active_member in self.active_members:
                                 sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
-                                logger.debug(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - current_time} location: {cam_info['cam_ip']}")
+                                # logger.debug(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - current_time} location: {cam_info['cam_ip']}")
 
                                 local_file_path = ''
 
                                 if sim >= self.face_threshold:
+                                    logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} age: {current_time - float(cam_info['frame_time'])} duration: {time.time() - current_time} fullName: {active_member['fullName']} sim: {str(sim)}")
                                     memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                     if memberKey not in self.captured_members:
 
