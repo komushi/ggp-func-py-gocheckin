@@ -218,7 +218,7 @@ class StreamCapture(threading.Thread):
             while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_DETECTING_SEC']):
                 self.detecting_buffer.popleft()
     
-    def edit_sample_caption(self, sample):
+    def edit_sample_caption(self, sample, current_time):
 
         sample_caps = sample.get_caps()
         caps_string = sample_caps.to_string()
@@ -257,7 +257,7 @@ class StreamCapture(threading.Thread):
         self.add_recording_frame(sample, current_time)
 
         if not self.is_feeding:
-            self.add_detecting_frame(self.edit_sample_caption(sample), current_time)
+            self.add_detecting_frame(self.edit_sample_caption(sample, current_time), current_time)
 
         else:
             self.push_detecting_buffer()
@@ -290,7 +290,7 @@ class StreamCapture(threading.Thread):
             
             # new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
 
-            ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample))
+            ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample, current_time))
             if ret != Gst.FlowReturn.OK:
                 logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
