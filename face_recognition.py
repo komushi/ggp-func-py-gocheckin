@@ -68,8 +68,11 @@ class FaceRecognition(threading.Thread):
                         
                         if current_time - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 2:
                             logger.error(f"{cam_info['cam_ip']} pts: {cam_info['pts']} current_time: {datetime.fromtimestamp(current_time, timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
+                            faces = []
+                            raw_img = None
                         else:
                             faces = self.face_app.get(raw_img)
+                            logger.info(f"{cam_info['cam_ip']} getting {len(faces)} face(s) with duration of {time.time() - current_time} pts: {cam_info['pts']} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
 
                         # if len(faces) == 0:
                         #     logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - current_time} at {cam_info['cam_ip']}")
