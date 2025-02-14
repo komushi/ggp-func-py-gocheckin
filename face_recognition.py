@@ -33,7 +33,6 @@ class FaceRecognition(threading.Thread):
             self.active_members = None
 
         self.captured_members = {}
-        self.face_threshold = float(os.environ['FACE_THRESHOLD'])
 
     def run(self):
 
@@ -85,7 +84,7 @@ class FaceRecognition(threading.Thread):
 
                                 local_file_path = ''
 
-                                if sim >= self.face_threshold:
+                                if sim >= float(os.environ['FACE_THRESHOLD']):
                                     logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} age: {current_time - float(cam_info['frame_time'])} duration: {time.time() - current_time} fullName: {active_member['fullName']} sim: {str(sim)}")
                                     memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                     if memberKey not in self.captured_members:
@@ -167,7 +166,7 @@ class FaceRecognition(threading.Thread):
                                             self.captured_members[memberKey]['similarity'] = sim
                                         
                     else:
-                        time.sleep(0.1)
+                        time.sleep(float(os.environ['DETECTING_SLEEP_SEC']))
 
                 
         except Exception as e:
