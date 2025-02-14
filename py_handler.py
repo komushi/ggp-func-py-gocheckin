@@ -131,6 +131,14 @@ def function_handler(event, context):
 
         if 'cam_ip' in event:
             handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', True, forced=True)
+    elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/change_env_var":
+        logger.info('function_handler change_env_var')
+        for key, value in event.items:
+            os.environ[key] = value
+
+        for key in event.items:
+            logger.info(f"change_env_var: ${key}: os.environ[key]")
+
 
 def fetch_camera_items():
     logger.debug(f"fetch_camera_items in")

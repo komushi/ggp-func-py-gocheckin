@@ -66,7 +66,7 @@ class FaceRecognition(threading.Thread):
                         faces = []
                         # faces = self.face_app.get(raw_img)
                         
-                        if current_time - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 2:
+                        if current_time - float(cam_info['frame_time']) > float(os.environ['AGE_DETECTING_SEC'])    :
                             logger.error(f"{cam_info['cam_ip']} pts: {cam_info['pts']} age: {current_time - float(cam_info['frame_time'])}")
                             faces = []
                             raw_img = None
