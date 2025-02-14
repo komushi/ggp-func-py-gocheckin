@@ -217,6 +217,34 @@ class StreamCapture(threading.Thread):
             # discard frames
             while self.detecting_buffer and current_time - self.detecting_buffer[0][0] > float(os.environ['PRE_DETECTING_SEC']):
                 self.detecting_buffer.popleft()
+    
+    def edit_sample_caption(self, sample):
+
+        sample_caps = sample.get_caps()
+        caps_string = sample_caps.to_string()
+        # caps_string += f",x-custom-meta=(string)${current_time}"
+        structure = sample_caps.get_structure(0)
+        sample_framerate = (structure.get_fraction("framerate"))[1]
+        sample_info = sample.get_info()
+        sample_buffer = sample.get_buffer()
+        sample_segment = sample.get_segment()
+        
+        if sample_framerate == 0:
+            caps_string = re.sub(
+                r'framerate=\(fraction\)\d+/\d+',
+                f'framerate=(fraction){self.framerate}/1',
+                caps_string
+            )
+
+        caps_string += ", x-custom-meta=(string)"
+        caps_string += str(current_time)
+
+        new_caps = Gst.Caps.from_string(caps_string)
+        
+        new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
+
+        return new_sample
+
 
     def on_new_sample(self, sink, _):
         sample = sink.emit('pull-sample')
@@ -229,7 +257,7 @@ class StreamCapture(threading.Thread):
         self.add_recording_frame(sample, current_time)
 
         if not self.is_feeding:
-            self.add_detecting_frame(sample, current_time)
+            self.add_detecting_frame(self.edit_sample_caption(sample), current_time)
 
         else:
             self.push_detecting_buffer()
@@ -239,30 +267,30 @@ class StreamCapture(threading.Thread):
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
-            sample_caps = sample.get_caps()
-            caps_string = sample_caps.to_string()
-            # caps_string += f",x-custom-meta=(string)${current_time}"
-            structure = sample_caps.get_structure(0)
-            sample_framerate = (structure.get_fraction("framerate"))[1]
-            sample_info = sample.get_info()
-            sample_buffer = sample.get_buffer()
-            sample_segment = sample.get_segment()
+            # sample_caps = sample.get_caps()
+            # caps_string = sample_caps.to_string()
+            # # caps_string += f",x-custom-meta=(string)${current_time}"
+            # structure = sample_caps.get_structure(0)
+            # sample_framerate = (structure.get_fraction("framerate"))[1]
+            # sample_info = sample.get_info()
+            # sample_buffer = sample.get_buffer()
+            # sample_segment = sample.get_segment()
             
-            if sample_framerate == 0:
-                caps_string = re.sub(
-                    r'framerate=\(fraction\)\d+/\d+',
-                    f'framerate=(fraction){self.framerate}/1',
-                    caps_string
-                )
+            # if sample_framerate == 0:
+            #     caps_string = re.sub(
+            #         r'framerate=\(fraction\)\d+/\d+',
+            #         f'framerate=(fraction){self.framerate}/1',
+            #         caps_string
+            #     )
 
-            caps_string += ", x-custom-meta=(string)"
-            caps_string += str(current_time)
+            # caps_string += ", x-custom-meta=(string)"
+            # caps_string += str(current_time)
 
-            new_caps = Gst.Caps.from_string(caps_string)
+            # new_caps = Gst.Caps.from_string(caps_string)
             
-            new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
+            # new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
 
-            ret = self.decode_appsrc.emit('push-sample', new_sample)
+            ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample))
             if ret != Gst.FlowReturn.OK:
                 logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
