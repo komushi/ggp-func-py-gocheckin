@@ -57,9 +57,9 @@ class FaceRecognition(threading.Thread):
                     if not self.cam_queue.empty():
                         cmd, raw_img, cam_info = self.cam_queue.get(False)
 
-                        current_time = time.time()
+                        # current_time = time.time()
 
-                        logger.info(f"current_time: {current_time} cam_info: {cam_info} cmd: {cmd}")
+                        # logger.info(f"current_time: {current_time} cam_info: {cam_info} cmd: {cmd}")
 
                         # logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} current_time: {datetime.fromtimestamp(current_time, timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
 
