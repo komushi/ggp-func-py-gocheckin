@@ -162,8 +162,8 @@ class FaceRecognition(threading.Thread):
                                         if self.captured_members[memberKey]['similarity'] < sim:
                                             self.captured_members[memberKey]['similarity'] = sim
                                         
-                    # else:
-                    #     time.sleep(0.5)
+                    else:
+                        time.sleep(0.1)
 
                 
         except Exception as e:
