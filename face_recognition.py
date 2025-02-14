@@ -34,6 +34,8 @@ class FaceRecognition(threading.Thread):
 
         self.captured_members = {}
 
+        self.cam_detection_his = {}
+
     def run(self):
 
         logger.info(f"{self.name} started")
@@ -52,7 +54,19 @@ class FaceRecognition(threading.Thread):
                 else:
 
                     if not self.cam_queue.empty():
-                        _, raw_img, cam_info = self.cam_queue.get(False)
+                        _, raw_img, cam_info = self.cam_queue.get(False)           
+
+                        if cam_info['cam_ip'] not in self.cam_detection_his:
+                            self.cam_detection_his[cam_info['cam_ip']] = {}
+                            self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
+                            self.cam_detection_his[cam_info['cam_ip']]['detected'] = False
+                        else:
+                            if self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] != cam_info['detecting_txn']:
+                                self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
+                                self.cam_detection_his[cam_info['cam_ip']]['detected'] = False
+
+                        if self.cam_detection_his[cam_info['cam_ip']]['detected']:
+                            continue
 
                         current_time = time.time()
                         age = current_time - float(cam_info['frame_time'])
@@ -80,6 +94,7 @@ class FaceRecognition(threading.Thread):
 
                                 if sim >= float(os.environ['FACE_THRESHOLD']):
                                     logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
+                                    self.cam_detection_his[cam_info['cam_ip']]['detected'] = True
                                     memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                     if memberKey not in self.captured_members:
 
