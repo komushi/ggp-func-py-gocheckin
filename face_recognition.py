@@ -59,11 +59,11 @@ class FaceRecognition(threading.Thread):
 
                         current_time = time.time()
 
-                        logger.info(f"current_time: {current_time} cam_info: {cam_info} cmd: {cmd}")
+                        # logger.info(f"current_time: {current_time} cam_info: {cam_info} cmd: {cmd}")
 
-                        # logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} current_time: {datetime.fromtimestamp(current_time, timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
+                        logger.info(f"{cam_info['cam_ip']} pts: {cam_info['pts']} current_time: {datetime.fromtimestamp(current_time, timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
 
-                        # faces = self.face_app.get(raw_img)
+                        faces = self.face_app.get(raw_img)
                         
                         # if self.inference_begins_at - float(cam_info['frame_time']) > float(os.environ['DETECT_RUNNING_TIME']) / 50:
                         #     logger.error(f"{cam_info['cam_ip']} pts: {cam_info['pts']} current_time: {datetime.fromtimestamp(current_time, timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')[:-3]} frame's age of {current_time - float(cam_info['frame_time'])} in seconds.")
@@ -74,7 +74,7 @@ class FaceRecognition(threading.Thread):
                         #     logger.debug(f"after getting {len(faces)} face(s) with duration of {time.time() - self.inference_begins_at} at {cam_info['cam_ip']}")
 
 
-                        # for face in faces:
+                        for face in faces:
                         #     for active_member in self.active_members:
                         #         sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
                         #         logger.debug(f"fullName: {active_member['fullName']} sim: {str(sim)} duration: {time.time() - current_time} location: {cam_info['cam_ip']}")
