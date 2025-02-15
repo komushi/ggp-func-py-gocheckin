@@ -55,7 +55,6 @@ class FaceRecognition(threading.Thread):
 
                     if not self.cam_queue.empty():
                         _, raw_img, cam_info = self.cam_queue.get(False)
-                        self.cam_detection_his[cam_info['cam_ip']]['fetched'] += 1       
 
                         if cam_info['cam_ip'] not in self.cam_detection_his:
                             self.cam_detection_his[cam_info['cam_ip']] = {}
@@ -63,6 +62,8 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['identified'] = False
                             self.cam_detection_his[cam_info['cam_ip']]['fetched'] = 1
                         else:
+                            self.cam_detection_his[cam_info['cam_ip']]['fetched'] += 1
+                            
                             if self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] != cam_info['detecting_txn']:
                                 self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
                                 self.cam_detection_his[cam_info['cam_ip']]['identified'] = False
