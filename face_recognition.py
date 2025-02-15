@@ -54,35 +54,38 @@ class FaceRecognition(threading.Thread):
                 else:
 
                     if not self.cam_queue.empty():
-                        _, raw_img, cam_info = self.cam_queue.get(False)           
+                        _, raw_img, cam_info = self.cam_queue.get(False)
+                        self.cam_detection_his[cam_info['cam_ip']]['fetched'] += 1       
 
                         if cam_info['cam_ip'] not in self.cam_detection_his:
                             self.cam_detection_his[cam_info['cam_ip']] = {}
                             self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
-                            self.cam_detection_his[cam_info['cam_ip']]['detected'] = False
+                            self.cam_detection_his[cam_info['cam_ip']]['identified'] = False
+                            self.cam_detection_his[cam_info['cam_ip']]['fetched'] = 1
                         else:
                             if self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] != cam_info['detecting_txn']:
                                 self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
-                                self.cam_detection_his[cam_info['cam_ip']]['detected'] = False
+                                self.cam_detection_his[cam_info['cam_ip']]['identified'] = False
+                                self.cam_detection_his[cam_info['cam_ip']]['fetched'] = 1
 
-                        if self.cam_detection_his[cam_info['cam_ip']]['detected']:
+                        if self.cam_detection_his[cam_info['cam_ip']]['identified']:
                             continue
 
                         current_time = time.time()
                         age = current_time - float(cam_info['frame_time'])
 
-                        logger.debug(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age}")
+                        logger.debug(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age}")
 
                         # faces = []
                         # faces = self.face_app.get(raw_img)
-                        # logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
+                        # logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
                         
                         if age > float(os.environ['AGE_DETECTING_SEC']):
-                            logger.debug(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age}")
+                            logger.debug(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age}")
                             continue
                         else:
                             faces = self.face_app.get(raw_img)
-                            logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
+                            logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
 
                         for face in faces:
                             for active_member in self.active_members:
@@ -91,8 +94,8 @@ class FaceRecognition(threading.Thread):
                                 local_file_path = ''
 
                                 if sim >= float(os.environ['FACE_THRESHOLD']):
-                                    logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} pts: {cam_info['pts']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
-                                    self.cam_detection_his[cam_info['cam_ip']]['detected'] = True
+                                    logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
+                                    self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
                                     memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                     if memberKey not in self.captured_members:
 
