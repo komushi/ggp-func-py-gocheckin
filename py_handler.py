@@ -194,7 +194,7 @@ def init_face_app(model='buffalo_sc'):
     global face_app
 
     logger.info(f"Initializing with Model Name: {model}")
-    face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CUDAExecutionProvider', 'CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
+    face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
 
