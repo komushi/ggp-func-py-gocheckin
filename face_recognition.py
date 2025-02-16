@@ -80,7 +80,18 @@ class FaceRecognition(threading.Thread):
                         # faces = []
                         faces = self.face_app.get(raw_img)
                         logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} duration: {time.time() - current_time} face(s): {len(faces)}")
-                        
+
+                        for face in faces:
+                            for active_member in self.active_members:
+                                sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
+
+                                local_file_path = ''
+
+                                if sim >= float(os.environ['FACE_THRESHOLD']):
+                                    logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
+
+
+
                         # if age > float(os.environ['AGE_DETECTING_SEC']):
                         #     logger.debug(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age}")
                         #     continue
