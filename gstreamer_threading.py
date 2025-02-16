@@ -95,7 +95,7 @@ class StreamCapture(threading.Thread):
         pipeline_str_decode = ''
         if self.codec == 'h264':
             pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
-                ! queue name=queue_after_appsrc ! h264parse ! queue ! v4l2h264dec name=m_avdec
+                ! queue name=queue_after_appsrc ! h264parse ! queue ! avdec_h264 name=m_avdec
                 ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
         elif self.codec == 'h265':
