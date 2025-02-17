@@ -320,8 +320,8 @@ class FaceRecognition(threading.Thread):
         self.stop_event.set()
         self.clear_captured_members()
 
-    def start_detection(self):
-        self.stop_event.clear()
+    # def start_detection(self):
+    #     self.stop_event.clear()
 
     def clear_captured_members(self):
         with self.captured_members_lock:

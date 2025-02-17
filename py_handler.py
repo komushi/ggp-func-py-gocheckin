@@ -1144,12 +1144,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
                     if thread_gstreamers[cam_ip] is not None:
                         thread_gstreamers[cam_ip].feed_detecting(int(os.environ['DETECT_RUNNING_TIME']))
 
-                if thread_detector is None or thread_detector.stop_event.is_set():
-                    if thread_detector.stop_event.is_set():
-                        logger.info(f"Clearing detector and initializing face_app")
-                        clear_detector()
-                        init_face_app()
-
+                if thread_detector is None:
                     params = {}
                     params['face_app'] = face_app
 
@@ -1159,12 +1154,22 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
 
                     thread_detector.clear_captured_members()
                     thread_detector.start()
-                    thread_detector.start_detection()
+                    # thread_detector.start_detection()
 
                 else:
+                    if thread_detector.stop_event.is_set():
+                        logger.info(f"Clearing detector and initializing face_app")
+                        clear_detector()
+                        init_face_app()
+
+                        params = {}
+                        params['face_app'] = face_app
+
+                        thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+
                     fetch_members()
                     thread_detector.clear_captured_members()
-                    thread_detector.start_detection()
+                    # thread_detector.start_detection()
 
             # record 
             if camera_item['isRecording']:
