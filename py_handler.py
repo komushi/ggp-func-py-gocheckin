@@ -372,7 +372,8 @@ def start_http_server():
                     post_data = self.rfile.read(content_length)
 
                     cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data, self.client_address[0])
-                    logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
+                    if is_motion_value:
+                        logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
 
                     if is_motion_value:
                         handle_notification(cam_ip, utc_time, is_motion_value)
@@ -1157,15 +1158,13 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
 
                     fetch_members()
 
-                    thread_detector.captured_members = {}
+                    thread_detector.clear_captured_members()
                     thread_detector.start()
                     thread_detector.start_detection()
 
-                    # thread_detector.extend_detection_time()
-
                 else:
                     fetch_members()
-                    thread_detector.captured_members = {}
+                    thread_detector.clear_captured_members()
                     thread_detector.start_detection()
 
             # record 
