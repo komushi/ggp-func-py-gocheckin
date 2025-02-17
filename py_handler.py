@@ -76,12 +76,14 @@ last_fetch_time = None
 active_members = None
 
 # Initialize the face_app, uploader_app
+face_app = None
 uploader_app = None
 onvif_connectors = {}
 
 # Initialize the detectors
 thread_detector = None
 detection_timer = None
+# recording_timer = None
 recording_timers = {}
 
 # Initialize the gstreamers
@@ -182,39 +184,13 @@ def init_face_app(model='buffalo_sc'):
 
             return super().get(img, max_num)
 
-    # global face_app
+    global face_app
 
     face_app = None
     logger.info(f"Initializing face_app with Model: {model}")
     face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
-    return face_app
 
-def init_detector():
-    global thread_detector
-
-    if thread_detector is None:
-
-        face_app = init_face_app()
-
-        thread_detector = fdm.FaceRecognition(face_app, scanner_output_queue, cam_queue)
-
-        fetch_members()
-
-        thread_detector.start()
-
-    else:
-        if thread_detector.stop_event.is_set():
-            logger.info(f"Clearing detector and initializing face_app")
-            clear_detector()
-
-            face_app = init_face_app()
-
-            thread_detector = fdm.FaceRecognition(face_app, scanner_output_queue, cam_queue)
-
-            fetch_members()
-
-            thread_detector.start()
 
 
 def init_gst_apps():
@@ -305,6 +281,7 @@ def start_http_server():
             return
         
         def do_POST(self):
+            global thread_detector
 
             try:
 
@@ -700,7 +677,6 @@ def fetch_members(forced=False):
     if thread_detector != None:
         logger.debug(f"fetch_members, Set active_members to thread_detector")
         thread_detector.active_members = active_members
-        thread_detector.clear_captured_members()
         
         
 def initialize_env_var():
@@ -1085,7 +1061,6 @@ def clear_detector():
     global thread_detector
     if thread_detector is not None:
         thread_detector.stop_detection()
-        thread_detector.face_app = None
         thread_detector.join()
         thread_detector = None
 
@@ -1145,15 +1120,15 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
     if forced:
         logger.debug(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
 
-    # global thread_detector
+    global thread_detector
 
     thread_gstreamer = None
     if cam_ip is not None and utc_time is not None and is_motion_value is not None:
-        logger.info(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+        logger.debug(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
         # if is_motion_value:
         thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip, forced)
     else:
-        logger.info(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+        logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
         return
 
     if thread_gstreamer is not None:
@@ -1169,7 +1144,27 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
                     if thread_gstreamers[cam_ip] is not None:
                         thread_gstreamers[cam_ip].feed_detecting(int(os.environ['DETECT_RUNNING_TIME']))
 
-                init_detector()
+                if thread_detector is None or thread_detector.stop_event.is_set():
+                    if thread_detector.stop_event.is_set():
+                        logger.info(f"Clearing detector and initializing face_app")
+                        clear_detector()
+                        init_face_app()
+
+                    params = {}
+                    params['face_app'] = face_app
+
+                    thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+
+                    fetch_members()
+
+                    thread_detector.clear_captured_members()
+                    thread_detector.start()
+                    thread_detector.start_detection()
+
+                else:
+                    fetch_members()
+                    thread_detector.clear_captured_members()
+                    thread_detector.start_detection()
 
             # record 
             if camera_item['isRecording']:
@@ -1238,7 +1233,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
 # Init face_app
-init_detector()
+init_face_app()
 
 # Start the scheduler threads
 start_scheduler_threads()
