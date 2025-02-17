@@ -115,14 +115,7 @@ def function_handler(event, context):
 
     logger.debug('function_handler topic: %s', str(topic))
 
-    if topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/init_scanner":
-        logger.debug('function_handler init_scanner')
-
-        if 'model' in event:
-            logger.info(f"function_handler init_scanner changing model to {str(topic)}")
-            init_face_app(event['model'])
-
-    elif topic == f"gocheckin/fetch_cameras":
+    if topic == f"gocheckin/fetch_cameras":
         logger.info('function_handler fetch_cameras')
 
         fetch_camera_items()
@@ -193,6 +186,7 @@ def init_face_app(model='buffalo_sc'):
 
     global face_app
 
+    face_app = None
     logger.info(f"Initializing with Model Name: {model}")
     face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
@@ -1038,11 +1032,7 @@ def signal_handler(signum, frame):
             logger.error(f"Error handling unsubscribe, cam_ip:{cam_ip} Error:{e}")
             pass
 
-    global thread_detector
-    if thread_detector is not None:
-        thread_detector.stop_detection()
-        thread_detector.join()
-        thread_detector = None
+    clear_detector()
 
     global thread_gstreamers
     for thread_name in thread_gstreamers:
@@ -1069,6 +1059,13 @@ def signal_handler(signum, frame):
         server_thread.join()  # Wait for the server thread to finish
         server_thread = None
     logger.info(f'Available threads after http server shutdown: {", ".join(thread.name for thread in threading.enumerate())}')
+
+def clear_detector():
+    global thread_detector
+    if thread_detector is not None:
+        thread_detector.stop_detection()
+        thread_detector.join()
+        thread_detector = None
 
 def monitor_stop_event(thread_gstreamer):
     logger.debug(f"{thread_gstreamer.cam_ip} monitor_stop_event in")
@@ -1150,7 +1147,11 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
                     if thread_gstreamers[cam_ip] is not None:
                         thread_gstreamers[cam_ip].feed_detecting(int(os.environ['DETECT_RUNNING_TIME']))
 
-                if thread_detector is None:
+                if thread_detector is None or thread_detector.stop_event.is_set():
+                    if thread_detector.stop_event.is_set():
+                        clear_detector()
+                        init_face_app()
+
                     params = {}
                     params['face_app'] = face_app
 

@@ -178,6 +178,7 @@ class FaceRecognition(threading.Thread):
                 logger.error(f"Caught {self.name} runtime exception!")
                 logger.error(e)
                 traceback.print_exc()
+                self.stop_event.set()
 
         # try:
         #     while True:
