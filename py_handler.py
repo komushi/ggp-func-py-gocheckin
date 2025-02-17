@@ -379,8 +379,7 @@ def start_http_server():
 
                     logger.info('/recognise POST finished')
 
-                    timer = threading.Timer(10.0, 
-                    , kwargs={'forced': True})
+                    timer = threading.Timer(10.0, fetch_members, kwargs={'forced': True})
                     timer.name = "Thread-FetchMembers"
                     timer.start()
                     # timer.join()
