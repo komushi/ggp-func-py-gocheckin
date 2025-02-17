@@ -187,7 +187,7 @@ def init_face_app(model='buffalo_sc'):
     global face_app
 
     face_app = None
-    logger.info(f"Initializing with Model Name: {model}")
+    logger.info(f"Initializing face_app with Model: {model}")
     face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
@@ -631,8 +631,6 @@ def get_active_members():
         # Add the query results to the results list
         results.extend(response['Items'])
 
-    # logger.info(f'active_member: {results}')
-
     filtered_results = []
 
     for item in results:
@@ -646,7 +644,6 @@ def get_active_members():
 
     for item in results:
         logger.debug(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}")
-        # logger.info(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}, keyNotified: {item['keyNotified']}")
 
     return results
 
@@ -1149,6 +1146,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
 
                 if thread_detector is None or thread_detector.stop_event.is_set():
                     if thread_detector.stop_event.is_set():
+                        logger.info(f"Clearing detector and initializing face_app")
                         clear_detector()
                         init_face_app()
 
