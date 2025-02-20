@@ -85,13 +85,14 @@ class FaceRecognition(threading.Thread):
                     for face in faces:
                         for active_member in self.active_members:
                             sim = self.compute_sim(face.embedding, active_member['faceEmbedding'])
+                            logger.info(f"{cam_info['cam_ip']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
 
                             local_file_path = ''
 
                             if sim >= float(os.environ['FACE_THRESHOLD']):
                                 # with self.captured_members_lock:
 
-                                logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
+                                # logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
                                 self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
                                 memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                 if memberKey not in self.captured_members:
