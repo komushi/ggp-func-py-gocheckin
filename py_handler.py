@@ -976,8 +976,8 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
     if forced:
         pass
     else:
-        if 'isDetecting' not in camera_item and 'isRecording' not in camera_item:
-            # if not camera_item['isDetecting'] and not camera_item['isRecording']:
+        # if 'isDetecting' not in camera_item and 'isRecording' not in camera_item:
+        if not camera_item['isDetecting'] and not camera_item['isRecording']:
             logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is neither detecting nor recording")
             return None, False
 
