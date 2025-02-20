@@ -95,18 +95,18 @@ class OnvifConnector():
             notification_binding = '{http://www.onvif.org/ver10/events/wsdl}NotificationProducerBinding'
 
             notification_service = self.client.create_service(notification_binding, self.service_url)
-            # logger.info(f"onvif.subscribe notification_service {notification_service}")
+            logger.debug(f"onvif.subscribe notification_service {notification_service}")
 
             # Get the EndpointReferenceType
             address_type = self.client.get_element('{http://www.w3.org/2005/08/addressing}EndpointReference')
-            # logger.info(f"onvif.subscribe address_type {address_type}")
+            logger.debug(f"onvif.subscribe address_type {address_type}")
 
             # Create the consumer reference
             consumer_reference = address_type(Address=f"http://{scanner_local_ip}:{http_port}/onvif_notifications")
-            logger.info(f"onvif.subscribe consumer_reference {consumer_reference}")
+            logger.debug(f"onvif.subscribe consumer_reference {consumer_reference}")
 
             subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1H')
-            # logger.info(f"onvif.subscribe subscription {subscription}")
+            logger.debug(f"onvif.subscribe subscription {subscription}")
 
             onvif_sub_address = subscription.SubscriptionReference.Address._value_1
 
@@ -125,8 +125,8 @@ class OnvifConnector():
             onvif_sub_address = camera_item['onvifSubAddress']
 
         if onvif_sub_address is None:
-            logger.info(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-            logger.info(f"onvif.unsubscribe out cam_ip: {camera_item['localIp']}")
+            logger.debug(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+            logger.debug(f"onvif.unsubscribe out cam_ip: {camera_item['localIp']}")
 
             return
 
@@ -145,11 +145,11 @@ class OnvifConnector():
 
             addressing_header = addressing_header_type(To=onvif_sub_address)
 
-            logger.info(f"onvif.unsubscribe addressing_header: {addressing_header}")
+            logger.debug(f"onvif.unsubscribe addressing_header: {addressing_header}")
 
             result = subscription_service.Unsubscribe(_soapheaders=[addressing_header])
 
-            logger.info(f"onvif.unsubscribe cam_ip: {camera_item['localIp']} result: {result}")
+            logger.debug(f"onvif.unsubscribe cam_ip: {camera_item['localIp']} result: {result}")
 
 
         except Exception as e:
@@ -167,8 +167,8 @@ class OnvifConnector():
             onvif_sub_address = camera_item['onvifSubAddress']
 
         if onvif_sub_address is None:
-            logger.info(f"onvif.renew in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-            logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
+            logger.debug(f"onvif.renew in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+            logger.debug(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
 
             return
 
@@ -193,7 +193,7 @@ class OnvifConnector():
             logger.error(f"onvif.renew, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
             traceback.print_exc()
         finally:
-            logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+            logger.debug(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
             # logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} result: {result}")
 
             return result
@@ -222,7 +222,7 @@ class OnvifConnector():
                                 break
 
                         if utc_time is not None and is_motion is not None:
-                            logger.info(f"onvif.start_pullpoint.pull_messages Motion detected: cam_ip: {ip_address} utc_time: {utc_time} is_motion: {is_motion}")
+                            logger.debug(f"onvif.start_pullpoint.pull_messages Motion detected: cam_ip: {ip_address} utc_time: {utc_time} is_motion: {is_motion}")
 
                 except Exception as e:
                     pass
