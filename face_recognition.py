@@ -33,7 +33,7 @@ class FaceRecognition(threading.Thread):
             self.active_members = None
 
         self.captured_members = {}
-        self.captured_members_lock = threading.Lock()
+        # self.captured_members_lock = threading.Lock()
 
         self.cam_detection_his = {}
 
@@ -90,7 +90,7 @@ class FaceRecognition(threading.Thread):
                             local_file_path = ''
 
                             if sim >= float(os.environ['FACE_THRESHOLD']):
-                              with self.captured_members_lock:
+                            #   with self.captured_members_lock:
 
                                 # logger.info(f"{cam_info['cam_ip']} detecting_txn: {cam_info['detecting_txn']} fetched: {self.cam_detection_his[cam_info['cam_ip']]['fetched']} age: {age} fullName: {active_member['fullName']} sim: {str(sim)}")
                                 self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
@@ -319,14 +319,14 @@ class FaceRecognition(threading.Thread):
     def stop_detection(self):
         logger.info(f"Pause detector {self.name}")
         self.stop_event.set()
-        self.clear_captured_members()
+        # self.clear_captured_members()
 
     # def start_detection(self):
     #     self.stop_event.clear()
 
-    def clear_captured_members(self):
-      with self.captured_members_lock:
-        self.captured_members = {}
+    # def clear_captured_members(self):
+        # with self.captured_members_lock:
+        # self.captured_members = {}
 
 
     def compute_sim(self, feat1, feat2):

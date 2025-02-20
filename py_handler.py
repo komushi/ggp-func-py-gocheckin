@@ -818,7 +818,7 @@ def fetch_scanner_output_queue():
 
                         uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
 
-                        logger.info(f"fetch_scanner_output_queue, member_detected with IoT Publish snapshot_payload: {snapshot_payload}")
+                        logger.debug(f"fetch_scanner_output_queue, member_detected with IoT Publish snapshot_payload: {snapshot_payload}")
 
                         iotClient.publish(
                             topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
@@ -1152,7 +1152,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
 
                     fetch_members()
 
-                    thread_detector.clear_captured_members()
+                    # thread_detector.clear_captured_members()
                     thread_detector.start()
                     # thread_detector.start_detection()
 
@@ -1168,7 +1168,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
                         thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
 
                     fetch_members()
-                    thread_detector.clear_captured_members()
+                    # thread_detector.clear_captured_members()
                     # thread_detector.start_detection()
 
             # record 
