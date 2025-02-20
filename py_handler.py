@@ -1004,6 +1004,8 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
     logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
 
+    subscribe_onvif(cam_ip)
+
     return thread_gstreamers[cam_ip], True
 
 # Function to handle termination signals
