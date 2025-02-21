@@ -115,11 +115,7 @@ def function_handler(event, context):
 
     logger.debug('function_handler topic: %s', str(topic))
 
-    if topic == f"gocheckin/fetch_cameras":
-        logger.info('function_handler fetch_cameras')
-
-        fetch_camera_items()
-    elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
+    if topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event:
@@ -155,10 +151,6 @@ def fetch_camera_items():
             
     except Exception as e:
         logger.error(f"Error handling fetch_camera_items: {e}")
-    # finally:
-    #     timer = threading.Timer(600, fetch_camera_items)
-    #     timer.name = "Thread-FetchCamera-Timer"
-    #     timer.start()
 
     logger.debug(f"fetch_camera_items out")
 
@@ -195,6 +187,8 @@ def init_face_app(model='buffalo_sc'):
 
 def init_gst_apps():
     logger.info(f"init_gst_apps in")
+
+    fetch_camera_items()
 
     for cam_ip in camera_items:
         try:
@@ -913,23 +907,16 @@ def start_scheduler_threads():
     logger.info("Initialization thread started")
 
     time.sleep(2)
-    
-    # Start the FetchCamera thread
-    fetch_camera_thread = threading.Thread(target=fetch_camera_items, name="Thread-FetchCamera")
-    fetch_camera_thread.start()
-    logger.info("Fetch camera thread started")
-
-    # time.sleep(2)
-
-    # Start the SubscribeOnvif thread
-    subscribe_onvifs_thread = threading.Thread(target=subscribe_onvifs, name="Thread-SubscribeOnvifs")
-    subscribe_onvifs_thread.start()
-    logger.info("SubscribeOnvif thread started")
 
     # Start the InitGst thread
     init_gst_apps_thread = threading.Thread(target=init_gst_apps, name="Thread-InitGst-Timer")
     init_gst_apps_thread.start()
     logger.info("InitGst thread started")
+
+    # Start the SubscribeOnvif thread
+    subscribe_onvifs_thread = threading.Thread(target=subscribe_onvifs, name="Thread-SubscribeOnvifs")
+    subscribe_onvifs_thread.start()
+    logger.info("SubscribeOnvif thread started")
 
     # Start the claim scanner thread after the initialization
     claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
@@ -1207,7 +1194,7 @@ def subscribe_onvif(cam_ip):
             onvif_connectors[cam_ip] = OnvifConnector(camera_items[cam_ip])
 
         if camera_items[cam_ip]['onvif']['isSubscription']:
-            old_onvif_sub_address = camera_items[cam_ip]
+            old_onvif_sub_address = camera_items[cam_ip]['onvifSubAddress']
             onvif_sub_address = onvif_connectors[cam_ip].subscribe(cam_ip, old_onvif_sub_address, scanner_local_ip, http_port)
 
             logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
