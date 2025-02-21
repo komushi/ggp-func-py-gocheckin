@@ -915,11 +915,11 @@ def start_scheduler_threads():
     time.sleep(2)
     
     # Start the FetchCamera thread
-    fetch_camera_thread = threading.Thread(target=fetch_camera_items, name="Thread-FetchCamera")
-    fetch_camera_thread.start()
-    logger.info("Fetch camera thread started")
+    # fetch_camera_thread = threading.Thread(target=fetch_camera_items, name="Thread-FetchCamera")
+    # fetch_camera_thread.start()
+    # logger.info("Fetch camera thread started")
 
-    time.sleep(2)
+    # time.sleep(2)
 
     # Start the SubscribeOnvif thread
     subscribe_onvifs_thread = threading.Thread(target=subscribe_onvifs, name="Thread-SubscribeOnvifs")
