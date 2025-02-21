@@ -204,7 +204,7 @@ def init_gst_apps():
             traceback.print_exc()
             pass
 
-    timer = threading.Timer(600, init_gst_apps)
+    timer = threading.Timer(60, init_gst_apps)
     timer.name = "Thread-InitGst-Timer"
     timer.start()
 
@@ -464,7 +464,7 @@ def get_property_item(host_id):
 
 def query_camera_item(host_id, cam_ip):
 
-    logger.debug(f"query_camera_item, in with {host_id} {cam_ip} ...")
+    logger.info(f"query_camera_item, in with {host_id} {cam_ip} ...")
 
     # Specify the table name
     tbl_asset = os.environ['TBL_ASSET']
@@ -481,7 +481,7 @@ def query_camera_item(host_id, cam_ip):
     # Print the items returned by the query
     camera_item = response.get('Items', [None])[0]
 
-    logger.debug(f'query_camera_item out {camera_item}')
+    logger.info(f'query_camera_item out {camera_item}')
 
     return camera_item
 
