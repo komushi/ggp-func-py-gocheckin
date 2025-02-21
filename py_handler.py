@@ -1194,7 +1194,9 @@ def subscribe_onvif(cam_ip):
             onvif_connectors[cam_ip] = OnvifConnector(camera_items[cam_ip])
 
         if camera_items[cam_ip]['onvif']['isSubscription']:
-            old_onvif_sub_address = camera_items[cam_ip]['onvifSubAddress']
+            if 'onvifSubAddress' in camera_items[cam_ip]:
+                old_onvif_sub_address = camera_items[cam_ip]['onvifSubAddress']
+            
             onvif_sub_address = onvif_connectors[cam_ip].subscribe(cam_ip, old_onvif_sub_address, scanner_local_ip, http_port)
 
             logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
