@@ -1194,6 +1194,7 @@ def subscribe_onvif(cam_ip):
             onvif_connectors[cam_ip] = OnvifConnector(camera_items[cam_ip])
 
         if camera_items[cam_ip]['onvif']['isSubscription']:
+            old_onvif_sub_address = None
             if 'onvifSubAddress' in camera_items[cam_ip]:
                 old_onvif_sub_address = camera_items[cam_ip]['onvifSubAddress']
             
