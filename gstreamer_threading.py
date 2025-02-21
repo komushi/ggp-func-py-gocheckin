@@ -32,8 +32,8 @@ ext = ".mp4"
 
 # Gst.init(None)
 
-if 'GST_DEBUG_LEVEL' in os.environ:
-    Gst.debug_set_default_threshold(os.environ['GST_DEBUG_LEVEL'])
+if 'GST_DEBUG' in os.environ:
+    Gst.debug_set_default_threshold(os.environ['GST_DEBUG'])
 
 class StreamMode(Enum):
     INIT_STREAM = 1
