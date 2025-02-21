@@ -198,7 +198,7 @@ def init_gst_apps():
 
     for cam_ip in camera_items:
         try:
-            init_gst_app(os.environ['HOST_ID'], cam_ip)
+            init_gst_app(os.environ['HOST_ID'], cam_ip, True)
         except Exception as e:
             logger.error(f"Error handling init_gst_apps: {e}")
             traceback.print_exc()
@@ -963,7 +963,7 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
     if cam_ip in camera_items:
         camera_item = camera_items[cam_ip]
 
-    if camera_item is None:
+    if camera_item is None or forced:
         camera_item = query_camera_item(host_id, cam_ip)        
         camera_items[cam_ip] = camera_item
 
@@ -1217,7 +1217,7 @@ def subscribe_onvif(cam_ip):
                 logger.debug(f"subscribe_onvif renew_response {renew_response}")
                 camera_items[cam_ip]['onvifSubAddress'] = onvif_connectors[cam_ip].subscribe(camera_items[cam_ip], scanner_local_ip, http_port)
 
-            logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
+            logger.debug(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvifSubAddress: {camera_items[cam_ip]['onvifSubAddress']}")
 
     else:
         if cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None:

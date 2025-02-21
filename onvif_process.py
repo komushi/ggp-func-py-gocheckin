@@ -194,7 +194,7 @@ class OnvifConnector():
             traceback.print_exc()
         finally:
             # logger.debug(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-            logger.info(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address} result: {result}")
+            logger.debug(f"onvif.renew out cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address} result: {result}")
 
             return result
 
