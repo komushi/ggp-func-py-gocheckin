@@ -53,10 +53,14 @@ def get_local_ip():
         local_ip = s.getsockname()[0]
     return local_ip
 
+
+logging.getLogger('ipc_client').setLevel(logging.ERROR)
 # Setup logging to stdout
+if 'LOG_LEVEL' in os.environ:
+    logging.basicConfig(stream=sys.stdout, level=os.environ['LOG_LEVEL'])
+else:
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logging.getLogger('ipc_client').setLevel(logging.WARN)
 
 shutting_down = False
 

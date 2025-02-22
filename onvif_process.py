@@ -1,6 +1,7 @@
 from urllib.parse import urlparse
 
 import sys
+import os
 import logging
 import traceback
 import threading
@@ -15,8 +16,11 @@ from requests import Session
 import xml.etree.ElementTree as ET
 
 # Setup logging to stdout
+if 'LOG_LEVEL' in os.environ:
+    logging.basicConfig(stream=sys.stdout, level=os.environ['LOG_LEVEL'])
+else:
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 class OnvifConnector():
     def __init__(self, camera_item):

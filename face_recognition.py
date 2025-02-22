@@ -12,8 +12,11 @@ import gstreamer_threading as gst
 import cv2
 
 # Setup logging to stdout
+if 'LOG_LEVEL' in os.environ:
+    logging.basicConfig(stream=sys.stdout, level=os.environ['LOG_LEVEL'])
+else:
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 class FaceRecognition(threading.Thread):
     def __init__(self, params, scanner_output_queue, cam_queue):

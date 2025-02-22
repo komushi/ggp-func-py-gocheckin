@@ -13,8 +13,11 @@ import sys
 import traceback
 
 # Setup logging to stdout
+if 'LOG_LEVEL' in os.environ:
+    logging.basicConfig(stream=sys.stdout, level=os.environ['LOG_LEVEL'])
+else:
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 class S3Uploader():
     def __init__(self, cred_provider_host, cred_provider_path, bucket_name, expires_in=3600):

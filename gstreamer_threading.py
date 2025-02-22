@@ -24,13 +24,14 @@ import traceback
 
 from typing import Dict, Any
 
-# Setup logging to stdout
-logger = logging.getLogger(__name__)
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
 ext = ".mp4"
 
-# Gst.init(None)
+# Setup logging to stdout
+if 'LOG_LEVEL' in os.environ:
+    logging.basicConfig(stream=sys.stdout, level=os.environ['LOG_LEVEL'])
+else:
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 if 'GST_DEBUG' in os.environ:
     Gst.debug_set_default_threshold(os.environ['GST_DEBUG'])
