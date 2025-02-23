@@ -119,7 +119,13 @@ def function_handler(event, context):
 
     logger.debug('function_handler topic: %s', str(topic))
 
-    if topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
+    if topic == f"gocheckin/reset_camera":
+        logger.info('function_handler reset_camera')
+
+        if 'cam_ip' in event:
+            init_gst_app(os.environ['HOST_ID'], event['cam_ip'], True)
+
+    elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event:
@@ -196,7 +202,7 @@ def init_gst_apps():
 
     for cam_ip in camera_items:
         try:
-            init_gst_app(os.environ['HOST_ID'], cam_ip, True)
+            init_gst_app(os.environ['HOST_ID'], cam_ip, False)
         except Exception as e:
             logger.error(f"Error handling init_gst_apps: {e}")
             traceback.print_exc()
@@ -210,12 +216,12 @@ def init_gst_apps():
 
 
 def init_gst_app(host_id, cam_ip, forced=False):
-    if forced:
-        logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}, forced: {forced}")
-
-    logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}")
+    logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}, forced: {forced}")
 
     global thread_monitors
+
+    if forced:
+        stop_gstreamer_thread(cam_ip)
 
     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
@@ -223,6 +229,7 @@ def init_gst_app(host_id, cam_ip, forced=False):
 
     if thread_gstreamer is not None:
         if is_new_gst_thread and not forced:
+
             if cam_ip in thread_monitors:
                 if thread_monitors[cam_ip] is not None:
                     thread_monitors[cam_ip].join()
@@ -961,7 +968,7 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
     logger.debug(f"{cam_ip} start_gstreamer_thread camera_item {camera_item}")
 
     if camera_item is None:
-        logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item cannot be found")
+        logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
         return None, False
 
     # if forced:
