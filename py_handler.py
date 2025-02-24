@@ -193,7 +193,30 @@ def init_face_app(model='buffalo_sc'):
     face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
     face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
+def init_cameras():
+    logger.info(f"init_cameras in")
 
+    fetch_camera_items()
+
+    for cam_ip in camera_items:
+        try:
+            claim_camera(cam_ip)
+
+            init_gst_app(os.environ['HOST_ID'], cam_ip, False)
+
+            subscribe_onvif(cam_ip)
+
+
+        except Exception as e:
+            logger.error(f"Error handling init_cameras: {e}")
+            traceback.print_exc()
+            pass
+
+    timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_cameras)
+    timer.name = "Thread-InitGst-Timer"
+    timer.start()
+
+    logger.info(f"init_cameras out")
 
 def init_gst_apps():
     logger.info(f"init_gst_apps in")
@@ -208,7 +231,7 @@ def init_gst_apps():
             traceback.print_exc()
             pass
 
-    timer = threading.Timer(1800, init_gst_apps)
+    timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_gst_apps)
     timer.name = "Thread-InitGst-Timer"
     timer.start()
 
@@ -216,7 +239,7 @@ def init_gst_apps():
 
 
 def init_gst_app(host_id, cam_ip, forced=False):
-    logger.debug(f"init_gst_app in host_id: {host_id}, cam_ip: {cam_ip}, forced: {forced}")
+    logger.info(f"{cam_ip} init_gst_app in host_id: {host_id}, forced: {forced}")
 
     global thread_monitors
 
@@ -238,10 +261,7 @@ def init_gst_app(host_id, cam_ip, forced=False):
             thread_monitors[cam_ip].start()
             
 
-    logger.debug(f"init_gst_app out thread_gstreamer: {thread_gstreamer}")
-
-    if forced:
-        logger.debug(f"init_gst_app out thread_gstreamer: {thread_gstreamer}, forced: {forced}")
+    logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
 
     return thread_gstreamer
 
@@ -704,7 +724,7 @@ def initialize_env_var():
             raise ValueError("host_item is None")
                 
         # Reschedule the initialization function for every 30 minutes (1800 seconds)
-        timer = threading.Timer(600, initialize_env_var)
+        timer = threading.Timer(int(os.environ['TIMER_INIT_ENV_VAR']), initialize_env_var)
         timer.name = "Thread-Initializer-Timer"
         timer.start()
         # timer.join()
@@ -717,40 +737,41 @@ def initialize_env_var():
         # Exit the script
         sys.exit(1)
 
+def claim_camera(cam_ip):
+    logger.init(f"{cam_ip} claim_cameras in")
+    if cam_ip in thread_gstreamers:
+        thread_gstreamer = thread_gstreamers[cam_ip]
+        if thread_gstreamer is not None:
+            if thread_gstreamer.is_playing:
+                data = {
+                    "uuid": thread_gstreamer.cam_uuid,
+                    "hostId": os.environ['HOST_ID'],
+                    "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+                    "isPlaying": True
+                }
+
+                iotClient.publish(
+                    topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+                    payload=json.dumps(data)
+                )
+    data = {
+        "uuid": camera_items[cam_ip]['uuid'],
+        "hostId": os.environ['HOST_ID'],
+        "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+        "isPlaying": False
+    }
+
+    iotClient.publish(
+        topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+        payload=json.dumps(data)
+    )
+
+    logger.init(f"{cam_ip} claim_cameras out published: {data}")
+
 def claim_cameras():
     logger.debug(f"claim_cameras in")
     for cam_ip in camera_items:
-        if cam_ip in thread_gstreamers:
-            thread_gstreamer = thread_gstreamers[cam_ip]
-            if thread_gstreamer is not None:
-                if thread_gstreamer.is_playing:
-                    data = {
-                        "uuid": thread_gstreamer.cam_uuid,
-                        "hostId": os.environ['HOST_ID'],
-                        "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-                        "isPlaying": True
-                    }
-
-                    iotClient.publish(
-                        topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
-                        payload=json.dumps(data)
-                    )
-                    logger.debug(f"claim_cameras published {data}")
-                    continue
-
-        data = {
-            "uuid": camera_items[cam_ip]['uuid'],
-            "hostId": os.environ['HOST_ID'],
-            "lastUpdateOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-            "isPlaying": False
-        }
-
-        iotClient.publish(
-            topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
-            payload=json.dumps(data)
-        )
-
-        logger.debug(f"claim_cameras published {data}")
+        claim_camera(cam_ip)
 
     # Reschedule the claim cameras function for every 2 minutes (120 seconds)
     timer = threading.Timer(600, claim_cameras)
@@ -910,8 +931,13 @@ def start_motion_detection_queue_thread():
     scheduler_thread.start()
     logger.info("Motion Detection Queue thread started")
 
-# Function to start the scheduler threads
-def start_scheduler_threads():
+# Function to start the init processes
+def start_init_processes():
+    # Start the claim scanner thread after the initialization
+    claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
+    claim_scanner_thread.start()
+    logger.info("Claim scanner thread started")
+
     # Start the initialization thread first
     initialization_thread = threading.Thread(target=initialize_env_var, name="Thread-Initializer")
     initialization_thread.start()
@@ -919,25 +945,27 @@ def start_scheduler_threads():
 
     time.sleep(2)
 
-    # Start the InitGst thread
-    init_gst_apps_thread = threading.Thread(target=init_gst_apps, name="Thread-InitGst-Timer")
-    init_gst_apps_thread.start()
-    logger.info("InitGst thread started")
+    init_cameras
+    init_cameras_thread = threading.Thread(target=init_cameras, name="Thread-InitCam-Timer")
+    init_cameras_thread.start()
+    logger.info("InitCam thread started")
 
-    # Start the SubscribeOnvif thread
-    subscribe_onvifs_thread = threading.Thread(target=subscribe_onvifs, name="Thread-SubscribeOnvifs")
-    subscribe_onvifs_thread.start()
-    logger.info("SubscribeOnvif thread started")
 
-    # Start the claim scanner thread after the initialization
-    claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
-    claim_scanner_thread.start()
-    logger.info("Claim scanner thread started")
+    # # Start the InitGst thread
+    # init_gst_apps_thread = threading.Thread(target=init_gst_apps, name="Thread-InitGst-Timer")
+    # init_gst_apps_thread.start()
+    # logger.info("InitGst thread started")
 
-    # Start the claim camera thread after the initialization
-    claim_cameras_thread = threading.Thread(target=claim_cameras, name="Thread-ClaimCameras")
-    claim_cameras_thread.start()
-    logger.info("Claim camera thread started")
+    # # Start the SubscribeOnvif thread
+    # subscribe_onvifs_thread = threading.Thread(target=subscribe_onvifs, name="Thread-SubscribeOnvifs")
+    # subscribe_onvifs_thread.start()
+    # logger.info("SubscribeOnvif thread started")
+
+
+    # # Start the claim camera thread after the initialization
+    # claim_cameras_thread = threading.Thread(target=claim_cameras, name="Thread-ClaimCameras")
+    # claim_cameras_thread.start()
+    # logger.info("Claim camera thread started")
     
 
 def stop_gstreamer_thread(thread_name):
@@ -971,10 +999,6 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
         logger.debug(f"{cam_ip} start_gstreamer_thread, camera_item cannot be found")
         return None, False
 
-    # if forced:
-    #     pass
-    # else:
-    
     if not camera_item['isDetecting'] and not camera_item['isRecording']:
         logger.info(f"{cam_ip} start_gstreamer_thread not starting, camera_item is neither detecting nor recording")
         return None, False
@@ -997,8 +1021,6 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
     thread_gstreamers[cam_ip].start()
 
     logger.info(f"{cam_ip} start_gstreamer_thread, starting...")
-
-    subscribe_onvif(cam_ip)
 
     return thread_gstreamers[cam_ip], True
 
@@ -1138,7 +1160,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
             if camera_item['isDetecting']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip] is not None:
-                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['DETECT_RUNNING_TIME']))
+                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['TIMER_DETECT']))
 
                 if thread_detector is None:
                     params = {}
@@ -1171,7 +1193,7 @@ def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
             if camera_item['isRecording']:
                 if cam_ip in thread_gstreamers:
                     if thread_gstreamers[cam_ip].start_recording(utc_time):
-                        set_recording_time(cam_ip, int(os.environ['RECORD_RUNNING_TIME']), utc_time)
+                        set_recording_time(cam_ip, int(os.environ['TIMER_RECORD']), utc_time)
 
 
     logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
@@ -1193,7 +1215,7 @@ def subscribe_onvifs():
 
 
 def subscribe_onvif(cam_ip):
-    logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} in")
+    logger.info(f"{cam_ip} subscribe_onvif in")
     
     global camera_items
     global onvif_connectors
@@ -1226,17 +1248,17 @@ def subscribe_onvif(cam_ip):
             onvif_connectors[cam_ip] = None
             del onvif_connectors[cam_ip]
 
-    logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} out")
+    logger.info(f"{cam_ip} subscribe_onvif out")
 
 # Register signal handlers
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
+# Start the scheduler threads
+start_init_processes()
+
 # Init face_app
 init_face_app()
-
-# Start the scheduler threads
-start_scheduler_threads()
 
 # Init uploader_app
 init_uploader_app()

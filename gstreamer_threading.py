@@ -558,36 +558,6 @@ class StreamCapture(threading.Thread):
         logger.debug(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
         logger.debug(f"{self.cam_ip} stop_feeding out")
 
-    # def feed_detecting(self, running_seconds):
-    #     logger.debug(f"{self.cam_ip} feed_detecting in")
-
-    #     if self.is_feeding:
-    #         logger.debug(f"{self.cam_ip} feed_detecting out, already feeding")
-    #         return
-
-    #     self.is_feeding = True
-    #     self.running_seconds = running_seconds
-
-    #     self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
-    #     self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
-    #     self.feeding_timer.start()
-
-    #     logger.debug(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
-
-    #     logger.debug(f"{self.cam_ip} feed_detecting out")
-
-        
-
-    # def stop_feeding(self):
-    #     logger.debug(f"{self.cam_ip} stop_feeding in")
-
-    #     self.is_feeding = False
-    #     self.feeding_count = 0
-    #     self.decoding_count = 0
-
-    #     logger.debug(f'Available threads after stop_feeding: {", ".join(thread.name for thread in threading.enumerate())}')
-
-    #     logger.debug(f"{self.cam_ip} stop_feeding out")
 
     def start_recording(self, utc_time):
         logger.debug(f"{self.cam_ip} start_recording in")
