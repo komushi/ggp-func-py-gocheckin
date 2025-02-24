@@ -79,7 +79,7 @@ class OnvifConnector():
                 if not ip_address:
                     ip_address = client_ip
 
-                logger.debug(f"onvif.extract_notification out ip_address {ip_address} is_motion_value {is_motion_value} utc_time {utc_time}")
+                logger.debug(f"{ip_address} onvif.extract_notification out is_motion_value {is_motion_value} utc_time {utc_time}")
                 return ip_address, utc_time, is_motion_value
             
         logger.debug(f"onvif.extract_notification out None")
@@ -94,12 +94,12 @@ class OnvifConnector():
             onvif_sub_address = camera_item['onvifSubAddress']
 
         if onvif_sub_address is None:
-            logger.debug(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-            logger.debug(f"onvif.unsubscribe out cam_ip: {camera_item['localIp']}")
+            logger.debug(f"{camera_item['localIp']} onvif.unsubscribe in onvif_sub_address: {onvif_sub_address}")
+            logger.debug(f"{camera_item['localIp']} onvif.unsubscribe out")
 
             return
 
-        logger.info(f"onvif.unsubscribe in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+        logger.info(f"{camera_item['localIp']} onvif.unsubscribe in onvif_sub_address: {onvif_sub_address}")
 
         try:
             subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}SubscriptionManagerBinding'
@@ -118,19 +118,22 @@ class OnvifConnector():
 
             result = subscription_service.Unsubscribe(_soapheaders=[addressing_header])
 
-            logger.debug(f"onvif.unsubscribe cam_ip: {camera_item['localIp']} result: {result}")
+            logger.debug(f"{camera_item['localIp']} onvif.unsubscribe result: {result}")
 
+            logger.info(f"{camera_item['localIp']} onvif.unsubscribe out")
 
         except Exception as e:
-            logger.error(f"onvif.unsubscribe, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
+            logger.error(f"{camera_item['localIp']} onvif.unsubscribe, Exception during running, Error: {e}")
             traceback.print_exc()
             pass
 
     def _renew(self, cam_ip, onvif_sub_address):
 
-        logger.debug(f"onvif._renew cam_ip: {cam_ip} in onvif_sub_address: {onvif_sub_address}")
+        logger.debug(f"{cam_ip} onvif._renew in onvif_sub_address: {onvif_sub_address}")
 
         try:
+            result = onvif_sub_address
+
             subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}SubscriptionManagerBinding'
 
             subscription_service = self.client.create_service(subscription_binding, self.service_url)
@@ -143,22 +146,20 @@ class OnvifConnector():
 
             addressing_header = addressing_header_type(To=onvif_sub_address)
 
-            result = subscription_service.Renew(_soapheaders=[addressing_header], TerminationTime='PT1H')
+            subscription_service.Renew(_soapheaders=[addressing_header], TerminationTime='PT1H')
 
         except Exception as e:
-            logger.error(f"onvif._renew, Exception during running, cam_ip: {cam_ip} Error: {e}")
+            logger.error(f"{cam_ip} onvif._renew, Exception during running, Error: {e}")
             result = None
             traceback.print_exc()
         finally:
-            logger.debug(f"onvif._renew cam_ip: {cam_ip} out {result}")
+            logger.debug(f"{cam_ip} onvif._renew out onvif_sub_address: {result}")
             return result
         
     def _subscribe(self, cam_ip, scanner_local_ip, http_port):
-        logger.debug(f"onvif._subscribe cam_ip: {cam_ip} in  scanner_local_ip: {scanner_local_ip} http_port:{http_port}")
-
+        logger.debug(f"{cam_ip} onvif._subscribe in  scanner_local_ip: {scanner_local_ip} http_port:{http_port}")
 
         try:
-
             notification_binding = '{http://www.onvif.org/ver10/events/wsdl}NotificationProducerBinding'
 
             notification_service = self.client.create_service(notification_binding, self.service_url)
@@ -178,25 +179,25 @@ class OnvifConnector():
             result = subscription.SubscriptionReference.Address._value_1
 
         except Exception as e:
-            logger.error(f"onvif._subscribe, Exception during running, cam_ip: {cam_ip} Error: {e}")
+            logger.error(f"{cam_ip} onvif._subscribe, Exception during running, Error: {e}")
             result = None
         finally:
-            logger.debug(f"onvif._subscribe cam_ip: {cam_ip} out {result}")
+            logger.debug(f"{cam_ip} onvif._subscribe out {result}")
             return result
 
 
     def subscribe(self, cam_ip, old_onvif_sub_address, scanner_local_ip, http_port):
 
-        logger.info(f"onvif.subscribecam_ip: {cam_ip} in old_onvif_sub_address: {old_onvif_sub_address}")
+        logger.info(f"{cam_ip} onvif.subscribe in old_onvif_sub_address: {old_onvif_sub_address}")
 
         if old_onvif_sub_address:
-            result = self._renew(cam_ip, old_onvif_sub_address)
+            onvif_sub_address = self._renew(cam_ip, old_onvif_sub_address)
         else:
-            result = self._subscribe(cam_ip, scanner_local_ip, http_port)
+            onvif_sub_address = self._subscribe(cam_ip, scanner_local_ip, http_port)
 
-        logger.info(f"onvif.subscribe cam_ip: {cam_ip} out {result}")
+        logger.info(f"{cam_ip} onvif.subscribe out onvif_sub_address: {onvif_sub_address}")
 
-        return result
+        return onvif_sub_address
 
 
     def start_pullpoint(self, camera_item, motion_detection_queue):
