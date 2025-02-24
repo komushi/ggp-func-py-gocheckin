@@ -1185,7 +1185,7 @@ def subscribe_onvifs():
     for cam_ip in camera_items:
         subscribe_onvif(cam_ip)
     
-    timer = threading.Timer(300, subscribe_onvifs)
+    timer = threading.Timer(60, subscribe_onvifs)
     timer.name = "Thread-SubscribeOnvif-Timer"
     timer.start()
 

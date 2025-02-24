@@ -148,7 +148,7 @@ class OnvifConnector():
         except Exception as e:
             logger.error(f"onvif._renew, Exception during running, cam_ip: {cam_ip} Error: {e}")
             result = None
-            # traceback.print_exc()
+            traceback.print_exc()
         finally:
             logger.debug(f"onvif._renew cam_ip: {cam_ip} out {result}")
             return result
@@ -187,14 +187,14 @@ class OnvifConnector():
 
     def subscribe(self, cam_ip, old_onvif_sub_address, scanner_local_ip, http_port):
 
-        logger.debug(f"onvif.subscribecam_ip: {cam_ip} in old_onvif_sub_address: {old_onvif_sub_address}")
+        logger.info(f"onvif.subscribecam_ip: {cam_ip} in old_onvif_sub_address: {old_onvif_sub_address}")
 
         if old_onvif_sub_address:
             result = self._renew(cam_ip, old_onvif_sub_address)
         else:
             result = self._subscribe(cam_ip, scanner_local_ip, http_port)
 
-        logger.debug(f"onvif.subscribe cam_ip: {cam_ip} out {result}")
+        logger.info(f"onvif.subscribe cam_ip: {cam_ip} out {result}")
 
         return result
 
