@@ -208,7 +208,7 @@ def init_gst_apps():
             traceback.print_exc()
             pass
 
-    timer = threading.Timer(600, init_gst_apps)
+    timer = threading.Timer(1800, init_gst_apps)
     timer.name = "Thread-InitGst-Timer"
     timer.start()
 
@@ -1185,7 +1185,7 @@ def subscribe_onvifs():
     for cam_ip in camera_items:
         subscribe_onvif(cam_ip)
     
-    timer = threading.Timer(60, subscribe_onvifs)
+    timer = threading.Timer(1800, subscribe_onvifs)
     timer.name = "Thread-SubscribeOnvif-Timer"
     timer.start()
 
