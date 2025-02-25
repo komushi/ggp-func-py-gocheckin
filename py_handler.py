@@ -123,13 +123,13 @@ def function_handler(event, context):
         logger.info('function_handler reset_camera')
 
         if 'cam_ip' in event:
-            init_gst_app(os.environ['HOST_ID'], event['cam_ip'], True)
+            init_gst_app(event['cam_ip'], os.environ['HOST_ID'], True)
 
     elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event:
-            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', True, forced=True)
+            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', True)
     elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/change_var":
         logger.info(f"function_handler change_var event: ${event}")
         for key, value in event.items():
@@ -188,10 +188,10 @@ def init_face_app(model='buffalo_sc'):
 
     global face_app
 
-    face_app = None
-    logger.info(f"Initializing face_app with Model: {model}")
-    face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
-    face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
+    if face_app is None:
+        logger.info(f"Initializing face_app with Model: {model}")
+        face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
+        face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
 
 def init_cameras():
     logger.info(f"init_cameras in")
@@ -202,7 +202,7 @@ def init_cameras():
         try:
             claim_camera(cam_ip)
 
-            init_gst_app(os.environ['HOST_ID'], cam_ip, False)
+            init_gst_app(cam_ip)
 
             subscribe_onvif(cam_ip)
 
@@ -225,7 +225,7 @@ def init_gst_apps():
 
     for cam_ip in camera_items:
         try:
-            init_gst_app(os.environ['HOST_ID'], cam_ip, False)
+            init_gst_app(cam_ip)
         except Exception as e:
             logger.error(f"Error handling init_gst_apps: {e}")
             traceback.print_exc()
@@ -238,7 +238,7 @@ def init_gst_apps():
     logger.info(f"init_gst_apps out")
 
 
-def init_gst_app(host_id, cam_ip, forced=False):
+def init_gst_app(cam_ip, host_id=os.environ['HOST_ID'], forced=False):
     logger.info(f"{cam_ip} init_gst_app in host_id: {host_id}, forced: {forced}")
 
     global thread_monitors
@@ -248,7 +248,7 @@ def init_gst_app(host_id, cam_ip, forced=False):
 
     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
-    logger.debug(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+    logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
     if thread_gstreamer is not None:
         if is_new_gst_thread and not forced:
@@ -306,7 +306,7 @@ def start_http_server():
             return
         
         def do_POST(self):
-            global thread_detector
+            # global thread_detector
 
             try:
 
@@ -754,6 +754,10 @@ def claim_camera(cam_ip):
                     topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
                     payload=json.dumps(data)
                 )
+                
+                logger.info(f"{cam_ip} claim_cameras out published: {data}")
+
+                return
     data = {
         "uuid": camera_items[cam_ip]['uuid'],
         "hostId": os.environ['HOST_ID'],
@@ -1082,6 +1086,15 @@ def clear_detector():
         thread_detector.join()
         thread_detector = None
 
+    global face_app
+    face_app = None
+
+    global active_members
+    active_members = None
+
+    global last_fetch_time
+    last_fetch_time = None
+
 def monitor_stop_event(thread_gstreamer):
     logger.debug(f"{thread_gstreamer.cam_ip} monitor_stop_event in")
     
@@ -1124,82 +1137,63 @@ def set_recording_time(cam_ip, delay, utc_time):
     recording_timers[cam_ip].start()
     # recording_timers[cam_ip].join()
 
-# def set_sampling_time(thread_gstreamer, delay):
-#     global detection_timer
-    
-#     if detection_timer:
-#         detection_timer.cancel()
-    
-#     detection_timer = threading.Timer(delay, thread_gstreamer.stop_feeding)
-#     detection_timer.name = f"Thread-SamplingStopper-{thread_gstreamer.cam_ip}"
-#     detection_timer.start()
-
-def handle_notification(cam_ip, utc_time, is_motion_value, forced=False):
-    if forced:
-        logger.debug(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
+def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', is_motion_value=False):
+    logger.info(f"{cam_ip} handle_notification in is_motion_value: {is_motion_value}, utc_time: {utc_time}")
 
     global thread_detector
 
-    thread_gstreamer = None
-    if cam_ip is not None and utc_time is not None and is_motion_value is not None:
-        logger.debug(f"handle_notification in cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
-        # if is_motion_value:
-        thread_gstreamer = init_gst_app(os.environ['HOST_ID'], cam_ip, forced)
-    else:
-        logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+    if not is_motion_value:
+        logger.info(f"{cam_ip} handle_notification out not motion detected event")
         return
 
-    if thread_gstreamer is not None:
-
-        logger.debug(f"{cam_ip} handle_notification thread_gstreamer.is_playing: {thread_gstreamer.is_playing}")
-        if thread_gstreamer.is_playing:
-
+    if cam_ip is None:
+        logger.info(f"{cam_ip} handle_notification out no cam_ip")
+        return
+    else:
+        if cam_ip not in camera_items:
+            logger.info(f"{cam_ip} handle_notification out no cam_ip")
+            return
+        else:
             camera_item = camera_items[cam_ip]
+            if camera_item is None:
+                logger.info(f"{cam_ip} handle_notification out no camera_item")
+                return
 
-            # detect
-            if camera_item['isDetecting']:
-                if cam_ip in thread_gstreamers:
-                    if thread_gstreamers[cam_ip] is not None:
-                        thread_gstreamers[cam_ip].feed_detecting(int(os.environ['TIMER_DETECT']))
+    thread_gstreamer = init_gst_app(cam_ip)
+    if thread_gstreamer is None:
+        logger.info(f"{cam_ip} handle_notification out no thread_gstreamer")
+        return
+    elif not thread_gstreamer.is_playing:
+        logger.info(f"{cam_ip} handle_notification out thread_gstreamer not playing")
+        return
 
-                if thread_detector is None:
-                    params = {}
-                    params['face_app'] = face_app
+    # detect
+    if camera_item['isDetecting']:
+        
+        init_face_app()
+        fetch_members()
 
-                    thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
+        if thread_detector is None:
 
-                    fetch_members()
+            thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
+            thread_detector.start()
 
-                    # thread_detector.clear_captured_members()
-                    thread_detector.start()
-                    # thread_detector.start_detection()
+        else:
+            if thread_detector.stop_event.is_set():
+                logger.info(f"Clearing detector and initializing face_app")
+                clear_detector()
 
-                else:
-                    if thread_detector.stop_event.is_set():
-                        logger.info(f"Clearing detector and initializing face_app")
-                        clear_detector()
-                        init_face_app()
+                thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
 
-                        params = {}
-                        params['face_app'] = face_app
-
-                        thread_detector = fdm.FaceRecognition(params, scanner_output_queue, cam_queue)
-
-                    fetch_members()
-                    # thread_detector.clear_captured_members()
-                    # thread_detector.start_detection()
-
-            # record 
-            if camera_item['isRecording']:
-                if cam_ip in thread_gstreamers:
-                    if thread_gstreamers[cam_ip].start_recording(utc_time):
-                        set_recording_time(cam_ip, int(os.environ['TIMER_RECORD']), utc_time)
+        thread_gstreamer.feed_detecting(int(os.environ['TIMER_DETECT']))
 
 
-    logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time={utc_time}")
+    # record 
+    if camera_item['isRecording']:
+        if thread_gstreamer.start_recording(utc_time):
+            set_recording_time(cam_ip, int(os.environ['TIMER_RECORD']), utc_time)
 
-    if forced:
-        logger.debug(f"handle_notification out cam_ip: {cam_ip} is_motion_value: {is_motion_value}, utc_time: {utc_time}, forced: {forced}")
+    logger.info(f"{cam_ip} handle_notification out")
 
 def subscribe_onvifs():
     logger.debug(f"subscribe_onvifs in")
@@ -1270,4 +1264,4 @@ start_server_thread()
 start_scanner_output_queue_thread()
 
 # Start motion_detection_queue thread
-start_motion_detection_queue_thread()
+# start_motion_detection_queue_thread()

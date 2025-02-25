@@ -19,7 +19,7 @@ else:
 logger = logging.getLogger(__name__)
 
 class FaceRecognition(threading.Thread):
-    def __init__(self, params, scanner_output_queue, cam_queue):
+    def __init__(self, face_app, active_members, scanner_output_queue, cam_queue):
 
         super().__init__(name=f"Thread-FaceRecognition")
 
@@ -28,15 +28,10 @@ class FaceRecognition(threading.Thread):
         self.scanner_output_queue = scanner_output_queue
         self.stop_event = threading.Event()
 
-        self.face_app = params['face_app']
-
-        if 'active_members' in params:
-            self.active_members = params['active_members']
-        else:
-            self.active_members = None
+        self.face_app = face_app
+        self.active_members = active_members
 
         self.captured_members = {}
-        # self.captured_members_lock = threading.Lock()
 
         self.cam_detection_his = {}
 
