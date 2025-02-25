@@ -213,7 +213,7 @@ def init_cameras():
             pass
 
     timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_cameras)
-    timer.name = "Thread-InitGst-Timer"
+    timer.name = "Thread-InitCameras-Timer"
     timer.start()
 
     logger.info(f"init_cameras out")
