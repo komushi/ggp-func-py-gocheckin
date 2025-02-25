@@ -238,8 +238,11 @@ def init_gst_apps():
     logger.info(f"init_gst_apps out")
 
 
-def init_gst_app(cam_ip, host_id=os.environ['HOST_ID'], forced=False):
+def init_gst_app(cam_ip, host_id, forced=False):
     logger.info(f"{cam_ip} init_gst_app in host_id: {host_id}, forced: {forced}")
+
+    if host_id is None:
+        host_id = os.environ['HOST_ID']
 
     global thread_monitors
 
