@@ -134,9 +134,10 @@ def function_handler(event, context):
         logger.info(f"function_handler change_var event: ${event}")
         for key, value in event.items():
             os.environ[key] = value
-
-        for key in event:
-            logger.info(f"change_var: ${key}: ${os.environ[key]}")
+            logger.info(f"change_var: ${key}: ${value}")
+            if key == "TIMER_CAM_RENEW":
+                init_cameras()
+                        
 
 
 def fetch_camera_items():
@@ -196,6 +197,13 @@ def init_face_app(model='buffalo_sc'):
 def init_cameras():
     logger.info(f"init_cameras in")
 
+    name = "Thread-InitCameras-Timer"
+
+    for thread in threading.enumerate():
+        logger.info(f"init_cameras thread.name {thread.name}")
+        if isinstance(thread, threading.Timer) and thread.name == name:
+            thread.cancel()
+
     fetch_camera_items()
 
     for cam_ip in camera_items:
@@ -213,7 +221,7 @@ def init_cameras():
             pass
 
     timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_cameras)
-    timer.name = "Thread-InitCameras-Timer"
+    timer.name = name
     timer.start()
 
     logger.info(f"init_cameras out")
