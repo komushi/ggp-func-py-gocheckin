@@ -123,7 +123,7 @@ def function_handler(event, context):
         logger.info('function_handler reset_camera')
 
         if 'cam_ip' in event:
-            init_gst_app(event['cam_ip'], os.environ['HOST_ID'], True)
+            init_gst_app(event['cam_ip'], True)
 
     elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
@@ -238,11 +238,13 @@ def init_gst_apps():
     logger.info(f"init_gst_apps out")
 
 
-def init_gst_app(cam_ip, host_id, forced=False):
-    logger.info(f"{cam_ip} init_gst_app in host_id: {host_id}, forced: {forced}")
+def init_gst_app(cam_ip, forced=False):
+    logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
+    host_id = os.environ['HOST_ID']
     if host_id is None:
-        host_id = os.environ['HOST_ID']
+        logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
+        return
 
     global thread_monitors
 
