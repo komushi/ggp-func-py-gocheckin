@@ -962,10 +962,10 @@ def start_init_processes():
 
     time.sleep(2)
 
-    init_cameras
-    init_cameras_thread = threading.Thread(target=init_cameras, name="Thread-InitCam-Timer")
-    init_cameras_thread.start()
-    logger.info("InitCam thread started")
+    init_cameras()
+    # init_cameras_thread = threading.Thread(target=init_cameras, name="Thread-InitCam-Timer")
+    # init_cameras_thread.start()
+    # logger.info("InitCam thread started")
 
 
     # # Start the InitGst thread
