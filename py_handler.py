@@ -264,7 +264,7 @@ def init_gst_app(cam_ip, forced=False):
     logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
     if thread_gstreamer is not None:
-        if is_new_gst_thread and not forced:
+        if is_new_gst_thread:
 
             if cam_ip in thread_monitors:
                 if thread_monitors[cam_ip] is not None:
