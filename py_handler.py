@@ -125,6 +125,8 @@ def function_handler(event, context):
         if 'cam_ip' in event:
             init_gst_app(event['cam_ip'], True)
 
+            subscribe_onvif(event['cam_ip'])
+
     elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
 
@@ -246,7 +248,6 @@ def init_gst_apps():
 
     logger.info(f"init_gst_apps out")
 
-
 def init_gst_app(cam_ip, forced=False):
     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
@@ -257,21 +258,24 @@ def init_gst_app(cam_ip, forced=False):
 
     global thread_monitors
 
-    stop_gstreamer_thread(cam_ip)
+    thread_gstreamer = None
+    if forced:
+        stop_gstreamer_thread(cam_ip)
+    else:
 
-    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+        thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
-    logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+        logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
-    if thread_gstreamer is not None:
-        if is_new_gst_thread:
+        if thread_gstreamer is not None:
+            if is_new_gst_thread:
 
-            if cam_ip in thread_monitors:
-                if thread_monitors[cam_ip] is not None:
-                    thread_monitors[cam_ip].join()
+                if cam_ip in thread_monitors:
+                    if thread_monitors[cam_ip] is not None:
+                        thread_monitors[cam_ip].join()
 
-            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
-            thread_monitors[cam_ip].start()
+                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+                thread_monitors[cam_ip].start()
 
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} init_gst_app thread.name {thread.name}")
@@ -280,23 +284,40 @@ def init_gst_app(cam_ip, forced=False):
 
     return thread_gstreamer
 
+# def init_gst_app(cam_ip, forced=False):
+#     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
-# def read_picture_from_url(url):
+#     host_id = os.environ['HOST_ID']
+#     if host_id is None:
+#         logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
+#         return
 
-#     # Download the image
-#     response = requests.get(url)
-#     response.raise_for_status()  # Ensure the request was successful
-    
-#     # Open the image from the downloaded content    
-#     image = PIL.Image.open(io.BytesIO(response.content)).convert("RGB")
-    
-#     # Convert the image to a numpy array
-#     image_array = np.array(image)
-    
-#     # Rearrange the channels from RGB to BGR
-#     image_bgr = image_array[:, :, [2, 1, 0]]
-    
-#     return image_bgr, image
+#     global thread_monitors
+
+#     stop_gstreamer_thread(cam_ip)
+
+#     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+
+#     logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+
+#     if thread_gstreamer is not None:
+#         if is_new_gst_thread:
+
+#             if cam_ip in thread_monitors:
+#                 if thread_monitors[cam_ip] is not None:
+#                     thread_monitors[cam_ip].join()
+
+#             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+#             thread_monitors[cam_ip].start()
+
+#     for thread in threading.enumerate():
+#         logger.info(f"{cam_ip} init_gst_app thread.name {thread.name}")
+
+#     logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
+
+#     return thread_gstreamer
+
+
 
 def stop_http_server():
     global httpd
@@ -325,11 +346,9 @@ def start_http_server():
 
             try:
 
-                # if self.client_address[0] != '127.0.0.1':
-                #     self.send_error(403, "Forbidden: Only localhost allowed")
-                #     return
-
-                
+                if self.client_address[0] != '127.0.0.1':
+                    self.send_error(403, "Forbidden: Only localhost allowed")
+                    return
 
                 if self.path == '/recognise':
                     self.send_response(200)
@@ -547,29 +566,6 @@ def query_camera_items(host_id):
     logger.debug(f'query_camera_items out {camera_item_list}')
 
     return camera_item_list
-
-# def get_camera_item(host_id, cam_uuid):
-
-#     # Specify the table name
-#     tbl_asset = os.environ['TBL_ASSET']
-
-#     # Get the table
-#     table = dynamodb.Table(tbl_asset)
-
-#     # Retrieve item from the table
-#     response = table.get_item(
-#         Key={
-#             'hostId': host_id,
-#             'uuid': cam_uuid
-#         }
-#     )
-    
-#     # Check if the item exists
-#     item = response.get('Item')
-#     if item:
-#         return item
-#     else:
-#         return None
 
 
 def get_active_reservations():
