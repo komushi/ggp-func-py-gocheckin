@@ -346,11 +346,6 @@ def start_http_server():
 
             try:
 
-                if self.client_address[0] != scanner_local_ip:
-                    # self.send_error(403, "Forbidden: Only localhost allowed")
-                    # return
-                    logger.info(f"HTTP POST from {self.client_address[0]} !!!!!!!!!!!!!!")
-
                 if self.path == '/recognise':
                     self.send_response(200)
                     self.send_header('Content-type', 'application/json')
@@ -1162,8 +1157,7 @@ def monitor_stop_event(thread_gstreamer):
     thread_gstreamer.join()  # Join the stopped thread
     
     # Restart the thread
-    # if not thread_gstreamer.is_alive() and not shutting_down:
-    if not shutting_down:
+    if not thread_gstreamer.is_alive() and not shutting_down:
         subscribe_onvif(cam_ip)
 
         thread_gstreamer = None
