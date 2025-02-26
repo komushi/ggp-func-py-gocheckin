@@ -259,9 +259,9 @@ def init_gst_app(cam_ip, forced=False):
     if forced:
         stop_gstreamer_thread(cam_ip)
 
-    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+        thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
-    logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+        logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
     if thread_gstreamer is not None:
         if is_new_gst_thread:
