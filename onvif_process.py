@@ -173,7 +173,7 @@ class OnvifConnector():
             consumer_reference = address_type(Address=f"http://{scanner_local_ip}:{http_port}/onvif_notifications")
             logger.debug(f"onvif._subscribe consumer_reference {consumer_reference}")
 
-            subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime='PT1H')
+            subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime=os.environ['ONVIF_EXPIRATION'])
             logger.debug(f"onvif._subscribe subscription {subscription}")
 
             result = subscription.SubscriptionReference.Address._value_1

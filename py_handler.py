@@ -135,7 +135,7 @@ def function_handler(event, context):
         for key, value in event.items():
             os.environ[key] = value
             logger.info(f"change_var: ${key}: ${value}")
-            if key == "TIMER_CAM_RENEW":
+            if key == "TIMER_CAM_RENEW" or key == "ONVIF_EXPIRATION":
                 init_cameras()
                         
 
@@ -715,7 +715,45 @@ def fetch_members(forced=False):
     if thread_detector != None:
         logger.debug(f"fetch_members, Set active_members to thread_detector")
         thread_detector.active_members = active_members
-        
+
+
+def init_env_var():
+    logger.debug('init_env_var in')
+
+    try:
+        name = "Thread-InitEnvVar-Timer"
+
+        for thread in threading.enumerate():
+            logger.info(f"init_env_var thread.name {thread.name}")
+            if isinstance(thread, threading.Timer) and thread.name == name:
+                thread.cancel()
+
+        host_item = get_host_item()
+
+        if host_item is not None:
+            property_item = get_property_item(host_item['hostId'])
+
+            if property_item is not None:
+                os.environ['HOST_ID'] = host_item['hostId']
+                os.environ['IDENTITY_ID'] = host_item['identityId']
+                os.environ['PROPERTY_CODE'] = property_item['propertyCode']
+                os.environ['CRED_PROVIDER_HOST'] = host_item['credProviderHost']
+            else:
+                raise ValueError("property_item is None")
+        else:
+            raise ValueError("host_item is None")
+                
+        logger.debug(f"init_env_var out HOST_ID:{os.environ['HOST_ID']} IDENTITY_ID:{os.environ['IDENTITY_ID']} PROPERTY_CODE{os.environ['PROPERTY_CODE']} CRED_PROVIDER_HOST{os.environ['CRED_PROVIDER_HOST']}")
+    except Exception as e:
+        # Log the exception
+        logger.error(f"init_env_var error: {e}", exc_info=True)
+    finally:
+        # Reschedule the initialization function
+        timer = threading.Timer(int(os.environ['TIMER_INIT_ENV_VAR']), init_env_var)
+        timer.name = name
+        timer.start()
+    
+         
         
 def initialize_env_var():
     logger.debug('initialize_env_var in')
@@ -951,14 +989,18 @@ def start_motion_detection_queue_thread():
 # Function to start the init processes
 def start_init_processes():
     # Start the claim scanner thread after the initialization
-    claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
-    claim_scanner_thread.start()
-    logger.info("Claim scanner thread started")
+    # claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
+    # claim_scanner_thread.start()
+    # logger.info("Claim scanner thread started")
 
     # Start the initialization thread first
-    initialization_thread = threading.Thread(target=initialize_env_var, name="Thread-Initializer")
-    initialization_thread.start()
-    logger.info("Initialization thread started")
+    # initialization_thread = threading.Thread(target=initialize_env_var, name="Thread-Initializer")
+    # initialization_thread.start()
+    # logger.info("Initialization thread started")
+
+    claim_scanner()
+
+    init_env_var()
 
     time.sleep(2)
 
