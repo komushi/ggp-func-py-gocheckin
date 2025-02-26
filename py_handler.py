@@ -256,22 +256,28 @@ def init_gst_app(cam_ip, forced=False):
 
     global thread_monitors
 
+
     if forced:
         stop_gstreamer_thread(cam_ip)
+
+        if cam_ip in thread_monitors:
+            if thread_monitors[cam_ip] is not None:
+                thread_monitors[cam_ip].join()
+    else:
 
         thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
         logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
-    if thread_gstreamer is not None:
-        if is_new_gst_thread:
+        if thread_gstreamer is not None:
+            if is_new_gst_thread:
 
-            if cam_ip in thread_monitors:
-                if thread_monitors[cam_ip] is not None:
-                    thread_monitors[cam_ip].join()
+                if cam_ip in thread_monitors:
+                    if thread_monitors[cam_ip] is not None:
+                        thread_monitors[cam_ip].join()
 
-            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer, forced, ))
-            thread_monitors[cam_ip].start()
+                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer, forced, ))
+                thread_monitors[cam_ip].start()
 
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} init_gst_app thread.name {thread.name}")
