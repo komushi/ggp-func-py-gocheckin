@@ -157,32 +157,32 @@ class OnvifConnector():
             return result
         
     def _subscribe(self, cam_ip, scanner_local_ip, http_port):
-        logger.info(f"{cam_ip} onvif._subscribe in  scanner_local_ip: {scanner_local_ip} http_port:{http_port}")
+        logger.debug(f"{cam_ip} onvif._subscribe in  scanner_local_ip: {scanner_local_ip} http_port:{http_port}")
 
         try:
             notification_binding = '{http://www.onvif.org/ver10/events/wsdl}NotificationProducerBinding'
 
             notification_service = self.client.create_service(notification_binding, self.service_url)
-            logger.info(f"onvif._subscribe notification_service {notification_service}")
+            logger.debug(f"onvif._subscribe notification_service {notification_service}")
 
             # Get the EndpointReferenceType
             address_type = self.client.get_element('{http://www.w3.org/2005/08/addressing}EndpointReference')
-            logger.info(f"onvif._subscribe address_type {address_type}")
+            logger.debug(f"onvif._subscribe address_type {address_type}")
 
             # Create the consumer reference
             consumer_reference = address_type(Address=f"http://{scanner_local_ip}:{http_port}/onvif_notifications")
-            logger.info(f"onvif._subscribe consumer_reference {consumer_reference}")
+            logger.debug(f"onvif._subscribe consumer_reference {consumer_reference}")
 
             subscription = notification_service.Subscribe(ConsumerReference=consumer_reference, InitialTerminationTime=os.environ['ONVIF_EXPIRATION'])
-            logger.info(f"onvif._subscribe subscription {subscription}")
+            logger.debug(f"onvif._subscribe subscription {subscription}")
 
             result = subscription.SubscriptionReference.Address._value_1
 
         except Exception as e:
-            logger.info(f"{cam_ip} onvif._subscribe, Exception during running, Error: {e}")
+            logger.error(f"{cam_ip} onvif._subscribe, Exception during running, Error: {e}")
             result = None
         finally:
-            logger.info(f"{cam_ip} onvif._subscribe out {result}")
+            logger.debug(f"{cam_ip} onvif._subscribe out {result}")
             return result
 
 
