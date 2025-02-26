@@ -137,6 +137,7 @@ def function_handler(event, context):
             logger.info(f"change_var: ${key}: ${value}")
             if key == "TIMER_CAM_RENEW" or key == "ONVIF_EXPIRATION":
                 init_cameras()
+                break
                         
 
 
