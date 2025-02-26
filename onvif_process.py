@@ -146,7 +146,7 @@ class OnvifConnector():
 
             addressing_header = addressing_header_type(To=onvif_sub_address)
 
-            subscription_service.Renew(_soapheaders=[addressing_header], TerminationTime='PT1H')
+            subscription_service.Renew(_soapheaders=[addressing_header], TerminationTime=os.environ['ONVIF_EXPIRATION'])
 
         except Exception as e:
             logger.error(f"{cam_ip} onvif._renew, Exception during running, Error: {e}")
