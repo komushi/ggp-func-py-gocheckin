@@ -247,48 +247,6 @@ def init_gst_apps():
     logger.info(f"init_gst_apps out")
 
 
-def init_gst_app_new1(cam_ip, forced=False):
-    logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
-
-    host_id = os.environ['HOST_ID']
-    if host_id is None:
-        logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
-        return
-
-    global thread_monitors
-
-    thread_gstreamer = None
-    is_new_gst_thread = False
-
-    if forced:
-        stop_gstreamer_thread(cam_ip)
-
-        if cam_ip in thread_monitors:
-            if thread_monitors[cam_ip] is not None:
-                thread_monitors[cam_ip].join()
-    else:
-
-        thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
-
-        logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
-
-        if thread_gstreamer is not None:
-            if is_new_gst_thread:
-
-                if cam_ip in thread_monitors:
-                    if thread_monitors[cam_ip] is not None:
-                        thread_monitors[cam_ip].join()
-
-                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer, forced, ))
-                thread_monitors[cam_ip].start()
-
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} init_gst_app thread.name {thread.name}")
-
-    logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
-
-    return thread_gstreamer
-
 def init_gst_app(cam_ip, forced=False):
     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
@@ -1217,7 +1175,7 @@ def monitor_stop_event(thread_gstreamer):
             if thread_monitors[cam_ip] is not None:
                 thread_monitors[cam_ip] = None
             logger.info(f"{cam_ip} monitor_stop_event restarting")
-            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip], False))
+            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
 
             
