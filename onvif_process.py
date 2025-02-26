@@ -192,6 +192,9 @@ class OnvifConnector():
 
         if old_onvif_sub_address:
             onvif_sub_address = self._renew(cam_ip, old_onvif_sub_address)
+
+            if onvif_sub_address is None:
+                onvif_sub_address = self._subscribe(cam_ip, scanner_local_ip, http_port)    
         else:
             onvif_sub_address = self._subscribe(cam_ip, scanner_local_ip, http_port)
 

@@ -246,7 +246,8 @@ def init_gst_apps():
 
     logger.info(f"init_gst_apps out")
 
-def init_gst_app(cam_ip, forced=False):
+
+def init_gst_app_new1(cam_ip, forced=False):
     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
     host_id = os.environ['HOST_ID']
@@ -288,7 +289,7 @@ def init_gst_app(cam_ip, forced=False):
 
     return thread_gstreamer
 
-def init_gst_app_old(cam_ip, forced=False):
+def init_gst_app(cam_ip, forced=False):
     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
     host_id = os.environ['HOST_ID']
@@ -298,8 +299,7 @@ def init_gst_app_old(cam_ip, forced=False):
 
     global thread_monitors
 
-    if forced:
-        stop_gstreamer_thread(cam_ip)
+    stop_gstreamer_thread(cam_ip)
 
     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
@@ -1194,8 +1194,8 @@ def clear_detector():
     global last_fetch_time
     last_fetch_time = None
 
-def monitor_stop_event(thread_gstreamer, forced):
-    logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event in forced: {forced}")
+def monitor_stop_event(thread_gstreamer):
+    logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event")
     
     global thread_gstreamers
     global thread_monitors
@@ -1207,7 +1207,8 @@ def monitor_stop_event(thread_gstreamer, forced):
     thread_gstreamer.join()  # Join the stopped thread
     
     # Restart the thread
-    if not thread_gstreamer.is_alive() and not shutting_down and not forced:
+    # if not thread_gstreamer.is_alive() and not shutting_down:
+    if not shutting_down:
         thread_gstreamer = None
         thread_gstreamers[cam_ip] = None
         thread_gstreamers[cam_ip], _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
