@@ -1163,6 +1163,8 @@ def monitor_stop_event(thread_gstreamer):
     # Restart the thread
     # if not thread_gstreamer.is_alive() and not shutting_down:
     if not shutting_down:
+        subscribe_onvif(cam_ip)
+
         thread_gstreamer = None
         thread_gstreamers[cam_ip] = None
         thread_gstreamers[cam_ip], _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
@@ -1173,6 +1175,8 @@ def monitor_stop_event(thread_gstreamer):
             logger.info(f"{cam_ip} monitor_stop_event restarting")
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
+
+            
 
             
 def set_recording_time(cam_ip, delay, utc_time):
