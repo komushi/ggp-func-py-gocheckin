@@ -1162,7 +1162,7 @@ def monitor_stop_event(thread_gstreamer):
 
         thread_gstreamer = None
         thread_gstreamers[cam_ip] = None
-        thread_gstreamers[cam_ip], _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
+        thread_gstreamers[cam_ip], _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
 
         if thread_gstreamers[cam_ip] is not None:
             if thread_monitors[cam_ip] is not None:
