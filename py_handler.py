@@ -256,6 +256,8 @@ def init_gst_app(cam_ip, forced=False):
 
     global thread_monitors
 
+    thread_gstreamer = None
+    is_new_gst_thread = False
 
     if forced:
         stop_gstreamer_thread(cam_ip)
