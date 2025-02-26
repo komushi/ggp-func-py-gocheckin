@@ -346,7 +346,7 @@ def start_http_server():
 
             try:
 
-                if self.client_address[0] != local_ip:
+                if self.client_address[0] != scanner_local_ip:
                     # self.send_error(403, "Forbidden: Only localhost allowed")
                     # return
                     logger.info(f"HTTP POST from {self.client_address[0]} !!!!!!!!!!!!!!")
