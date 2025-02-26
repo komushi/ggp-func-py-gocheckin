@@ -273,7 +273,9 @@ def init_gst_app(cam_ip, forced=False):
 
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
             thread_monitors[cam_ip].start()
-            
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} init_gst_app thread.name {thread.name}")
 
     logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
 
