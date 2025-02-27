@@ -1144,7 +1144,7 @@ def clear_detector():
     global last_fetch_time
     last_fetch_time = None
 
-def monitor_stop_event(thread_gstreamer):
+def monitor_stop_event_bak(thread_gstreamer):
     logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event")
     
     global thread_gstreamers
@@ -1152,17 +1152,13 @@ def monitor_stop_event(thread_gstreamer):
 
     cam_ip = thread_gstreamer.cam_ip
 
-    thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
-    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
 
+    thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     thread_gstreamer.join()  # Join the stopped thread
 
-    # for thread in threading.enumerate():
-    #     logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
-    #     if thread.name == threading.current_thread().name:
-    #         if thread != threading.current_thread():
-    #             logger.info(f"{cam_ip} monitor_stop_event 111 duplicated thread.name {thread.name}")
-                # thread.join()
+    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
     
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
@@ -1192,6 +1188,66 @@ def monitor_stop_event(thread_gstreamer):
         logger.info(f"{cam_ip} monitor_stop_event 555 thread.name {thread.name}")
             
 
+def monitor_stop_event(thread_gstreamer):
+    logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event")
+    
+    global thread_gstreamers
+    global thread_monitors
+
+    cam_ip = thread_gstreamer.cam_ip
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
+
+    thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
+    thread_gstreamer.join()  # Join the stopped thread
+
+    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer...")
+
+    # Clear previous references before restarting
+    thread_gstreamer = None
+    thread_gstreamers[cam_ip] = None
+    thread_monitors[cam_ip] = None
+    
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
+
+    if shutting_down:
+        logger.info(f"{cam_ip} shutting down, not restarting.")
+        return
+
+    if thread_gstreamer.is_alive():
+        logger.warning(f"{cam_ip} thread_gstreamer still alive unexpectedly, not restarting.")
+        return
+
+    subscribe_onvif(cam_ip)
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event 333 thread.name {thread.name}")
+
+    new_thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event 444 thread.name {thread.name}")
+
+    if new_thread_gstreamer is not None:
+
+        thread_gstreamers[cam_ip] = new_thread_gstreamer
+
+        if cam_ip not in thread_monitors or thread_monitors[cam_ip] is None or not thread_monitors[cam_ip].is_alive():
+            thread_monitors[cam_ip] = threading.Thread(
+                target=monitor_stop_event,
+                name=f"Thread-GstMonitor-{cam_ip}",
+                args=(thread_gstreamers[cam_ip],),
+                daemon=True  # Ensure it exits properly when main program exits
+            )
+            thread_monitors[cam_ip].start()
+            logger.info(f"{cam_ip} new monitor thread started.")
+        else:
+            logger.warning(f"{cam_ip} monitor thread already exists, skipping duplicate.")
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event 555 thread.name {thread.name}")
             
 def set_recording_time(cam_ip, delay, utc_time):
     logger.debug(f'set_recording_time, cam_ip: {cam_ip} utc_time: {utc_time}')
