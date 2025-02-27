@@ -1058,9 +1058,9 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
-            if thread_gstreamers[cam_ip].is_alive():
-                logger.info(f"{cam_ip} start_gstreamer_thread not starting, already started")
-                return thread_gstreamers[cam_ip], False
+            # if thread_gstreamers[cam_ip].is_alive():
+            logger.info(f"{cam_ip} start_gstreamer_thread not starting, already started")
+            return thread_gstreamers[cam_ip], False
     
     params = {}
     params['rtsp_src'] = f"rtsp://{camera_item['username']}:{camera_item['password']}@{cam_ip}:{camera_item['rtsp']['port']}{camera_item['rtsp']['path']}"
