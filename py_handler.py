@@ -1205,7 +1205,7 @@ def clear_detector():
 #         logger.info(f"{cam_ip} monitor_stop_event out thread.name {thread.name}")
             
 
-def monitor_stop_event_new(thread_gstreamer):
+def monitor_stop_event(thread_gstreamer):
     logger.debug(f"{thread_gstreamer.cam_ip} monitor_stop_event")
     
     global thread_gstreamers
