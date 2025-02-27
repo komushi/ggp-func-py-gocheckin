@@ -1220,12 +1220,12 @@ def monitor_stop_event(thread_gstreamer):
     if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None and thread_gstreamers[cam_ip].is_alive():
         logger.info(f"{cam_ip} A new GStreamer thread is already running, skipping restart.")
         return
+    
+    subscribe_onvif(cam_ip)
 
     # Clear previous references before restarting
     thread_gstreamers[cam_ip] = None
     thread_monitors[cam_ip] = None
-
-    # subscribe_onvif(cam_ip)
 
     new_thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
 
