@@ -1160,10 +1160,10 @@ def monitor_stop_event(thread_gstreamer):
 
     thread_gstreamer.join()  # Join the stopped thread
 
-    if thread_gstreamer.is_alive():
-        logger.info(f"{cam_ip} monitor_stop_event thread_gstreamer.is_alive {thread_gstreamer.is_alive}")
-        # stop_gstreamer_thread(cam_ip)
-
+    # TODO
+    if cam_ip in thread_monitors:
+        if thread_monitors[cam_ip] is not None:
+            thread_monitors[cam_ip].join()
     
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
