@@ -55,7 +55,8 @@ class StreamCommands(Enum):
 class StreamCapture(threading.Thread):
 
     def __init__(self, params, scanner_output_queue, cam_queue):
-        super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=+9))).strftime("%H:%M:%S")}")
+        super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S')}")
+
 
         Gst.init(None)
 
