@@ -1192,6 +1192,63 @@ def clear_detector():
 
 def monitor_stop_event(thread_gstreamer):
     logger.debug(f"{thread_gstreamer.cam_ip} monitor_stop_event")
+
+    global thread_gstreamers
+    global thread_monitors
+
+    cam_ip = thread_gstreamer.cam_ip
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event in thread.name {thread.name}")
+
+    thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
+    thread_gstreamer.join()  # Join the stopped thread
+
+    logger.debug(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer...")
+
+    if shutting_down:
+        logger.info(f"{cam_ip} shutting down, not restarting.")
+        return
+
+    if thread_gstreamer.is_alive():
+        logger.info(f"{cam_ip} thread_gstreamer still alive unexpectedly, not restarting.")
+        return
+
+    # Check if a new thread already exists
+    if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None and thread_gstreamers[cam_ip].is_alive():
+        logger.info(f"{cam_ip} A new GStreamer thread is already running, skipping restart.")
+        return
+
+    # Clear previous references before restarting
+    thread_gstreamers[cam_ip] = None
+    thread_monitors[cam_ip] = None
+
+    subscribe_onvif(cam_ip)
+
+    new_thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
+
+    if new_thread_gstreamer is not None:
+        thread_gstreamers[cam_ip] = new_thread_gstreamer
+
+        # Ensure only one monitor thread is created
+        if cam_ip in thread_monitors and thread_monitors[cam_ip] is not None and thread_monitors[cam_ip].is_alive():
+            logger.warning(f"{cam_ip} Monitor thread already running, skipping duplicate.")
+            return
+
+        thread_monitors[cam_ip] = threading.Thread(
+            target=monitor_stop_event,
+            name=f"Thread-GstMonitor-{cam_ip}-monitor_stop_event-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}",
+            args=(thread_gstreamers[cam_ip],),
+            daemon=True
+        )
+        thread_monitors[cam_ip].start()
+        logger.debug(f"{cam_ip} new monitor thread started.")
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} monitor_stop_event out thread.name {thread.name}")
+
+def monitor_stop_event_test(thread_gstreamer):
+    logger.debug(f"{thread_gstreamer.cam_ip} monitor_stop_event")
     
     global thread_gstreamers
     global thread_monitors
