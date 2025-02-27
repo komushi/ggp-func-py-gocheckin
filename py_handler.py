@@ -1161,6 +1161,7 @@ def monitor_stop_event(thread_gstreamer):
         logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
         if thread.name == threading.current_thread().name:
             if thread != threading.current_thread():
+                logger.info(f"{cam_ip} monitor_stop_event removing duplicated thread.name {thread.name}")
                 thread.join()
     
     for thread in threading.enumerate():
