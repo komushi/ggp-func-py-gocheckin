@@ -1,7 +1,7 @@
 import signal
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import sys
 import os
 
@@ -274,7 +274,7 @@ def init_gst_app(cam_ip, forced=False):
                     if thread_monitors[cam_ip] is not None:
                         thread_monitors[cam_ip].join()
 
-                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
+                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
                 thread_monitors[cam_ip].start()
 
     for thread in threading.enumerate():
@@ -1157,11 +1157,11 @@ def monitor_stop_event(thread_gstreamer):
 
     thread_gstreamer.join()  # Join the stopped thread
 
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
-        if thread.name == threading.current_thread().name:
-            if thread != threading.current_thread():
-                logger.info(f"{cam_ip} monitor_stop_event 111 duplicated thread.name {thread.name}")
+    # for thread in threading.enumerate():
+    #     logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
+    #     if thread.name == threading.current_thread().name:
+    #         if thread != threading.current_thread():
+    #             logger.info(f"{cam_ip} monitor_stop_event 111 duplicated thread.name {thread.name}")
                 # thread.join()
     
     for thread in threading.enumerate():
@@ -1185,7 +1185,7 @@ def monitor_stop_event(thread_gstreamer):
             if thread_monitors[cam_ip] is not None:
                 thread_monitors[cam_ip] = None
             logger.info(f"{cam_ip} monitor_stop_event restarting")
-            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
+            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
 
     for thread in threading.enumerate():

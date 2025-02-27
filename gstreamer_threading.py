@@ -55,7 +55,7 @@ class StreamCommands(Enum):
 class StreamCapture(threading.Thread):
 
     def __init__(self, params, scanner_output_queue, cam_queue):
-        super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S')}")
+        super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}")
 
 
         Gst.init(None)
@@ -438,10 +438,11 @@ class StreamCapture(threading.Thread):
 
     def run(self):
         try:
+            logger.info(f"{self.cam_ip} StreamCapture run in {self.name}")
 
             # Start playing
             if self.start_playing():
-                logger.info(f"{self.cam_ip} StreamCapture run, start_playing result: {True}")
+                logger.info(f"{self.cam_ip} StreamCapture run, start_playing result: {True} {self.name}")
 
                 self.pipeline_decode.set_state(Gst.State.PLAYING)
 
@@ -471,13 +472,13 @@ class StreamCapture(threading.Thread):
             self.pipeline_decode.set_state(Gst.State.NULL)
             self.stop_event.set()
             self.is_playing = False
-            logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up")
+            logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up {self.name}")
 
     def start_playing(self, count = 0, playing = False):
         logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
         interval = 10
 
-        if count > 3:
+        if count > 1s:
             logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
             return playing
         else:
