@@ -274,7 +274,7 @@ def init_gst_app(cam_ip, forced=False):
                     if thread_monitors[cam_ip] is not None:
                         thread_monitors[cam_ip].join()
 
-                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
+                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
                 thread_monitors[cam_ip].start()
 
     for thread in threading.enumerate():
@@ -1144,48 +1144,48 @@ def clear_detector():
     global last_fetch_time
     last_fetch_time = None
 
-def monitor_stop_event_bak(thread_gstreamer):
-    logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event")
+# def monitor_stop_event_bak(thread_gstreamer):
+#     logger.info(f"{thread_gstreamer.cam_ip} monitor_stop_event")
     
-    global thread_gstreamers
-    global thread_monitors
+#     global thread_gstreamers
+#     global thread_monitors
 
-    cam_ip = thread_gstreamer.cam_ip
+#     cam_ip = thread_gstreamer.cam_ip
 
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
+#     for thread in threading.enumerate():
+#         logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
 
-    thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
-    thread_gstreamer.join()  # Join the stopped thread
+#     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
+#     thread_gstreamer.join()  # Join the stopped thread
 
-    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
+#     logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
     
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
+#     for thread in threading.enumerate():
+#         logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
 
-    # Restart the thread
-    if not thread_gstreamer.is_alive() and not shutting_down:
-        subscribe_onvif(cam_ip)
+#     # Restart the thread
+#     if not thread_gstreamer.is_alive() and not shutting_down:
+#         subscribe_onvif(cam_ip)
 
-        for thread in threading.enumerate():
-            logger.info(f"{cam_ip} monitor_stop_event 333 thread.name {thread.name}")
+#         for thread in threading.enumerate():
+#             logger.info(f"{cam_ip} monitor_stop_event 333 thread.name {thread.name}")
 
-        thread_gstreamer = None
-        thread_gstreamers[cam_ip] = None
-        thread_gstreamers[cam_ip], _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
+#         thread_gstreamer = None
+#         thread_gstreamers[cam_ip] = None
+#         thread_gstreamers[cam_ip], _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
  
-        for thread in threading.enumerate():
-            logger.info(f"{cam_ip} monitor_stop_event 444 thread.name {thread.name}")
+#         for thread in threading.enumerate():
+#             logger.info(f"{cam_ip} monitor_stop_event 444 thread.name {thread.name}")
 
-        if thread_gstreamers[cam_ip] is not None:
-            if thread_monitors[cam_ip] is not None:
-                thread_monitors[cam_ip] = None
-            logger.info(f"{cam_ip} monitor_stop_event restarting")
-            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamers[cam_ip],))
-            thread_monitors[cam_ip].start()
+#         if thread_gstreamers[cam_ip] is not None:
+#             if thread_monitors[cam_ip] is not None:
+#                 thread_monitors[cam_ip] = None
+#             logger.info(f"{cam_ip} monitor_stop_event restarting")
+#             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamers[cam_ip],))
+#             thread_monitors[cam_ip].start()
 
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 555 thread.name {thread.name}")
+#     for thread in threading.enumerate():
+#         logger.info(f"{cam_ip} monitor_stop_event 555 thread.name {thread.name}")
             
 
 def monitor_stop_event(thread_gstreamer):
@@ -1197,15 +1197,12 @@ def monitor_stop_event(thread_gstreamer):
     cam_ip = thread_gstreamer.cam_ip
 
     for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
+        logger.info(f"{cam_ip} monitor_stop_event in thread.name {thread.name}")
 
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     thread_gstreamer.join()  # Join the stopped thread
 
     logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer...")
-    
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
 
     if shutting_down:
         logger.info(f"{cam_ip} shutting down, not restarting.")
@@ -1222,13 +1219,7 @@ def monitor_stop_event(thread_gstreamer):
 
     subscribe_onvif(cam_ip)
 
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 333 thread.name {thread.name}")
-
     new_thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
-
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 444 thread.name {thread.name}")
 
     if new_thread_gstreamer is not None:
 
@@ -1237,7 +1228,7 @@ def monitor_stop_event(thread_gstreamer):
         if cam_ip not in thread_monitors or thread_monitors[cam_ip] is None or not thread_monitors[cam_ip].is_alive():
             thread_monitors[cam_ip] = threading.Thread(
                 target=monitor_stop_event,
-                name=f"Thread-GstMonitor-{cam_ip}",
+                name=f"Thread-GstMonitor-{cam_ip}-monitor_stop_event-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}",
                 args=(thread_gstreamers[cam_ip],),
                 daemon=True  # Ensure it exits properly when main program exits
             )
@@ -1247,7 +1238,7 @@ def monitor_stop_event(thread_gstreamer):
             logger.warning(f"{cam_ip} monitor thread already exists, skipping duplicate.")
 
     for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 555 thread.name {thread.name}")
+        logger.info(f"{cam_ip} monitor_stop_event out thread.name {thread.name}")
             
 def set_recording_time(cam_ip, delay, utc_time):
     logger.debug(f'set_recording_time, cam_ip: {cam_ip} utc_time: {utc_time}')
