@@ -251,40 +251,56 @@ def init_gst_apps():
 def init_gst_app(cam_ip, forced=False):
     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
-    host_id = os.environ['HOST_ID']
+    host_id = os.environ.get('HOST_ID')
     if host_id is None:
         logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
         return
 
-    global thread_monitors
+    global thread_gstreamers, thread_monitors
 
-    thread_gstreamer = None
+    # Stop existing threads if 'forced' is set
     if forced:
         stop_gstreamer_thread(cam_ip)
-    else:
 
-        thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+        if cam_ip in thread_monitors and thread_monitors[cam_ip] is not None:
+            logger.info(f"{cam_ip} Stopping existing monitor thread...")
+            thread_monitors[cam_ip].stop_event.set()
+            thread_monitors[cam_ip].join()  # Ensure old monitor is fully stopped
+            thread_monitors[cam_ip] = None  # Clear reference
 
-        logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+    # Start worker thread
+    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
-        if thread_gstreamer is not None:
-            if is_new_gst_thread:
+    logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
-                if cam_ip in thread_monitors:
-                    if thread_monitors[cam_ip] is not None:
-                        thread_monitors[cam_ip].join()
+    # Start monitor thread if a new worker thread was created
+    if thread_gstreamer is not None and is_new_gst_thread:
+        if cam_ip in thread_monitors and thread_monitors[cam_ip] is not None:
+            if thread_monitors[cam_ip].is_alive():
+                logger.warning(f"{cam_ip} Existing monitor thread is still running, not creating a new one.")
+            else:
+                logger.info(f"{cam_ip} Removing dead monitor thread reference.")
+                thread_monitors[cam_ip] = None  # Remove reference if it's not running
 
-                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
-                thread_monitors[cam_ip].start()
+        if thread_monitors.get(cam_ip) is None:  # Ensure no duplicate monitor
+            thread_monitors[cam_ip] = threading.Thread(
+                target=monitor_stop_event,
+                name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}",
+                args=(thread_gstreamer,),
+                daemon=True
+            )
+            thread_monitors[cam_ip].start()
+            logger.info(f"{cam_ip} Started new monitor thread.")
 
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} init_gst_app thread.name {thread.name}")
+    # Debugging: Log all active threads
+    active_threads = [thread.name for thread in threading.enumerate()]
+    logger.info(f"{cam_ip} Active threads: {active_threads}")
 
     logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
-
     return thread_gstreamer
 
-# def init_gst_app(cam_ip, forced=False):
+
+# def init_gst_app_bak(cam_ip, forced=False):
 #     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
 #     host_id = os.environ['HOST_ID']
@@ -294,21 +310,24 @@ def init_gst_app(cam_ip, forced=False):
 
 #     global thread_monitors
 
-#     stop_gstreamer_thread(cam_ip)
+#     thread_gstreamer = None
+#     if forced:
+#         stop_gstreamer_thread(cam_ip)
+#     else:
 
-#     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+#         thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
-#     logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+#         logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
-#     if thread_gstreamer is not None:
-#         if is_new_gst_thread:
+#         if thread_gstreamer is not None:
+#             if is_new_gst_thread:
 
-#             if cam_ip in thread_monitors:
-#                 if thread_monitors[cam_ip] is not None:
-#                     thread_monitors[cam_ip].join()
+#                 if cam_ip in thread_monitors:
+#                     if thread_monitors[cam_ip] is not None:
+#                         thread_monitors[cam_ip].join()
 
-#             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamer,))
-#             thread_monitors[cam_ip].start()
+#                 thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
+#                 thread_monitors[cam_ip].start()
 
 #     for thread in threading.enumerate():
 #         logger.info(f"{cam_ip} init_gst_app thread.name {thread.name}")
@@ -316,7 +335,6 @@ def init_gst_app(cam_ip, forced=False):
 #     logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
 
 #     return thread_gstreamer
-
 
 
 def stop_http_server():
@@ -1058,10 +1076,13 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
     if cam_ip in thread_gstreamers:
         if thread_gstreamers[cam_ip] is not None:
-            # if thread_gstreamers[cam_ip].is_alive():
-            logger.info(f"{cam_ip} start_gstreamer_thread not starting, already started")
-            return thread_gstreamers[cam_ip], False
-    
+            if thread_gstreamers[cam_ip].is_alive():
+                logger.info(f"{cam_ip} start_gstreamer_thread not starting, already started")
+                return thread_gstreamers[cam_ip], False
+
+    for thread in threading.enumerate():
+        logger.info(f"{cam_ip} start_gstreamer_thread in thread.name {thread.name}")
+
     params = {}
     params['rtsp_src'] = f"rtsp://{camera_item['username']}:{camera_item['password']}@{cam_ip}:{camera_item['rtsp']['port']}{camera_item['rtsp']['path']}"
     params['codec'] = camera_item['rtsp']['codec']
