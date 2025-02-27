@@ -1155,10 +1155,13 @@ def monitor_stop_event(thread_gstreamer):
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped")
 
+    thread_gstreamer.join()  # Join the stopped thread
+
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} monitor_stop_event 111 thread.name {thread.name}")
-
-    thread_gstreamer.join()  # Join the stopped thread
+        if thread.name == threading.current_thread().name:
+            if thread != threading.current_thread():
+                thread.join()
     
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
@@ -1183,12 +1186,6 @@ def monitor_stop_event(thread_gstreamer):
             logger.info(f"{cam_ip} monitor_stop_event restarting")
             thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}", args=(thread_gstreamers[cam_ip],))
             thread_monitors[cam_ip].start()
-
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event 666 thread.name {thread.name}")
-
-
-    threading.current_thread().join()
 
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} monitor_stop_event 555 thread.name {thread.name}")
