@@ -1203,11 +1203,6 @@ def monitor_stop_event(thread_gstreamer):
     thread_gstreamer.join()  # Join the stopped thread
 
     logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer...")
-
-    # Clear previous references before restarting
-    thread_gstreamer = None
-    thread_gstreamers[cam_ip] = None
-    thread_monitors[cam_ip] = None
     
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} monitor_stop_event 222 thread.name {thread.name}")
@@ -1219,6 +1214,11 @@ def monitor_stop_event(thread_gstreamer):
     if thread_gstreamer.is_alive():
         logger.warning(f"{cam_ip} thread_gstreamer still alive unexpectedly, not restarting.")
         return
+
+    # Clear previous references before restarting
+    thread_gstreamer = None
+    thread_gstreamers[cam_ip] = None
+    thread_monitors[cam_ip] = None
 
     subscribe_onvif(cam_ip)
 
