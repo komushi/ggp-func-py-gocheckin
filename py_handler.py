@@ -1420,6 +1420,8 @@ def subscribe_onvif(cam_ip):
         logger.info(f"{cam_ip} subscribe_onvif out OnvifConnector　cannot be created")
         return
 
+    logger.info(f"{cam_ip} subscribe_onvif camera_item: {camera_item} old_onvif_sub_address: {old_onvif_sub_address}")
+
         
     # if 'isDetecting' in camera_item or 'isRecording' in camera_item:
     if camera_item['isDetecting'] or camera_item['isRecording']:
