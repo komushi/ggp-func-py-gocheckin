@@ -1213,7 +1213,7 @@ def monitor_stop_event(thread_gstreamer):
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     thread_gstreamer.join()  # Join the stopped thread
 
-    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer by {self.name}...")
+    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer by {threading.current_thread().name}...")
 
     if shutting_down:
         logger.info(f"{cam_ip} shutting down, not restarting.")
