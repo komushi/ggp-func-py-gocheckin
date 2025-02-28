@@ -1228,7 +1228,7 @@ def monitor_stop_event(thread_gstreamer):
         logger.info(f"{cam_ip} A new GStreamer thread is already running, skipping restart.")
         return
     
-    # subscribe_onvif(cam_ip)
+    subscribe_onvif(cam_ip)
 
     # Clear previous references before restarting
     thread_gstreamers[cam_ip] = None
