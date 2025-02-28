@@ -596,7 +596,8 @@ class StreamCapture(threading.Thread):
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
-            logger.warning("End-Of-Stream reached.")
+            logger.error("End-Of-Stream reached.")
+            raise ValueError(f"{self.name} Gst.MessageType.EOS")
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
