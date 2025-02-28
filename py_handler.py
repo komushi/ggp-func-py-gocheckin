@@ -434,8 +434,6 @@ def start_http_server():
                     cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data, self.client_address[0])
                     if is_motion_value:
                         logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
-
-                    if is_motion_value:
                         handle_notification(cam_ip, utc_time, is_motion_value)
 
                     self.send_response(200)
@@ -948,22 +946,22 @@ def fetch_scanner_output_queue():
             pass
         time.sleep(0.1)
 
-def fetch_motion_detection_queue():
-    while True:
-        try:
-            if not motion_detection_queue.empty():
-                cam_ip, is_motion_value, utc_time = motion_detection_queue.get_nowait()    
-                logger.debug(f"Fetched from motion_detection_queue: {is_motion_value}")
+# def fetch_motion_detection_queue():
+#     while True:
+#         try:
+#             if not motion_detection_queue.empty():
+#                 cam_ip, is_motion_value, utc_time = motion_detection_queue.get_nowait()    
+#                 logger.debug(f"Fetched from motion_detection_queue: {is_motion_value}")
 
-                if is_motion_value:
-                    handle_notification(cam_ip, utc_time, is_motion_value)
+#                 if is_motion_value:
+#                     handle_notification(cam_ip, utc_time, is_motion_value)
 
-        except Exception as e:
-            logger.error(f"fetch_motion_detection_queue, Exception during running, Error: {e}")
-            traceback.print_exc()
-            pass
+#         except Exception as e:
+#             logger.error(f"fetch_motion_detection_queue, Exception during running, Error: {e}")
+#             traceback.print_exc()
+#             pass
         
-        time.sleep(1)
+#         time.sleep(1)
 
 
 
@@ -986,10 +984,10 @@ def start_scanner_output_queue_thread():
     logger.info("Scanner Output Queue thread started")
 
 # motion_detection_queue
-def start_motion_detection_queue_thread():
-    scheduler_thread = threading.Thread(target=fetch_motion_detection_queue, name="Thread-MotionDetectionQueue")
-    scheduler_thread.start()
-    logger.info("Motion Detection Queue thread started")
+# def start_motion_detection_queue_thread():
+#     scheduler_thread = threading.Thread(target=fetch_motion_detection_queue, name="Thread-MotionDetectionQueue")
+#     scheduler_thread.start()
+#     logger.info("Motion Detection Queue thread started")
 
 # Function to start the init processes
 def start_init_processes():
@@ -1345,7 +1343,8 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
                 logger.info(f"{cam_ip} handle_notification out no camera_item")
                 return
 
-    thread_gstreamer = init_gst_app(cam_ip)
+    # thread_gstreamer = init_gst_app(cam_ip)
+    thread_gstreamer = thread_gstreamers[cam_ip]
     if thread_gstreamer is None:
         logger.info(f"{cam_ip} handle_notification out no thread_gstreamer")
         return
