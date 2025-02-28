@@ -1351,6 +1351,9 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
     elif not thread_gstreamer.is_playing:
         logger.info(f"{cam_ip} handle_notification out thread_gstreamer not playing")
         return
+    elif not thread_gstreamer.is_alive():
+        logger.info(f"{cam_ip} handle_notification out thread_gstreamer not started")
+        return
 
     # detect
     if camera_item['isDetecting']:
