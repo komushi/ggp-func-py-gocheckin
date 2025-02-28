@@ -231,24 +231,24 @@ def init_cameras():
 
     logger.info(f"init_cameras out")
 
-def init_gst_apps():
-    logger.info(f"init_gst_apps in")
+# def init_gst_apps():
+#     logger.info(f"init_gst_apps in")
 
-    fetch_camera_items()
+#     fetch_camera_items()
 
-    for cam_ip in camera_items:
-        try:
-            init_gst_app(cam_ip)
-        except Exception as e:
-            logger.error(f"Error handling init_gst_apps: {e}")
-            traceback.print_exc()
-            pass
+#     for cam_ip in camera_items:
+#         try:
+#             init_gst_app(cam_ip)
+#         except Exception as e:
+#             logger.error(f"Error handling init_gst_apps: {e}")
+#             traceback.print_exc()
+#             pass
 
-    timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_gst_apps)
-    timer.name = "Thread-InitGst-Timer"
-    timer.start()
+#     timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_gst_apps)
+#     timer.name = "Thread-InitGst-Timer"
+#     timer.start()
 
-    logger.info(f"init_gst_apps out")
+#     logger.info(f"init_gst_apps out")
 
 # def init_gst_app_new(cam_ip, forced=False):
 #     logger.debug(f"{cam_ip} init_gst_app in forced: {forced}")
@@ -296,6 +296,8 @@ def init_gst_app(cam_ip, forced=False):
     if host_id is None:
         logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
         return
+    
+    subscribe_onvif(cam_ip)
 
     global thread_monitors
 
@@ -313,12 +315,12 @@ def init_gst_app(cam_ip, forced=False):
 
                 if cam_ip in thread_monitors:
                     if thread_monitors[cam_ip] is not None:
+                        logger.info(f"{cam_ip} init_gst_app before monitor.join()")
                         thread_monitors[cam_ip].join()
+                        logger.info(f"{cam_ip} init_gst_app after monitor.join()")
 
                 thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
                 thread_monitors[cam_ip].start()
-
-    subscribe_onvif(cam_ip)
 
     for thread in threading.enumerate():
         logger.info(f"{cam_ip} init_gst_app thread.name out {thread.name}")
