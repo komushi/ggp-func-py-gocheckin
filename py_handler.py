@@ -1207,13 +1207,13 @@ def monitor_stop_event(thread_gstreamer):
 
     cam_ip = thread_gstreamer.cam_ip
 
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event in thread.name {thread.name}")
+    # for thread in threading.enumerate():
+    #     logger.info(f"{cam_ip} monitor_stop_event in thread.name {thread.name}")
 
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     thread_gstreamer.join()  # Join the stopped thread
 
-    logger.debug(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer...")
+    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer by {self.name}...")
 
     if shutting_down:
         logger.info(f"{cam_ip} shutting down, not restarting.")
@@ -1228,7 +1228,7 @@ def monitor_stop_event(thread_gstreamer):
         logger.info(f"{cam_ip} A new GStreamer thread is already running, skipping restart.")
         return
     
-    subscribe_onvif(cam_ip)
+    # subscribe_onvif(cam_ip)
 
     # Clear previous references before restarting
     thread_gstreamers[cam_ip] = None
@@ -1251,10 +1251,9 @@ def monitor_stop_event(thread_gstreamer):
             daemon=True
         )
         thread_monitors[cam_ip].start()
-        logger.debug(f"{cam_ip} new monitor thread started.")
 
-    for thread in threading.enumerate():
-        logger.info(f"{cam_ip} monitor_stop_event out thread.name {thread.name}")
+    # for thread in threading.enumerate():
+    #     logger.info(f"{cam_ip} monitor_stop_event out thread.name {thread.name}")
 
 # def monitor_stop_event_test(thread_gstreamer):
 #     logger.debug(f"{thread_gstreamer.cam_ip} monitor_stop_event")
@@ -1348,12 +1347,13 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
     if thread_gstreamer is None:
         logger.info(f"{cam_ip} handle_notification out no thread_gstreamer")
         return
-    elif not thread_gstreamer.is_playing:
-        logger.info(f"{cam_ip} handle_notification out thread_gstreamer not playing")
-        return
     elif not thread_gstreamer.is_alive():
         logger.info(f"{cam_ip} handle_notification out thread_gstreamer not started")
         return
+    elif not thread_gstreamer.is_playing:
+        logger.info(f"{cam_ip} handle_notification out thread_gstreamer not playing")
+        return
+
 
     # detect
     if camera_item['isDetecting']:
