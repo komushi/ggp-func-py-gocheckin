@@ -140,7 +140,9 @@ def function_handler(event, context):
             if key == "TIMER_CAM_RENEW" or key == "ONVIF_EXPIRATION":
                 init_cameras()
                 break
-                        
+            elif key == "TIMER_INIT_ENV_VAR":
+                init_env_var()
+                break
 
 
 def fetch_camera_items():
@@ -756,38 +758,38 @@ def init_env_var():
     
          
         
-def initialize_env_var():
-    logger.debug('initialize_env_var in')
+# def initialize_env_var():
+#     logger.debug('initialize_env_var in')
 
-    try:
-        host_item = get_host_item()
+#     try:
+#         host_item = get_host_item()
 
-        if host_item is not None:
-            property_item = get_property_item(host_item['hostId'])
+#         if host_item is not None:
+#             property_item = get_property_item(host_item['hostId'])
 
-            if property_item is not None:
-                os.environ['HOST_ID'] = host_item['hostId']
-                os.environ['IDENTITY_ID'] = host_item['identityId']
-                os.environ['PROPERTY_CODE'] = property_item['propertyCode']
-                os.environ['CRED_PROVIDER_HOST'] = host_item['credProviderHost']
-            else:
-                raise ValueError("property_item is None")
-        else:
-            raise ValueError("host_item is None")
+#             if property_item is not None:
+#                 os.environ['HOST_ID'] = host_item['hostId']
+#                 os.environ['IDENTITY_ID'] = host_item['identityId']
+#                 os.environ['PROPERTY_CODE'] = property_item['propertyCode']
+#                 os.environ['CRED_PROVIDER_HOST'] = host_item['credProviderHost']
+#             else:
+#                 raise ValueError("property_item is None")
+#         else:
+#             raise ValueError("host_item is None")
                 
-        # Reschedule the initialization function for every 30 minutes (1800 seconds)
-        timer = threading.Timer(int(os.environ['TIMER_INIT_ENV_VAR']), initialize_env_var)
-        timer.name = "Thread-Initializer-Timer"
-        timer.start()
-        # timer.join()
+#         # Reschedule the initialization function for every 30 minutes (1800 seconds)
+#         timer = threading.Timer(int(os.environ['TIMER_INIT_ENV_VAR']), initialize_env_var)
+#         timer.name = "Thread-Initializer-Timer"
+#         timer.start()
+#         # timer.join()
         
-        logger.debug(f"initialize_env_var out HOST_ID:{os.environ['HOST_ID']} IDENTITY_ID:{os.environ['IDENTITY_ID']} PROPERTY_CODE{os.environ['PROPERTY_CODE']} CRED_PROVIDER_HOST{os.environ['CRED_PROVIDER_HOST']}")
-    except Exception as e:
-        # Log the exception
-        logger.error(f"initialize_env_var error: {e}", exc_info=True)
+#         logger.debug(f"initialize_env_var out HOST_ID:{os.environ['HOST_ID']} IDENTITY_ID:{os.environ['IDENTITY_ID']} PROPERTY_CODE{os.environ['PROPERTY_CODE']} CRED_PROVIDER_HOST{os.environ['CRED_PROVIDER_HOST']}")
+#     except Exception as e:
+#         # Log the exception
+#         logger.error(f"initialize_env_var error: {e}", exc_info=True)
         
-        # Exit the script
-        sys.exit(1)
+#         # Exit the script
+#         sys.exit(1)
 
 def claim_camera(cam_ip):
     logger.info(f"{cam_ip} claim_cameras in")
@@ -824,16 +826,16 @@ def claim_camera(cam_ip):
 
     logger.info(f"{cam_ip} claim_cameras out published: {data}")
 
-def claim_cameras():
-    logger.debug(f"claim_cameras in")
-    for cam_ip in camera_items:
-        claim_camera(cam_ip)
+# def claim_cameras():
+#     logger.debug(f"claim_cameras in")
+#     for cam_ip in camera_items:
+#         claim_camera(cam_ip)
 
-    # Reschedule the claim cameras function for every 2 minutes (120 seconds)
-    timer = threading.Timer(600, claim_cameras)
-    timer.name = "Thread-ClaimCameras-Timer"
-    timer.start()
-    # timer.join()
+#     # Reschedule the claim cameras function for every 2 minutes (120 seconds)
+#     timer = threading.Timer(600, claim_cameras)
+#     timer.name = "Thread-ClaimCameras-Timer"
+#     timer.start()
+#     # timer.join()
 
 def claim_scanner():
     data = {
