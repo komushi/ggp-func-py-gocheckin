@@ -1101,13 +1101,18 @@ def signal_handler(signum, frame):
         try:
             camera_item = camera_items[cam_ip]
 
-            if camera_item['onvif']['isSubscription']:
-                if 'onvifSubAddress' in camera_item:
-                    if camera_item['onvifSubAddress'] is not None:
-                        onvif_connectors[cam_ip].unsubscribe(camera_item)
-                        camera_item['onvifSubAddress'] = None
-            elif camera_item['onvif']['isPullpoint']:
-                onvif_connectors[cam_ip].stop_pullpoint(camera_item)
+            if 'onvifSubAddress' in camera_item:
+                if camera_item['onvifSubAddress'] is not None:
+                    onvif_connectors[cam_ip].unsubscribe(camera_item)
+                    camera_item['onvifSubAddress'] = None
+
+            # if camera_item['onvif']['isSubscription']:
+            #     if 'onvifSubAddress' in camera_item:
+            #         if camera_item['onvifSubAddress'] is not None:
+            #             onvif_connectors[cam_ip].unsubscribe(camera_item)
+            #             camera_item['onvifSubAddress'] = None
+            # elif camera_item['onvif']['isPullpoint']:
+            #     onvif_connectors[cam_ip].stop_pullpoint(camera_item)
 
         except Exception as e:
             logger.error(f"Error handling unsubscribe, cam_ip:{cam_ip} Error:{e}")
@@ -1390,34 +1395,50 @@ def subscribe_onvif(cam_ip):
     
     global camera_items
     global onvif_connectors
+
+    if cam_ip not in camera_items:
+        logger.info(f"{cam_ip} subscribe_onvif out cam_ip not in camera_items")
+        return
+    else:
+        camera_item = camera_items[cam_ip]
+
+    if 'onvifSubAddress' in camera_item:
+        old_onvif_sub_address = camera_item['onvifSubAddress']
+    else:
+        old_onvif_sub_address = None
+    
+    if cam_ip not in onvif_connectors:
+        logger.info(f"{cam_ip} subscribe_onvif cam_ip not in onvif_connectors")
+
+        try:
+            onvif_connectors[cam_ip] = OnvifConnector(camera_item)
+        except Exception as e:
+            logger.error(f"{cam_ip} Error handling OnvifConnector init: {e}")
+            onvif_connectors[cam_ip] = None
+
+    if onvif_connectors[cam_ip] is None:
+        logger.info(f"{cam_ip} subscribe_onvif out OnvifConnector　cannot be created")
+        return
+
         
-    # if 'isDetecting' in camera_items[cam_ip] or 'isRecording' in camera_items[cam_ip]:
-    if camera_items[cam_ip]['isDetecting'] or camera_items[cam_ip]['isRecording']:
+    # if 'isDetecting' in camera_item or 'isRecording' in camera_item:
+    if camera_item['isDetecting'] or camera_item['isRecording']:
+        
+        onvif_sub_address = onvif_connectors[cam_ip].subscribe(cam_ip, old_onvif_sub_address, scanner_local_ip, http_port)
 
-        if not (cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None):
-            onvif_connectors[cam_ip] = OnvifConnector(camera_items[cam_ip])
+        logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
 
-        if camera_items[cam_ip]['onvif']['isSubscription']:
-            old_onvif_sub_address = None
-            if 'onvifSubAddress' in camera_items[cam_ip]:
-                old_onvif_sub_address = camera_items[cam_ip]['onvifSubAddress']
-            
-            onvif_sub_address = onvif_connectors[cam_ip].subscribe(cam_ip, old_onvif_sub_address, scanner_local_ip, http_port)
-
-            logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
-
-            camera_items[cam_ip]['onvifSubAddress'] = onvif_sub_address
+        camera_item['onvifSubAddress'] = onvif_sub_address
 
     else:
-        if cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None:
-            if camera_items[cam_ip]['onvif']['isSubscription']:
-                if 'onvifSubAddress' in camera_items[cam_ip]:
-                    if camera_items[cam_ip]['onvifSubAddress'] is not None:
-                        onvif_connectors[cam_ip].unsubscribe(camera_items[cam_ip])
-                        camera_items[cam_ip]['onvifSubAddress'] = None
+        # if cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None:
+            # if camera_item['onvif']['isSubscription']:
+        if old_onvif_sub_address is not None:
+            onvif_connectors[cam_ip].unsubscribe(camera_item)
+            camera_item['onvifSubAddress'] = None
 
-            onvif_connectors[cam_ip] = None
-            del onvif_connectors[cam_ip]
+        onvif_connectors[cam_ip] = None
+        del onvif_connectors[cam_ip]
 
     logger.info(f"{cam_ip} subscribe_onvif out")
 

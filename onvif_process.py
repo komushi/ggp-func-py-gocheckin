@@ -94,8 +94,8 @@ class OnvifConnector():
             onvif_sub_address = camera_item['onvifSubAddress']
 
         if onvif_sub_address is None:
-            logger.debug(f"{camera_item['localIp']} onvif.unsubscribe in onvif_sub_address: {onvif_sub_address}")
-            logger.debug(f"{camera_item['localIp']} onvif.unsubscribe out")
+            logger.info(f"{camera_item['localIp']} onvif.unsubscribe in onvif_sub_address: {onvif_sub_address}")
+            logger.info(f"{camera_item['localIp']} onvif.unsubscribe out")
 
             return
 
@@ -126,6 +126,8 @@ class OnvifConnector():
             logger.error(f"{camera_item['localIp']} onvif.unsubscribe, Exception during running, Error: {e}")
             # traceback.print_exc()
             pass
+
+        logger.info(f"{camera_item['localIp']} onvif.unsubscribe out")
 
     def _renew(self, cam_ip, onvif_sub_address):
 
