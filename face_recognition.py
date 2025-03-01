@@ -189,12 +189,8 @@ class FaceRecognition(threading.Thread):
         time.sleep(1)
 
         # while True:
-        while not self.stop_event.is_set() and not self.cam_queue.empty():
+        while not self.stop_event.is_set():
             try:
-                if self.stop_event.is_set():
-                    if not self.cam_queue.empty():
-                        _, _, _ = self.cam_queue.get(False)
-                        continue
 
                 if not self.cam_queue.empty():
                     _, raw_img, cam_info = self.cam_queue.get(False)
@@ -324,7 +320,11 @@ class FaceRecognition(threading.Thread):
                 logger.error(f"Caught {self.name} runtime exception!")
                 logger.error(e)
                 traceback.print_exc()
+            finally:
                 self.stop_event.set()
+
+        while not self.cam_queue.empty():
+                _, _, _ = self.cam_queue.get(False)
     
     def stop_detection(self):
         logger.info(f"Stop face detector {self.name}")
