@@ -22,8 +22,7 @@ logger = logging.getLogger(__name__)
 
 class FaceRecognition(threading.Thread):
     def __init__(self, face_app, active_members, scanner_output_queue, cam_queue):
-
-        super().__init__(name=f"Thread-FaceRecognition")
+        super().__init__(name=f"Thread-Detector-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}")
 
         #Current Cam
         self.cam_queue = cam_queue
@@ -187,9 +186,6 @@ class FaceRecognition(threading.Thread):
         self.stop_event.set()
         if self.face_app is not None:
             del self.face_app  # Remove reference
-            # gc.collect()  # Force garbage collection
-        # self.clear_captured_members()
-
 
     def compute_sim(self, feat1, feat2):
         # logger.info('compute_sim in feat1 type: %s, feat2 type: %s', type(feat1), type(feat2))
