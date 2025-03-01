@@ -190,6 +190,9 @@ def init_uploader_app():
 def init_face_detector():
     global thread_detector
 
+    for thread in threading.enumerate():
+        logger.info(f"init_face_detector in thread.name {thread.name}")
+
     fetch_members()
     init_face_app()
 
@@ -202,6 +205,8 @@ def init_face_detector():
             thread_monitor_detector = threading.Thread(target=monitor_detector, name=f"Thread-DetectorMonitor-init_face_detector-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=())
             thread_monitor_detector.start()
 
+    for thread in threading.enumerate():
+        logger.info(f"init_face_detector out thread.name {thread.name}")
 
 def monitor_detector():
     logger.info(f"monitor_detector in")
