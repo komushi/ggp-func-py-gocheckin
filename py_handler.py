@@ -293,8 +293,6 @@ def init_gst_app(cam_ip, forced=False):
     if host_id is None:
         logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
         return
-    
-    subscribe_onvif(cam_ip)
 
     global thread_monitors
 
@@ -318,6 +316,8 @@ def init_gst_app(cam_ip, forced=False):
 
                 thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
                 thread_monitors[cam_ip].start()
+
+    subscribe_onvif(cam_ip)
 
     logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
 
@@ -1158,8 +1158,6 @@ def monitor_stop_event(thread_gstreamer):
     if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None and thread_gstreamers[cam_ip].is_alive():
         logger.info(f"{cam_ip} A new GStreamer thread is already running, skipping restart.")
         return
-    
-    subscribe_onvif(cam_ip)
 
     # Clear previous references before restarting
     thread_gstreamers[cam_ip] = None
@@ -1182,6 +1180,8 @@ def monitor_stop_event(thread_gstreamer):
             daemon=True
         )
         thread_monitors[cam_ip].start()
+
+    subscribe_onvif(cam_ip)
             
 def set_recording_time(cam_ip, delay, utc_time):
     logger.debug(f'set_recording_time, cam_ip: {cam_ip} utc_time: {utc_time}')
