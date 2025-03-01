@@ -320,7 +320,6 @@ class FaceRecognition(threading.Thread):
                 logger.error(f"Caught {self.name} runtime exception!")
                 logger.error(e)
                 traceback.print_exc()
-            finally:
                 self.stop_event.set()
 
         while not self.cam_queue.empty():
