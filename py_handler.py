@@ -20,7 +20,7 @@ import socket
 import threading
 import time
 
-
+import gc
 
 # import requests
 
@@ -1121,7 +1121,7 @@ def clear_detector():
     global thread_detector
     if thread_detector is not None:
         thread_detector.stop_detection()
-        thread_detector.join()
+        thread_detector.join(timeout=5)
         thread_detector = None
 
     global face_app
@@ -1132,6 +1132,8 @@ def clear_detector():
 
     global last_fetch_time
     last_fetch_time = None
+
+    gc.collect()
 
 
 def monitor_stop_event(thread_gstreamer):
@@ -1235,10 +1237,11 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
     # detect
     if camera_item['isDetecting']:
         
-        init_face_app()
         fetch_members()
 
         if thread_detector is None:
+
+            init_face_app()
 
             thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
             thread_detector.start()
@@ -1247,6 +1250,8 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
             if thread_detector.stop_event.is_set():
                 logger.info(f"Clearing detector and initializing face_app")
                 clear_detector()
+
+                init_face_app()
 
                 thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
 
