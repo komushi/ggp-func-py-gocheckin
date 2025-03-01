@@ -1318,7 +1318,13 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
 # Start the scheduler threads
-start_init_processes()
+# start_init_processes()
+
+# Claim scanner
+claim_scanner()
+
+# init env var
+init_env_var()
 
 # Init face_app
 init_face_app()
@@ -1332,5 +1338,6 @@ start_server_thread()
 # Start scanner_output_queue thread
 start_scanner_output_queue_thread()
 
-# Start motion_detection_queue thread
-# start_motion_detection_queue_thread()
+# init cameras
+init_cameras()
+
