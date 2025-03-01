@@ -189,7 +189,7 @@ class FaceRecognition(threading.Thread):
         time.sleep(1)
 
         # while True:
-        while not self.stop_event.is_set() and self.cam_queue.empty():
+        while not self.stop_event.is_set() and not self.cam_queue.empty():
             try:
                 if self.stop_event.is_set():
                     if not self.cam_queue.empty():
