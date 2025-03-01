@@ -199,7 +199,7 @@ def init_face_detector():
     if thread_detector is not None:
         if thread_detector.is_alive():
 
-            thread_monitor_detector = threading.Thread(target=monitor_detector, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=())
+            thread_monitor_detector = threading.Thread(target=monitor_detector, name=f"Thread-DetectorMonitor-init_face_detector-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=())
             thread_monitor_detector.start()
 
 
@@ -231,7 +231,7 @@ def monitor_detector():
     if thread_detector is not None:
         if thread_detector.is_alive():
 
-            thread_monitor_detector = threading.Thread(target=monitor_detector, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=())
+            thread_monitor_detector = threading.Thread(target=monitor_detector, name=f"Thread-DetectorMonitor-monitor_detector-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=())
             thread_monitor_detector.start()
 
 
