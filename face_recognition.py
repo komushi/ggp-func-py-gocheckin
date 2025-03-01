@@ -187,7 +187,7 @@ class FaceRecognition(threading.Thread):
         self.stop_event.set()
         if self.face_app is not None:
             del self.face_app  # Remove reference
-            gc.collect()  # Force garbage collection
+            # gc.collect()  # Force garbage collection
         # self.clear_captured_members()
 
 
