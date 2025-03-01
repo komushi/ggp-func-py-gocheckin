@@ -184,6 +184,57 @@ def init_uploader_app():
     
     logger.debug(f"init_uploader_app out")
 
+            # thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
+            # thread_detector.start()
+
+def init_face_detector():
+    global thread_detector
+
+    fetch_members()
+    init_face_app()
+
+    thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
+    thread_detector.start()
+
+    if thread_detector is not None:
+        if thread_detector.is_alive():
+
+            thread_monitor_detector = threading.Thread(target=monitor_detector, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=())
+            thread_monitor_detector.start()
+
+
+def monitor_detector():
+    logger.info(f"monitor_detector in")
+
+    global thread_detector
+
+    thread_detector.stop_event.wait()  # Wait indefinitely for the event to be set
+    thread_detector.join()  # Join the stopped thread
+
+    logger.info(f"monitor_detector: {thread_detector.name} has stopped, restarting detector by {threading.current_thread().name}...")
+
+    if shutting_down:
+        logger.info(f"shutting down, not restarting.")
+        return
+
+    if thread_detector.is_alive():
+        logger.info(f"thread_detector {thread_detector.name} still alive unexpectedly, not restarting.")
+        return
+
+    # Clear previous references before restarting
+    thread_detector = None
+    thread_monitor_detector = None
+
+    thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
+    thread_detector.start()
+
+    if thread_detector is not None:
+        if thread_detector.is_alive():
+
+            thread_monitor_detector = threading.Thread(target=monitor_detector, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=())
+            thread_monitor_detector.start()
+
+
 def init_face_app(model='buffalo_sc'):
     class FaceAnalysisChild(FaceAnalysis):
         def get(self, img, max_num=0, det_size=(640, 640)):
@@ -230,61 +281,6 @@ def init_cameras():
     timer.start()
 
     logger.info(f"init_cameras out")
-
-# def init_gst_apps():
-#     logger.info(f"init_gst_apps in")
-
-#     fetch_camera_items()
-
-#     for cam_ip in camera_items:
-#         try:
-#             init_gst_app(cam_ip)
-#         except Exception as e:
-#             logger.error(f"Error handling init_gst_apps: {e}")
-#             traceback.print_exc()
-#             pass
-
-#     timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_gst_apps)
-#     timer.name = "Thread-InitGst-Timer"
-#     timer.start()
-
-#     logger.info(f"init_gst_apps out")
-
-# def init_gst_app_new(cam_ip, forced=False):
-#     logger.debug(f"{cam_ip} init_gst_app in forced: {forced}")
-
-#     host_id = os.environ['HOST_ID']
-#     if host_id is None:
-#         logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
-#         return
-
-#     global thread_monitors
-
-#     if forced:
-#         stop_gstreamer_thread(cam_ip)
-
-#     thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
-
-#     logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
-
-#     if thread_gstreamer is not None and is_new_gst_thread:
-#         # Ensure only one monitor thread is created
-#         if cam_ip in thread_monitors and thread_monitors[cam_ip] is not None and thread_monitors[cam_ip].is_alive():
-#             logger.warning(f"{cam_ip} Monitor thread already running, skipping duplicate.")
-#             return
-
-#         thread_monitors[cam_ip] = threading.Thread(
-#             target=monitor_stop_event,
-#             name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}",
-#             args=(thread_gstreamer,),
-#             daemon=True
-#         )
-#         thread_monitors[cam_ip].start()
-
-#     logger.debug(f"{cam_ip} init_gst_app out forced: {forced}")
-
-#     return thread_gstreamer
-
 
 def init_gst_app(cam_ip, forced=False):
     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
@@ -750,40 +746,6 @@ def init_env_var():
         timer.name = name
         timer.start()
     
-         
-        
-# def initialize_env_var():
-#     logger.debug('initialize_env_var in')
-
-#     try:
-#         host_item = get_host_item()
-
-#         if host_item is not None:
-#             property_item = get_property_item(host_item['hostId'])
-
-#             if property_item is not None:
-#                 os.environ['HOST_ID'] = host_item['hostId']
-#                 os.environ['IDENTITY_ID'] = host_item['identityId']
-#                 os.environ['PROPERTY_CODE'] = property_item['propertyCode']
-#                 os.environ['CRED_PROVIDER_HOST'] = host_item['credProviderHost']
-#             else:
-#                 raise ValueError("property_item is None")
-#         else:
-#             raise ValueError("host_item is None")
-                
-#         # Reschedule the initialization function for every 30 minutes (1800 seconds)
-#         timer = threading.Timer(int(os.environ['TIMER_INIT_ENV_VAR']), initialize_env_var)
-#         timer.name = "Thread-Initializer-Timer"
-#         timer.start()
-#         # timer.join()
-        
-#         logger.debug(f"initialize_env_var out HOST_ID:{os.environ['HOST_ID']} IDENTITY_ID:{os.environ['IDENTITY_ID']} PROPERTY_CODE{os.environ['PROPERTY_CODE']} CRED_PROVIDER_HOST{os.environ['CRED_PROVIDER_HOST']}")
-#     except Exception as e:
-#         # Log the exception
-#         logger.error(f"initialize_env_var error: {e}", exc_info=True)
-        
-#         # Exit the script
-#         sys.exit(1)
 
 def claim_camera(cam_ip):
     logger.debug(f"{cam_ip} claim_cameras in")
@@ -929,24 +891,6 @@ def fetch_scanner_output_queue():
             pass
         time.sleep(0.1)
 
-# def fetch_motion_detection_queue():
-#     while True:
-#         try:
-#             if not motion_detection_queue.empty():
-#                 cam_ip, is_motion_value, utc_time = motion_detection_queue.get_nowait()    
-#                 logger.debug(f"Fetched from motion_detection_queue: {is_motion_value}")
-
-#                 if is_motion_value:
-#                     handle_notification(cam_ip, utc_time, is_motion_value)
-
-#         except Exception as e:
-#             logger.error(f"fetch_motion_detection_queue, Exception during running, Error: {e}")
-#             traceback.print_exc()
-#             pass
-        
-#         time.sleep(1)
-
-
 
 # http server
 def start_server_thread():
@@ -965,52 +909,6 @@ def start_scanner_output_queue_thread():
     scheduler_thread = threading.Thread(target=fetch_scanner_output_queue, name="Thread-FaceQueue")
     scheduler_thread.start()
     logger.info("Scanner Output Queue thread started")
-
-# motion_detection_queue
-# def start_motion_detection_queue_thread():
-#     scheduler_thread = threading.Thread(target=fetch_motion_detection_queue, name="Thread-MotionDetectionQueue")
-#     scheduler_thread.start()
-#     logger.info("Motion Detection Queue thread started")
-
-# Function to start the init processes
-def start_init_processes():
-    # Start the claim scanner thread after the initialization
-    # claim_scanner_thread = threading.Thread(target=claim_scanner, name="Thread-ClaimScanner")
-    # claim_scanner_thread.start()
-    # logger.info("Claim scanner thread started")
-
-    # Start the initialization thread first
-    # initialization_thread = threading.Thread(target=initialize_env_var, name="Thread-Initializer")
-    # initialization_thread.start()
-    # logger.info("Initialization thread started")
-
-    claim_scanner()
-
-    init_env_var()
-
-    time.sleep(2)
-
-    init_cameras()
-    # init_cameras_thread = threading.Thread(target=init_cameras, name="Thread-InitCam-Timer")
-    # init_cameras_thread.start()
-    # logger.info("InitCam thread started")
-
-
-    # # Start the InitGst thread
-    # init_gst_apps_thread = threading.Thread(target=init_gst_apps, name="Thread-InitGst-Timer")
-    # init_gst_apps_thread.start()
-    # logger.info("InitGst thread started")
-
-    # # Start the SubscribeOnvif thread
-    # subscribe_onvifs_thread = threading.Thread(target=subscribe_onvifs, name="Thread-SubscribeOnvifs")
-    # subscribe_onvifs_thread.start()
-    # logger.info("SubscribeOnvif thread started")
-
-
-    # # Start the claim camera thread after the initialization
-    # claim_cameras_thread = threading.Thread(target=claim_cameras, name="Thread-ClaimCameras")
-    # claim_cameras_thread.start()
-    # logger.info("Claim camera thread started")
     
 
 def stop_gstreamer_thread(thread_name):
@@ -1235,22 +1133,8 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
     if camera_item['isDetecting']:
         
         fetch_members()
-        init_face_app()
-
-        if thread_detector is None:
-
-            thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
-            thread_detector.start()
-
-        else:
-            if thread_detector.stop_event.is_set():
-                logger.info(f"Clearing detector and initializing face_app")
-                
-                clear_detector()
-                thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
-
-        thread_gstreamer.feed_detecting(int(os.environ['TIMER_DETECT']))
-
+        if thread_detector is not None:
+            thread_gstreamer.feed_detecting(int(os.environ['TIMER_DETECT']))
 
     # record 
     if camera_item['isRecording']:
@@ -1327,7 +1211,7 @@ claim_scanner()
 init_env_var()
 
 # Init face_app
-init_face_app()
+init_face_detector()
 
 # Init uploader_app
 init_uploader_app()
