@@ -324,6 +324,9 @@ class StreamCapture(threading.Thread):
             arr = self.gst_to_opencv(sample)
 
             if not self.cam_queue.full():
+                if self.decoding_count >= 10:
+                    frame_time = None
+                # if frame_time is not None:
                 self.decoding_count += 1
                 self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "frame_time": frame_time, "pts": pts, "detecting_txn": self.detecting_txn}), block=False)
 
