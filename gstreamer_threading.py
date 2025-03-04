@@ -601,7 +601,8 @@ class StreamCapture(threading.Thread):
             raise ValueError(f"{self.name} Gst.MessageType.EOS")
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
+            logger.error(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
+            raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}")
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
@@ -636,13 +637,8 @@ class StreamCapture(threading.Thread):
             logger.warning("End-Of-Stream reached.")
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            # raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
             logger.error(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
-            # Potential error handling logic
-            if "Internal data stream error" in str(err):
-                logger.info(f"{self.cam_ip} on_message_decode: Caps negotiation failed. Attempting to reset pipeline.")
-                self.pipeline_decode.set_state(Gst.State.NULL)
-                self.pipeline_decode.set_state(Gst.State.PLAYING)
+            raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}")
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
