@@ -639,7 +639,7 @@ class StreamCapture(threading.Thread):
             # raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
             logger.error(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
             # Potential error handling logic
-            if "not-negotiated" in str(err):
+            if "Internal data stream error" in str(err):
                 logger.info(f"{self.cam_ip} on_message_decode: Caps negotiation failed. Attempting to reset pipeline.")
                 self.pipeline_decode.set_state(Gst.State.NULL)
                 self.pipeline_decode.set_state(Gst.State.PLAYING)
