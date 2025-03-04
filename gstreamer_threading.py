@@ -638,10 +638,15 @@ class StreamCapture(threading.Thread):
             err, debug = message.parse_error()
             # raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
             logger.error(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
+            # Potential error handling logic
+            if "not-negotiated" in str(err):
+                logger.info(f"{self.cam_ip} on_message_decode: Caps negotiation failed. Attempting to reset pipeline.")
+                self.pipeline_decode.set_state(Gst.State.NULL)
+                self.pipeline_decode.set_state(Gst.State.PLAYING)
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
-                logger.debug(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
+                logger.info(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
         elif message.type == Gst.MessageType.WARNING:
             logger.warning(f"Warning message {message.parse_warning()}： {message.type}")
         elif message.type == Gst.MessageType.ELEMENT:
