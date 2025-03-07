@@ -141,6 +141,7 @@ class StreamCapture(threading.Thread):
 
         self.last_sampling_time = None
         self.is_playing = False
+        self.is_decode_playing = False
         self.is_feeding = False
         self.feeding_count = 0
         self.decoding_count = 0
@@ -440,69 +441,114 @@ class StreamCapture(threading.Thread):
     def run(self):
         try:
 
+            bus = self.pipeline.get_bus()
+            decode_bus = self.pipeline_decode.get_bus()
+
             # Start playing
-            if self.start_playing():
+            if self.start_playing(is_decode=False):
                 logger.info(f"{self.cam_ip} StreamCapture run, start_playing result: {True} {self.name}")
 
-                self.pipeline_decode.set_state(Gst.State.PLAYING)
+                # self.pipeline_decode.set_state(Gst.State.PLAYING)
 
-                bus = self.pipeline.get_bus()
-                decode_bus = self.pipeline_decode.get_bus()
+                if self.start_playing(is_decode=True):
+                    logger.info(f"{self.cam_ip} StreamCapture run, decode start_playing result: {True} {self.name}")
 
-                while not self.stop_event.is_set():
-                    message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+                    while not self.stop_event.is_set():
+                        message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
-                    if message:
-                        self.on_message(bus, message)
+                        if message:
+                            self.on_message(bus, message)
 
-                    msg_decode = decode_bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+                        if self.start_playing(is_decode=True):
 
-                    if msg_decode:
-                        self.on_message_decode(bus, msg_decode)
+                            msg_decode = decode_bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+
+                            if msg_decode:
+                                self.on_message_decode(bus, msg_decode)
+                else:
+                    logger.info(f"{self.cam_ip} StreamCapture run, decode Pipeline not started")
             else:
-                logger.error(f"{self.cam_ip} StreamCapture run, Not started as start_playing result: {False}")
-                self.pipeline.set_state(Gst.State.NULL)
-                self.stop_event.set()
+                logger.info(f"{self.cam_ip} StreamCapture run, Pipeline not started")
 
+                # self.stop_event.set()
+                # self.pipeline.set_state(Gst.State.NULL)
+                # self.pipeline_decode.set_state(Gst.State.NULL)
+                
         except Exception as e:
             logger.error(f"{self.cam_ip} StreamCapture run, Exception during running, Error: {e}")
             traceback.print_exc()
         finally:
-            self.pipeline.set_state(Gst.State.NULL)
-            self.pipeline_decode.set_state(Gst.State.NULL)
             self.stop_event.set()
+            self.pipeline.set_state(Gst.State.NULL)
+            self.pipeline_decode.set_state(Gst.State.NULL)  
             self.is_playing = False
+            self.is_decode_playing = False
             logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up {self.name}")
 
-    def start_playing(self, count = 0, playing = False):
-        logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
+    def start_playing(self, count = 0, playing = False, is_decode = False):
+        logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing} is_decode: {is_decode}")
         interval = 10
 
         if count > 1:
-            logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
+            logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count} is_decode: {is_decode}")
             return playing
         else:
             if playing:
                 return playing
 
         count += 1
+
+        if is_decode:
+            check_state = self.is_decode_playing
+        else:
+            check_state = self.is_playing
         
-        if not self.is_playing:
+        if not check_state:
 
             playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.debug(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return}")
+            logger.debug(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return} is_decode: {is_decode}")
 
             if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-                logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
+                logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, is_decode: {is_decode} sleeping for {interval} second...")
                 time.sleep(interval)
-                return self.start_playing(count)
+                return self.start_playing(count, playing, is_decode)
             else:
-                logger.debug(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
+                logger.info(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count} is_decode: {is_decode}")
                 return True
 
         else:
-            logger.warning(f"{self.cam_ip} start_playing, return with already playing, count: {count}")
+            logger.warning(f"{self.cam_ip} start_playing, return with already playing, count: {count} is_decode: {is_decode}")
             return True
+
+    # def start_playing(self, count = 0, playing = False):
+    #     logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
+    #     interval = 10
+
+    #     if count > 1:
+    #         logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")
+    #         return playing
+    #     else:
+    #         if playing:
+    #             return playing
+
+    #     count += 1
+        
+    #     if not self.is_playing:
+
+    #         playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
+    #         logger.debug(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return}")
+
+    #         if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
+    #             logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
+    #             time.sleep(interval)
+    #             return self.start_playing(count)
+    #         else:
+    #             logger.info(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
+    #             return True
+
+    #     else:
+    #         logger.warning(f"{self.cam_ip} start_playing, return with already playing, count: {count}")
+    #         return True
 
         
     def stop(self):
@@ -511,6 +557,7 @@ class StreamCapture(threading.Thread):
         self.stop_event.set()
 
         self.pipeline.set_state(Gst.State.NULL)
+        self.pipeline_decode.set_state(Gst.State.NULL)
 
     def feed_detecting(self, running_seconds):
         logger.debug(f"{self.cam_ip} feed_detecting in")
@@ -642,7 +689,18 @@ class StreamCapture(threading.Thread):
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
+
                 logger.info(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
+
+                if new_state == Gst.State.PLAYING:
+                    self.is_decode_playing = True
+                    return
+                
+                if new_state == old_state:
+                    if new_state == Gst.State.PAUSED:
+                        return
+                    
+                self.is_decode_playing = False
         elif message.type == Gst.MessageType.WARNING:
             logger.warning(f"Warning message {message.parse_warning()}： {message.type}")
         elif message.type == Gst.MessageType.ELEMENT:
