@@ -289,6 +289,7 @@ def init_cameras():
 
     logger.info(f"init_cameras out")
 
+
 def init_gst_app(cam_ip, forced=False):
     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
 
@@ -302,29 +303,66 @@ def init_gst_app(cam_ip, forced=False):
     thread_gstreamer = None
     if forced:
         stop_gstreamer_thread(cam_ip)
-    else:
 
-        thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+    thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
-        logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+    logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
 
-        if thread_gstreamer is not None:
-            if is_new_gst_thread:
+    if thread_gstreamer is not None:
+        if is_new_gst_thread:
 
-                if cam_ip in thread_monitors:
-                    if thread_monitors[cam_ip] is not None:
-                        logger.info(f"{cam_ip} init_gst_app before monitor.join()")
-                        thread_monitors[cam_ip].join()
-                        logger.info(f"{cam_ip} init_gst_app after monitor.join()")
+            if cam_ip in thread_monitors:
+                if thread_monitors[cam_ip] is not None:
+                    logger.info(f"{cam_ip} init_gst_app before monitor.join()")
+                    thread_monitors[cam_ip].join()
+                    logger.info(f"{cam_ip} init_gst_app after monitor.join()")
 
-                thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
-                thread_monitors[cam_ip].start()
+            thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
+            thread_monitors[cam_ip].start()
 
     subscribe_onvif(cam_ip)
 
     logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
 
     return thread_gstreamer
+
+
+# def init_gst_app(cam_ip, forced=False):
+#     logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
+
+#     host_id = os.environ['HOST_ID']
+#     if host_id is None:
+#         logger.info(f"{cam_ip} init_gst_app out no HOST_ID")
+#         return
+
+#     global thread_monitors
+
+#     thread_gstreamer = None
+#     if forced:
+#         stop_gstreamer_thread(cam_ip)
+#     else:
+
+#         thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
+
+#         logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
+
+#         if thread_gstreamer is not None:
+#             if is_new_gst_thread:
+
+#                 if cam_ip in thread_monitors:
+#                     if thread_monitors[cam_ip] is not None:
+#                         logger.info(f"{cam_ip} init_gst_app before monitor.join()")
+#                         thread_monitors[cam_ip].join()
+#                         logger.info(f"{cam_ip} init_gst_app after monitor.join()")
+
+#                 thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
+#                 thread_monitors[cam_ip].start()
+
+#     subscribe_onvif(cam_ip)
+
+#     logger.info(f"{cam_ip} init_gst_app out forced: {forced}")
+
+#     return thread_gstreamer
 
 
 def stop_http_server():
