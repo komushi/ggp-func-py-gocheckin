@@ -122,6 +122,8 @@ def function_handler(event, context):
     if topic == f"gocheckin/reset_camera":
         logger.info('function_handler reset_camera')
 
+        fetch_camera_items()
+
         if 'cam_ip' in event:
             init_gst_app(event['cam_ip'], True)
 
