@@ -300,11 +300,14 @@ def init_gst_app(cam_ip, forced=False):
 
     global thread_monitors
 
+
+    for thread_name in thread_monitors:
+        logger.info(f"init_gst_app thread_monitors: {thread_name}")
     thread_gstreamer = None
     if forced:
         stop_gstreamer_thread(cam_ip)
-
-    if cam_ip not in thread_monitors or thread_monitors[cam_ip] is None:
+    # if cam_ip not in thread_monitors or thread_monitors[cam_ip] is None:
+    else:
         thread_gstreamer, is_new_gst_thread = start_gstreamer_thread(host_id=host_id, cam_ip=cam_ip, forced=forced)
 
         logger.info(f"init_gst_app thread_gstreamer: {thread_gstreamer}, is_new_gst_thread: {is_new_gst_thread}")
