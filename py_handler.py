@@ -218,8 +218,6 @@ def monitor_detector():
     thread_detector.stop_event.wait()  # Wait indefinitely for the event to be set
     thread_detector.join()  # Join the stopped thread
 
-    logger.info(f"monitor_detector: {thread_detector.name} has stopped, restarting detector by {threading.current_thread().name}...")
-
     if shutting_down:
         logger.info(f"shutting down, not restarting.")
         return
@@ -227,6 +225,8 @@ def monitor_detector():
     if thread_detector.is_alive():
         logger.info(f"thread_detector {thread_detector.name} still alive unexpectedly, not restarting.")
         return
+
+    logger.info(f"monitor_detector: {thread_detector.name} has stopped, restarting detector by {threading.current_thread().name}...")
 
     # Clear previous references before restarting
     thread_detector = None
@@ -1020,8 +1020,11 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
     return thread_gstreamers[cam_ip], True
 
 def force_stop_camera(cam_ip):
+    logger.info(f"{cam_ip} force_stop_camera in")
+
     if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None:
         thread_gstreamers[cam_ip].stop(force=True)
+        logger.info(f"{cam_ip} force_stop_camera out")
 
 # Function to handle termination signals
 def signal_handler(signum, frame):
