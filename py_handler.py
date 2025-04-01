@@ -1019,6 +1019,10 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
     return thread_gstreamers[cam_ip], True
 
+def force_stop_camera(cam_ip):
+    if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None:
+        thread_gstreamers[cam_ip].stop(force=True)
+
 # Function to handle termination signals
 def signal_handler(signum, frame):
     logger.info(f"Signal {signum} received, shutting down http server.")
@@ -1026,7 +1030,7 @@ def signal_handler(signum, frame):
     global shutting_down
     shutting_down = True
 
-    for cam_ip in camera_items:
+    for cam_ip in list(thread_gstreamers.keys()):
         try:
             camera_item = camera_items[cam_ip]
 
@@ -1039,21 +1043,25 @@ def signal_handler(signum, frame):
             logger.error(f"Error handling unsubscribe, cam_ip:{cam_ip} Error:{e}")
             pass
 
-    clear_detector()
+        force_stop_camera(cam_ip)
 
-    global face_app
-    face_app = None
-
-    global thread_gstreamers
-    for thread_name in thread_gstreamers:
-        stop_gstreamer_thread(thread_name)
-    thread_gstreamers = {}
 
     global thread_monitors
     for thread in thread_monitors.values():
         thread.join()
         thread = None
     thread_monitors = {}
+
+    clear_detector()
+
+    global face_app
+    face_app = None
+
+    # global thread_gstreamers
+    # for thread_name in thread_gstreamers:
+    #     stop_gstreamer_thread(thread_name)
+    # thread_gstreamers = {}
+
 
     global scanner_output_queue
     with scanner_output_queue.mutex:
@@ -1094,15 +1102,20 @@ def monitor_stop_event(thread_gstreamer):
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     thread_gstreamer.join()  # Join the stopped thread
 
-    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer by {threading.current_thread().name}...")
-
-    if shutting_down:
-        logger.info(f"{cam_ip} shutting down, not restarting.")
+    # Check for forced stop
+    if thread_gstreamer.force_stop.is_set():
+        logger.info(f"{cam_ip} Force stop detected, exiting monitor")
         return
+
+    # if shutting_down:
+    #     logger.info(f"{cam_ip} shutting down, not restarting.")
+    #     return
 
     if thread_gstreamer.is_alive():
         logger.info(f"{cam_ip} thread_gstreamer still alive unexpectedly, not restarting.")
         return
+    
+    logger.info(f"{cam_ip} monitor_stop_event: {thread_gstreamer.name} has stopped, restarting gstreamer by {threading.current_thread().name}...")
 
     # Check if a new thread already exists
     if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None and thread_gstreamers[cam_ip].is_alive():

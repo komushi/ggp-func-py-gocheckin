@@ -134,6 +134,7 @@ class StreamCapture(threading.Thread):
             appsink_decode.connect("new-sample", self.on_new_sample_decode, {})
         
         self.stop_event = threading.Event()
+        self.force_stop = threading.Event()
         self.recording_buffer = deque()
         self.detecting_buffer = deque()
         self.recording_lock = threading.Lock()
@@ -505,8 +506,10 @@ class StreamCapture(threading.Thread):
             return True
 
         
-    def stop(self):
+    def stop(self, force = False):
         # self.stop_recording()
+        if force:
+            self.force_stop.set()
 
         self.stop_event.set()
 
