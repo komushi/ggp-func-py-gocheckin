@@ -169,6 +169,7 @@ def fetch_camera_items():
         camera_item_list = query_camera_items(os.environ['HOST_ID'])
         
         for camera_item in camera_item_list:
+            current_onvif_sub_address = None
             cam_ip = camera_item['localIp']
             current_cameras[cam_ip] = True
             
