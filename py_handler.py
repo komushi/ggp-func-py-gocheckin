@@ -197,7 +197,7 @@ def fetch_camera_items():
                 cameras_to_remove[cam_ip] = camera_items[cam_ip].get('onvifSubAddress')
                 del camera_items[cam_ip]
 
-        logger.info(f"fetch_camera_items out, cameras_to_remove: {cameras_to_remove}")
+        logger.info(f"fetch_camera_items out, cameras_to_update: {cameras_to_update}, cameras_to_remove: {cameras_to_remove}")
 
         return cameras_to_update, cameras_to_remove
             
