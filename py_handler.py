@@ -122,22 +122,24 @@ def function_handler(event, context):
     if topic == f"gocheckin/reset_camera":
         logger.info('function_handler reset_camera')
 
-        cameras_to_update, cameras_to_remove = fetch_camera_items()
+        # cameras_to_update, cameras_to_remove = fetch_camera_items()
 
-        for cam_ip in cameras_to_update:
-            try:
-                init_gst_app(cam_ip, True)
-            except Exception as e:
-                logger.error(f"Error updating camera {cam_ip}: {e}")
+        # for cam_ip in cameras_to_update:
+        #     try:
+        #         init_gst_app(cam_ip, True)
+        #     except Exception as e:
+        #         logger.error(f"Error updating camera {cam_ip}: {e}")
 
-        for cam_ip, onvif_sub_address in cameras_to_remove.items():
-            try:
-                force_stop_camera(cam_ip)
-                if cam_ip in onvif_connectors:
-                    onvif_connectors[cam_ip].unsubscribe(cam_ip, onvif_sub_address)
-                    del onvif_connectors[cam_ip]
-            except Exception as e:
-                logger.error(f"Error removing camera {cam_ip}: {e}")
+        # for cam_ip, onvif_sub_address in cameras_to_remove.items():
+        #     try:
+        #         force_stop_camera(cam_ip)
+        #         if cam_ip in onvif_connectors:
+        #             onvif_connectors[cam_ip].unsubscribe(cam_ip, onvif_sub_address)
+        #             del onvif_connectors[cam_ip]
+        #     except Exception as e:
+        #         logger.error(f"Error removing camera {cam_ip}: {e}")
+
+        init_cameras()
 
     elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
@@ -156,6 +158,18 @@ def function_handler(event, context):
                 init_env_var()
                 break
 
+def has_config_changed(current_item, new_item):
+    """Compare camera configurations to determine if update is needed"""
+    critical_fields = [
+        'username', 'password', 'isRecording', 'isDetecting',
+        'onvif', 'rtsp', 'uuid', 'equipmentName', 'localIp'
+    ]
+    
+    for field in critical_fields:
+        if current_item.get(field) != new_item.get(field):
+            logger.info(f"Configuration change detected in {field}")
+            return True
+    return False
 
 def fetch_camera_items():
     logger.info(f"fetch_camera_items in")
@@ -169,7 +183,7 @@ def fetch_camera_items():
         camera_item_list = query_camera_items(os.environ['HOST_ID'])
         
         for camera_item in camera_item_list:
-            current_onvif_sub_address = None
+            onvif_sub_address = None
             cam_ip = camera_item['localIp']
             current_cameras[cam_ip] = True
             
@@ -180,17 +194,13 @@ def fetch_camera_items():
                 current_item = camera_items[cam_ip]
 
                 if 'onvifSubAddress' in current_item:
-                    current_onvif_sub_address = current_item.get('onvifSubAddress')
+                    onvif_sub_address = current_item.get('onvifSubAddress')
 
-                if (current_item.get('username') != camera_item.get('username') or
-                    current_item.get('password') != camera_item.get('password') or
-                    current_item.get('onvif') != camera_item.get('onvif') or
-                    current_item.get('rtsp') != camera_item.get('rtsp')):
+                if has_config_changed(current_item, camera_item):
                     cameras_to_update.append(cam_ip)
                     camera_items[cam_ip] = camera_item
-                    if current_onvif_sub_address:
-                        camera_items[cam_ip]['onvifSubAddress'] = current_onvif_sub_address
-
+                    if onvif_sub_address:
+                        camera_items[cam_ip]['onvifSubAddress'] = onvif_sub_address
         
         for cam_ip in camera_items:
             if cam_ip not in current_cameras:
@@ -301,16 +311,26 @@ def init_cameras():
         if isinstance(thread, threading.Timer) and thread.name == name:
             thread.cancel()
 
-    fetch_camera_items()
+    cameras_to_update, cameras_to_remove = fetch_camera_items()
+
+    for cam_ip in cameras_to_update:
+        try:
+            init_gst_app(cam_ip, True)
+        except Exception as e:
+            logger.error(f"Error updating camera {cam_ip}: {e}")
+
+    for cam_ip, onvif_sub_address in cameras_to_remove.items():
+        try:
+            force_stop_camera(cam_ip)
+            if cam_ip in onvif_connectors:
+                onvif_connectors[cam_ip].unsubscribe(cam_ip, onvif_sub_address)
+                del onvif_connectors[cam_ip]
+        except Exception as e:
+            logger.error(f"Error removing camera {cam_ip}: {e}")
 
     for cam_ip in camera_items:
         try:
             claim_camera(cam_ip)
-
-            init_gst_app(cam_ip)
-
-            # subscribe_onvif(cam_ip)
-
 
         except Exception as e:
             logger.error(f"Error handling init_cameras: {e}")
