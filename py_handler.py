@@ -376,8 +376,10 @@ def init_gst_app(cam_ip, forced=False):
                     if thread_monitors[cam_ip] is not None:
                         logger.info(f"{cam_ip} init_gst_app before monitor.join()")
                         thread_monitors[cam_ip].join()
+                        thread_monitors[cam_ip] = None
+                        del thread_monitors[cam_ip]
                         logger.info(f"{cam_ip} init_gst_app after monitor.join()")
-
+                        
                 thread_monitors[cam_ip] = threading.Thread(target=monitor_stop_event, name=f"Thread-GstMonitor-{cam_ip}-init_gst_app-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}", args=(thread_gstreamer,))
                 thread_monitors[cam_ip].start()
 
@@ -1096,7 +1098,7 @@ def signal_handler(signum, frame):
 
             if 'onvifSubAddress' in camera_item:
                 if camera_item['onvifSubAddress'] is not None:
-                    onvif_connectors[cam_ip].unsubscribe(camera_item)
+                    onvif_connectors[cam_ip].unsubscribe(cam_ip, camera_item['onvifSubAddress'])
                     camera_item['onvifSubAddress'] = None
 
         except Exception as e:
@@ -1166,6 +1168,7 @@ def monitor_stop_event(thread_gstreamer):
     if thread_gstreamer.force_stop.is_set():
         logger.info(f"{cam_ip} Force stop detected, exiting monitor")
         thread_monitors[cam_ip] = None
+        del thread_monitors[cam_ip]
         return
 
     # if shutting_down:
@@ -1186,7 +1189,7 @@ def monitor_stop_event(thread_gstreamer):
     # Clear previous references before restarting
     thread_gstreamers[cam_ip] = None
     thread_monitors[cam_ip] = None
-
+    del thread_monitors[cam_ip]
     new_thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip, forced=True)
 
     if new_thread_gstreamer is not None:
