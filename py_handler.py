@@ -1078,7 +1078,10 @@ def force_stop_camera(cam_ip):
 
     if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None:
         thread_gstreamers[cam_ip].stop(force=True)
+        thread_gstreamers[cam_ip].join()
+        thread_gstreamers[cam_ip] = None
         logger.info(f"{cam_ip} force_stop_camera out")
+
 
 # Function to handle termination signals
 def signal_handler(signum, frame):
@@ -1162,6 +1165,7 @@ def monitor_stop_event(thread_gstreamer):
     # Check for forced stop
     if thread_gstreamer.force_stop.is_set():
         logger.info(f"{cam_ip} Force stop detected, exiting monitor")
+        thread_monitors[cam_ip] = None
         return
 
     # if shutting_down:
