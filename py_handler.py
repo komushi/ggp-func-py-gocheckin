@@ -360,7 +360,8 @@ def init_gst_app(cam_ip, forced=False):
 
     thread_gstreamer = None
     if forced:
-        stop_gstreamer_thread(cam_ip)
+        # stop_gstreamer_thread(cam_ip)
+        force_stop_camera(cam_ip)
 
     if cam_ip not in thread_monitors:
         logger.info(f"init_gst_app cam_ip {cam_ip} not in thread_monitors")
