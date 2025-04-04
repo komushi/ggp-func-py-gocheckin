@@ -315,13 +315,13 @@ def init_cameras():
 
     for cam_ip in cameras_to_update:
         try:
-            init_gst_app(cam_ip, True)
+            init_gst_app(cam_ip)
         except Exception as e:
             logger.error(f"Error updating camera {cam_ip}: {e}")
 
     for cam_ip, onvif_sub_address in cameras_to_remove.items():
         try:
-            force_stop_camera(cam_ip)
+            stop_gstreamer_thread(cam_ip)
             if cam_ip in onvif_connectors:
                 onvif_connectors[cam_ip].unsubscribe(cam_ip, onvif_sub_address)
                 del onvif_connectors[cam_ip]
@@ -344,8 +344,8 @@ def init_cameras():
     logger.info(f"init_cameras out")
 
 
-def init_gst_app(cam_ip, forced=False):
-    logger.info(f"{cam_ip} init_gst_app in forced: {forced}")
+def init_gst_app(cam_ip):
+    logger.info(f"{cam_ip} init_gst_app in")
 
     host_id = os.environ['HOST_ID']
     if host_id is None:
@@ -359,9 +359,7 @@ def init_gst_app(cam_ip, forced=False):
     #     logger.info(f"init_gst_app thread_monitors: {thread_name}")
 
     thread_gstreamer = None
-    if forced:
-        # stop_gstreamer_thread(cam_ip)
-        force_stop_camera(cam_ip)
+    stop_gstreamer_thread(cam_ip)
 
     if cam_ip not in thread_monitors:
         logger.info(f"init_gst_app cam_ip {cam_ip} not in thread_monitors")
@@ -1020,15 +1018,15 @@ def start_scanner_output_queue_thread():
     logger.info("Scanner Output Queue thread started")
     
 
-def stop_gstreamer_thread(thread_name):
-    logger.info(f"stop_gstreamer_thread, {thread_name} received, shutting down thread_gstreamer.")
+# def stop_gstreamer_thread(thread_name):
+#     logger.info(f"stop_gstreamer_thread, {thread_name} received, shutting down thread_gstreamer.")
 
-    if thread_name in thread_gstreamers:
-        if thread_gstreamers[thread_name] is not None:
-            thread_gstreamers[thread_name].stop()
-            thread_gstreamers[thread_name].join()
-            thread_gstreamers[thread_name] = None
-            logger.info(f"stop_gstreamer_thread, {thread_name} received, thread_gstreamer was just shut down.")
+#     if thread_name in thread_gstreamers:
+#         if thread_gstreamers[thread_name] is not None:
+#             thread_gstreamers[thread_name].stop()
+#             thread_gstreamers[thread_name].join()
+#             thread_gstreamers[thread_name] = None
+#             logger.info(f"stop_gstreamer_thread, {thread_name} received, thread_gstreamer was just shut down.")
 
 def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
@@ -1076,14 +1074,14 @@ def start_gstreamer_thread(host_id, cam_ip, forced=False):
 
     return thread_gstreamers[cam_ip], True
 
-def force_stop_camera(cam_ip):
-    logger.info(f"{cam_ip} force_stop_camera in")
+def stop_gstreamer_thread(cam_ip):
+    logger.info(f"{cam_ip} stop_gstreamer_thread in")
 
     if cam_ip in thread_gstreamers and thread_gstreamers[cam_ip] is not None:
         thread_gstreamers[cam_ip].stop(force=True)
         thread_gstreamers[cam_ip].join()
         thread_gstreamers[cam_ip] = None
-        logger.info(f"{cam_ip} force_stop_camera out")
+        logger.info(f"{cam_ip} stop_gstreamer_thread out")
 
 
 # Function to handle termination signals
@@ -1106,7 +1104,7 @@ def signal_handler(signum, frame):
             logger.error(f"Error handling unsubscribe, cam_ip:{cam_ip} Error:{e}")
             pass
 
-        force_stop_camera(cam_ip)
+        stop_gstreamer_thread(cam_ip)
 
 
     global thread_monitors
