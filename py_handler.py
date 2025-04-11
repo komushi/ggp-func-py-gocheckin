@@ -328,15 +328,16 @@ def init_cameras():
         except Exception as e:
             logger.error(f"Error removing camera {cam_ip}: {e}")
 
-    for cam_ip in camera_items and not cam_ip in cameras_to_update:
-        try:
-            claim_camera(cam_ip)
+    for cam_ip in camera_items:
+        if cam_ip not in cameras_to_update:
+            try:
+                claim_camera(cam_ip)
 
-            subscribe_onvif(cam_ip)
+                subscribe_onvif(cam_ip)
 
-        except Exception as e:
-            logger.error(f"Error handling init_cameras: {e}")
-            traceback.print_exc()
+            except Exception as e:
+                logger.error(f"Error handling init_cameras: {e}")
+                traceback.print_exc()
             pass
 
     timer = threading.Timer(int(os.environ['TIMER_CAM_RENEW']), init_cameras)
