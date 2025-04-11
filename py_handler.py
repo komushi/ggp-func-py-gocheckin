@@ -819,7 +819,7 @@ def init_env_var():
     
 
 def claim_camera(cam_ip):
-    logger.debug(f"{cam_ip} claim_cameras in")
+    logger.info(f"{cam_ip} claim_cameras in")
     if cam_ip in thread_gstreamers:
         thread_gstreamer = thread_gstreamers[cam_ip]
         if thread_gstreamer is not None:
