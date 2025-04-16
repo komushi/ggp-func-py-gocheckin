@@ -219,19 +219,21 @@ def fetch_camera_items():
 def init_uploader_app():
     logger.debug(f"init_uploader_app in")
 
-    global uploader_app
-    if uploader_app is None:
-        if 'CRED_PROVIDER_HOST' in os.environ:
-            uploader_app = uploader.S3Uploader(
-                cred_provider_host=os.environ['CRED_PROVIDER_HOST'],
-                cred_provider_path=f"/role-aliases/{os.environ['AWS_ROLE_ALIAS']}/credentials",
-                bucket_name=os.environ['VIDEO_BUCKET']
-            )
-    
-    logger.debug(f"init_uploader_app out")
+    try:
 
-            # thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
-            # thread_detector.start()
+        global uploader_app
+        if uploader_app is None:
+            if 'CRED_PROVIDER_HOST' in os.environ:
+                uploader_app = uploader.S3Uploader(
+                    cred_provider_host=os.environ['CRED_PROVIDER_HOST'],
+                    cred_provider_path=f"/role-aliases/{os.environ['AWS_ROLE_ALIAS']}/credentials",
+                    bucket_name=os.environ['VIDEO_BUCKET']
+                )
+        
+        logger.debug(f"init_uploader_app out")
+    except Exception as e:
+        logger.error(f"Error handling init_uploader_app: {e}")
+        uploader_app = None
 
 def init_face_detector():
     global thread_detector
@@ -868,36 +870,38 @@ def claim_scanner():
 
 def fetch_scanner_output_queue():
     def upload_video_clip(message):
-        local_file_path = message['payload']['local_file_path']
-        video_key = message['payload']['video_key']
-        object_key = message['payload']['object_key']
+        if uploader_app is not None:
 
-        logger.debug(f"fetch_scanner_output_queue, video_clipped received: {local_file_path}")
+            local_file_path = message['payload']['local_file_path']
+            video_key = message['payload']['video_key']
+            object_key = message['payload']['object_key']
 
-        uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
+            logger.debug(f"fetch_scanner_output_queue, video_clipped received: {local_file_path}")
 
-        payload = {
-            "hostId": os.environ['HOST_ID'],
-            "propertyCode": os.environ['PROPERTY_CODE'],
-            "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
-            "coreName": os.environ['AWS_IOT_THING_NAME'],
-            "equipmentId": message['payload']['cam_uuid'],
-            "equipmentName": message['payload']['cam_name'],
-            "cameraIp": message['payload']['cam_ip'],
-            "recordStart": message['payload']['start_datetime'],
-            "recordEnd": message['payload']['end_datetime'],
-            "identityId": os.environ['IDENTITY_ID'],
-            "s3level": 'private',
-            "videoKey": video_key,
-            "snapshotKey": ''
-        }
+            uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 
-        logger.debug(f"fetch_scanner_output_queue, video_clipped with IoT Publish payload: {payload}")
+            payload = {
+                "hostId": os.environ['HOST_ID'],
+                "propertyCode": os.environ['PROPERTY_CODE'],
+                "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+                "coreName": os.environ['AWS_IOT_THING_NAME'],
+                "equipmentId": message['payload']['cam_uuid'],
+                "equipmentName": message['payload']['cam_name'],
+                "cameraIp": message['payload']['cam_ip'],
+                "recordStart": message['payload']['start_datetime'],
+                "recordEnd": message['payload']['end_datetime'],
+                "identityId": os.environ['IDENTITY_ID'],
+                "s3level": 'private',
+                "videoKey": video_key,
+                "snapshotKey": ''
+            }
 
-        iotClient.publish(
-            topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
-            payload=json.dumps(payload)
-        )
+            logger.debug(f"fetch_scanner_output_queue, video_clipped with IoT Publish payload: {payload}")
+
+            iotClient.publish(
+                topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
+                payload=json.dumps(payload)
+            )
 
     while True:
         try:
@@ -912,7 +916,7 @@ def fetch_scanner_output_queue():
                         logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
                         thread_gstreamers[cam_ip].stop_feeding()
                     
-                    if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message):
+                    if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message and uploader_app is not None):
                         local_file_path = message['local_file_path']
                         property_object_key = message['payload']['propertyImgKey']
                         snapshot_payload= message['snapshot_payload']
