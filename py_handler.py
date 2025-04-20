@@ -205,6 +205,10 @@ def fetch_camera_items():
         for cam_ip in camera_items:
             if cam_ip not in current_cameras:
                 cameras_to_remove[cam_ip] = camera_items[cam_ip].get('onvifSubAddress')
+                # del camera_items[cam_ip]
+
+        for cam_ip in cameras_to_remove.keys():
+            if cam_ip in camera_items:
                 del camera_items[cam_ip]
 
         logger.info(f"fetch_camera_items out, cameras_to_update: {cameras_to_update}, cameras_to_remove: {cameras_to_remove}")
