@@ -352,8 +352,6 @@ def init_cameras():
 
     for thread in threading.enumerate():
         logger.info(f"init_cameras out thread.name {thread.name}")
-        if isinstance(thread, threading.Timer) and thread.name == name:
-            thread.cancel()
 
     logger.info(f"init_cameras out")
 
