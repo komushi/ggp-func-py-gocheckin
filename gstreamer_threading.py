@@ -68,6 +68,10 @@ class StreamCapture(threading.Thread):
         self.cam_uuid = params['cam_uuid']
         self.cam_name = params['cam_name']
         self.codec = params['codec']
+        
+        # Initialize counter for controlled error injection
+        self.detecting_counter = 0
+        self.should_corrupt = False
 
         pipeline_str = ''
         if params['codec'] == 'h264':
@@ -249,7 +253,6 @@ class StreamCapture(threading.Thread):
 
         if not self.is_feeding:
             self.add_detecting_frame(self.edit_sample_caption(sample, current_time), current_time)
-
         else:
             self.push_detecting_buffer()
             
@@ -258,7 +261,33 @@ class StreamCapture(threading.Thread):
             if self.feeding_count > self.framerate * self.running_seconds:
                 return Gst.FlowReturn.OK
 
-            ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample, current_time))
+            edited_sample = self.edit_sample_caption(sample, current_time)
+            
+            # Apply corruption if this is a corrupt session and every 10th frame
+            if self.should_corrupt and self.feeding_count % 10 == 0:
+                try:
+                    # Get a writable buffer from the sample
+                    buffer = edited_sample.get_buffer()
+                    info = edited_sample.get_info()
+                    caps = edited_sample.get_caps()
+                    segment = edited_sample.get_segment()
+                    
+                    # Create a writeable copy
+                    writable_buffer = buffer.make_writable()
+                    
+                    # Corrupt some data in the buffer
+                    size = writable_buffer.get_size()
+                    mid_point = size // 2
+                    corrupt_size = min(100, size - mid_point)
+                    writable_buffer.fill(mid_point, b'\x00' * corrupt_size)
+                    
+                    # Create a new sample with the corrupted buffer
+                    edited_sample = Gst.Sample.new(writable_buffer, caps, segment, info)
+                    logger.warning(f"{self.cam_ip} Corrupted frame {self.feeding_count} in feed session {self.detecting_counter}")
+                except Exception as e:
+                    logger.error(f"{self.cam_ip} Error corrupting frame: {e}")
+
+            ret = self.decode_appsrc.emit('push-sample', edited_sample)
             if ret != Gst.FlowReturn.OK:
                 logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
@@ -532,7 +561,18 @@ class StreamCapture(threading.Thread):
         with self.detecting_lock:            
             self.is_feeding = True
             self.running_seconds = running_seconds
-            self.detecting_txn = str(uuid.uuid4())
+            
+            # Increment the counter for each feeding session
+            self.detecting_counter += 1
+            
+            # Check if this feeding session should corrupt frames
+            self.should_corrupt = (self.detecting_counter % 3 == 0)
+            
+            # Use the counter in the transaction ID for tracking
+            self.detecting_txn = f"counter_{self.detecting_counter}"
+            
+            if self.should_corrupt:
+                logger.warning(f"{self.cam_ip} feed_detecting session {self.detecting_counter} will have corrupted frames")
 
         # Create a new timer
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
@@ -540,7 +580,7 @@ class StreamCapture(threading.Thread):
         self.feeding_timer.start()
 
         logger.info(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
-        logger.info(f"{self.cam_ip} feed_detecting out")
+        logger.info(f"{self.cam_ip} feed_detecting out with counter: {self.detecting_counter}")
 
 
     def stop_feeding(self):
