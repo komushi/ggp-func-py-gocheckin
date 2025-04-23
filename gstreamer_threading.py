@@ -600,11 +600,12 @@ class StreamCapture(threading.Thread):
 
     def on_message(self, bus, message):
         if message.type == Gst.MessageType.EOS:
-            logger.error("End-Of-Stream reached.")
-            raise ValueError(f"{self.name} Gst.MessageType.EOS")
+            logger.error(f"{self.cam_ip} on_message End-Of-Stream reached.")
+            raise ValueError(f"{self.cam_ip} on_message Gst.MessageType.EOS")
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
+            logger.error(f"{self.cam_ip} on_message Gst.MessageType.ERROR: {err}, {debug}")
+            raise ValueError(f"{self.cam_ip} on_message Gst.MessageType.ERROR: {err}, {debug}")
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
@@ -636,11 +637,12 @@ class StreamCapture(threading.Thread):
        
     def on_message_decode(self, bus, message):
         if message.type == Gst.MessageType.EOS:
-            logger.warning("End-Of-Stream reached.")
+            logger.error(f"{self.cam_ip} on_message_decode End-Of-Stream reached.")
+            raise ValueError(f"{self.cam_ip} on_message_decode Gst.MessageType.EOS")
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
-            # raise ValueError(f"{self.name} Gst.MessageType.ERROR: {err}, {debug}")
             logger.error(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
+            raise ValueError(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
