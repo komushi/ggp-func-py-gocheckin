@@ -60,13 +60,13 @@ class StreamCapture(threading.Thread):
         super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}")
 
         # NEW: Increase file descriptor limit to prevent "Too many open files" error
-        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-        try:
-            # Try to set the soft limit to match the hard limit
-            resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
-            logger.info(f"{self.cam_ip} Increased file descriptor limit from {soft} to {hard}")
-        except ValueError:
-            logger.warning(f"{self.cam_ip} Could not increase file descriptor limit. Current: {soft}, Hard: {hard}")
+        # soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        # try:
+        #     # Try to set the soft limit to match the hard limit
+        #     resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
+        #     logger.info(f"{self.cam_ip} Increased file descriptor limit from {soft} to {hard}")
+        # except ValueError:
+        #     logger.warning(f"{self.cam_ip} Could not increase file descriptor limit. Current: {soft}, Hard: {hard}")
 
         Gst.init(None)
 
