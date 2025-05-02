@@ -1,3 +1,5 @@
+import resource  # NEW: Required for managing file descriptor limits
+
 import re
 import gi
 
@@ -57,6 +59,14 @@ class StreamCapture(threading.Thread):
     def __init__(self, params, scanner_output_queue, cam_queue):
         super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}")
 
+        # NEW: Increase file descriptor limit to prevent "Too many open files" error
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        try:
+            # Try to set the soft limit to match the hard limit
+            resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
+            logger.info(f"{self.cam_ip} Increased file descriptor limit from {soft} to {hard}")
+        except ValueError:
+            logger.warning(f"{self.cam_ip} Could not increase file descriptor limit. Current: {soft}, Hard: {hard}")
 
         Gst.init(None)
 
@@ -451,15 +461,23 @@ class StreamCapture(threading.Thread):
                 decode_bus = self.pipeline_decode.get_bus()
 
                 while not self.stop_event.is_set():
-                    message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+                    try:
+                        message = bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
-                    if message:
-                        self.on_message(bus, message)
+                        if message:
+                            self.on_message(bus, message)
+                            message.unref()
 
-                    msg_decode = decode_bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
+                        msg_decode = decode_bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
-                    if msg_decode:
-                        self.on_message_decode(bus, msg_decode)
+                        if msg_decode:
+                            self.on_message_decode(bus, msg_decode)
+                            msg_decode.unref()
+
+                    except Exception as loop_error:
+                        # NEW: Add specific error handling for message loop
+                        logger.error(f"{self.cam_ip} Error in message loop: {loop_error}")
+                        break
             else:
                 logger.error(f"{self.cam_ip} StreamCapture run, Not started as start_playing result: {False}")
                 self.pipeline.set_state(Gst.State.NULL)
@@ -469,20 +487,49 @@ class StreamCapture(threading.Thread):
             logger.error(f"{self.cam_ip} StreamCapture run, Exception during running, Error: {e}")
             traceback.print_exc()
         finally:
-            # Set stop event first if not already set
-            self.stop_event.set()
-            
-            # Add a small delay
-            time.sleep(0.1)
-            
-            # Then change pipeline states
-            if self.pipeline:
-                self.pipeline.set_state(Gst.State.NULL)
-            if self.pipeline_decode:
-                self.pipeline_decode.set_state(Gst.State.NULL)
+            try:
+                logger.debug(f"{self.cam_ip} StreamCapture run, starting cleanup")
                 
-            self.is_playing = False
-            logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up {self.name}")
+                # NEW: Set stop event first to ensure all operations begin stopping
+                self.stop_event.set()
+                
+                # NEW: Stop any ongoing timer operations
+                if self.feeding_timer:
+                    self.feeding_timer.cancel()
+                    self.feeding_timer = None
+
+                # NEW: Clear all buffers to free memory
+                with self.detecting_lock:
+                    self.detecting_buffer.clear()
+                with self.recording_lock:
+                    self.recording_buffer.clear()
+                with self.metadata_lock:
+                    self.metadata_store.clear()
+
+                # MODIFIED: More careful pipeline state changes with verification
+                if self.pipeline_decode:
+                    logger.debug(f"{self.cam_ip} Setting decode pipeline to NULL")
+                    self.pipeline_decode.set_state(Gst.State.NULL)
+                    # NEW: Wait for state change to complete and log result
+                    state_change = self.pipeline_decode.get_state(Gst.CLOCK_TIME_NONE)
+                    logger.debug(f"{self.cam_ip} Decode pipeline state change result: {state_change[0]}")
+                    
+                if self.pipeline:
+                    logger.debug(f"{self.cam_ip} Setting main pipeline to NULL")
+                    self.pipeline.set_state(Gst.State.NULL)
+                    # NEW: Wait for state change to complete and log result
+                    state_change = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+                    logger.debug(f"{self.cam_ip} Main pipeline state change result: {state_change[0]}")
+
+                # NEW: Force garbage collection to clean up any remaining references
+                gc.collect()
+                
+                self.is_playing = False
+                logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up {self.name}")
+                
+            except Exception as cleanup_error:
+                # NEW: Specific error handling for cleanup process
+                logger.error(f"{self.cam_ip} Error during pipeline cleanup: {cleanup_error}")
 
     def start_playing(self, count = 0, playing = False):
         logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
@@ -531,20 +578,46 @@ class StreamCapture(threading.Thread):
 
         
     def stop(self, force=False):
-        if force:
-            self.force_stop.set()
-        
-        # Set the stop event first
-        self.stop_event.set()
-        
-        # Add a small delay to allow pending operations to complete
-        time.sleep(0.1)
-        
-        # Then change pipeline states
-        if self.pipeline:
-            self.pipeline.set_state(Gst.State.NULL)
-        if self.pipeline_decode:
-            self.pipeline_decode.set_state(Gst.State.NULL)
+        try:
+            if force:
+                self.force_stop.set()
+            
+            # Set the stop event first
+            self.stop_event.set()
+            
+            # Add a small delay to allow pending operations to complete
+            time.sleep(0.1)
+
+            # NEW: Stop any ongoing timer operations
+            if self.feeding_timer:
+                self.feeding_timer.cancel()
+                self.feeding_timer = None
+
+            # NEW: Clear all buffers to free memory
+            with self.detecting_lock:
+                self.detecting_buffer.clear()
+            with self.recording_lock:
+                self.recording_buffer.clear()
+            with self.metadata_lock:
+                self.metadata_store.clear()
+
+            # MODIFIED: More careful pipeline state changes with verification
+            if self.pipeline_decode:
+                logger.debug(f"{self.cam_ip} Setting decode pipeline to NULL")
+                self.pipeline_decode.set_state(Gst.State.NULL)
+                # NEW: Wait for state change to complete and log result
+                state_change = self.pipeline_decode.get_state(Gst.CLOCK_TIME_NONE)
+                logger.debug(f"{self.cam_ip} Decode pipeline state change result: {state_change[0]}")
+                
+            if self.pipeline:
+                logger.debug(f"{self.cam_ip} Setting main pipeline to NULL")
+                self.pipeline.set_state(Gst.State.NULL)
+                # NEW: Wait for state change to complete and log result
+                state_change = self.pipeline.get_state(Gst.CLOCK_TIME_NONE)
+                logger.debug(f"{self.cam_ip} Main pipeline state change result: {state_change[0]}")
+        except Exception as e:
+            # NEW: Specific error handling for stop process
+            logger.error(f"{self.cam_ip} Error during pipeline stop: {e}")
 
     def feed_detecting(self, running_seconds):
         logger.info(f"{self.cam_ip} feed_detecting in")
