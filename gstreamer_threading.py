@@ -469,9 +469,18 @@ class StreamCapture(threading.Thread):
             logger.error(f"{self.cam_ip} StreamCapture run, Exception during running, Error: {e}")
             traceback.print_exc()
         finally:
-            self.pipeline.set_state(Gst.State.NULL)
-            self.pipeline_decode.set_state(Gst.State.NULL)
+            # Set stop event first if not already set
             self.stop_event.set()
+            
+            # Add a small delay
+            time.sleep(0.1)
+            
+            # Then change pipeline states
+            if self.pipeline:
+                self.pipeline.set_state(Gst.State.NULL)
+            if self.pipeline_decode:
+                self.pipeline_decode.set_state(Gst.State.NULL)
+                
             self.is_playing = False
             logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up {self.name}")
 
@@ -489,31 +498,53 @@ class StreamCapture(threading.Thread):
         count += 1
         
         if not self.is_playing:
+            try:
+                if not self.pipeline:
+                    logger.error(f"{self.cam_ip} start_playing, pipeline is NULL")
+                    return False
 
-            playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
-            logger.debug(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return}")
+                current_state = self.pipeline.get_state(0)[1]
+                if current_state == Gst.State.NULL:
+                    time.sleep(0.1)
 
-            if playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
-                logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
-                time.sleep(interval)
-                return self.start_playing(count)
-            else:
-                logger.debug(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
-                return True
+                playing_state_change_return = self.pipeline.set_state(Gst.State.PLAYING)
+                logger.debug(f"{self.cam_ip} start_playing, set_state PLAYING state_change_return: {playing_state_change_return}")
+
+                if playing_state_change_return == Gst.StateChangeReturn.FAILURE:
+                    logger.error(f"{self.cam_ip} start_playing, state change failed completely")
+                    return False
+                elif playing_state_change_return != Gst.StateChangeReturn.SUCCESS:
+                    logger.warning(f"{self.cam_ip} start_playing, playing_state_change_return is NOT SUCCESS, sleeping for {interval} second...")
+                    time.sleep(interval)
+                    return self.start_playing(count)
+                else:
+                    logger.debug(f"{self.cam_ip} start_playing, playing_state_change_return is SUCCESS, count: {count}")
+                    return True
+
+            except Exception as e:
+                logger.error(f"{self.cam_ip} start_playing error: {str(e)}")
+                return False
 
         else:
             logger.warning(f"{self.cam_ip} start_playing, return with already playing, count: {count}")
             return True
 
         
-    def stop(self, force = False):
-        # self.stop_recording()
+    def stop(self, force=False):
         if force:
             self.force_stop.set()
-
+        
+        # Set the stop event first
         self.stop_event.set()
-
-        self.pipeline.set_state(Gst.State.NULL)
+        
+        # Add a small delay to allow pending operations to complete
+        time.sleep(0.1)
+        
+        # Then change pipeline states
+        if self.pipeline:
+            self.pipeline.set_state(Gst.State.NULL)
+        if self.pipeline_decode:
+            self.pipeline_decode.set_state(Gst.State.NULL)
 
     def feed_detecting(self, running_seconds):
         logger.info(f"{self.cam_ip} feed_detecting in")
