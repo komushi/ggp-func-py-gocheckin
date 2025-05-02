@@ -466,13 +466,11 @@ class StreamCapture(threading.Thread):
 
                         if message:
                             self.on_message(bus, message)
-                            message.unref()
 
                         msg_decode = decode_bus.timed_pop_filtered(100 * Gst.MSECOND, Gst.MessageType.ANY)
 
                         if msg_decode:
                             self.on_message_decode(bus, msg_decode)
-                            msg_decode.unref()
 
                     except Exception as loop_error:
                         # NEW: Add specific error handling for message loop
