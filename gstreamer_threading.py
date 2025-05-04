@@ -57,6 +57,10 @@ class StreamCommands(Enum):
 class StreamCapture(threading.Thread):
 
     def __init__(self, params, scanner_output_queue, cam_queue):
+        super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}")
+
+        Gst.init(None)
+
         # params
         self.cam_queue = cam_queue
         self.scanner_output_queue = scanner_output_queue
@@ -65,20 +69,6 @@ class StreamCapture(threading.Thread):
         self.cam_uuid = params['cam_uuid']
         self.cam_name = params['cam_name']
         self.codec = params['codec']
-
-        super().__init__(name=f"Thread-Gst-{params['cam_ip']}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}")
-
-        # NEW: Increase file descriptor limit to prevent "Too many open files" error
-        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-        try:
-            # Try to set the soft limit to match the hard limit
-            resource.setrlimit(resource.RLIMIT_NOFILE, (hard, hard))
-            logger.info(f"{self.cam_ip} Increased file descriptor limit from {soft} to {hard}")
-        except ValueError:
-            logger.warning(f"{self.cam_ip} Could not increase file descriptor limit. Current: {soft}, Hard: {hard}")
-
-        Gst.init(None)
-
 
         pipeline_str = ''
         if params['codec'] == 'h264':
