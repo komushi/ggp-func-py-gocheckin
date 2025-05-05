@@ -502,15 +502,31 @@ def start_http_server():
                     content_length = int(self.headers['Content-Length'])
                     post_data = self.rfile.read(content_length)
 
+                    # Extract info before responding
                     cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data, self.client_address[0])
-                    if is_motion_value:
-                        logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
-                        handle_notification(cam_ip, utc_time, is_motion_value)
 
+                    # Respond to client immediately
                     self.send_response(200)
                     self.end_headers()
                     self.wfile.write(b'Notification handled')
-  
+
+                    # Process notification asynchronously in a named thread
+                    def async_handle():
+                        try:
+                            if is_motion_value:
+                                logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
+                                handle_notification(cam_ip, utc_time, is_motion_value)
+                        except Exception as e:
+                            logger.error(f"Exception in async_handle for ONVIF notification: {e}")
+                            import traceback
+                            traceback.print_exc()
+                        finally:
+                            logger.info(f"Async ONVIF notification thread for {cam_ip} finished and will be cleaned up.")
+
+                    thread_name = f"Thread-ONVIF-Notification-{cam_ip}-{utc_time}"
+                    t = threading.Thread(target=async_handle, name=thread_name, daemon=True)
+                    t.start()
+                    
                 else:
                     self.send_response(404)
                     self.end_headers()
