@@ -499,34 +499,56 @@ def start_http_server():
                     # timer.join()
 
                 elif self.path == '/onvif_notifications':
-                    content_length = int(self.headers['Content-Length'])
-                    post_data = self.rfile.read(content_length)
+                    try:
+                        # 1. Read and parse the incoming request
+                        content_length = int(self.headers['Content-Length'])
+                        post_data = self.rfile.read(content_length)
 
-                    # Extract info before responding
-                    cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data, self.client_address[0])
+                        # 2. Extract notification data before any processing
+                        cam_ip, utc_time, is_motion_value = OnvifConnector.extract_notification(post_data, self.client_address[0])
 
-                    # Respond to client immediately
-                    self.send_response(200)
-                    self.end_headers()
-                    self.wfile.write(b'Notification handled')
+                        # 3. Define the async handler function that will process the notification
+                        def async_handle():
+                            try:
+                                if is_motion_value:
+                                    logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
+                                    handle_notification(cam_ip, utc_time, is_motion_value)
+                            except Exception as e:
+                                # Log any errors in the async processing
+                                logger.error(f"Exception in async_handle for ONVIF notification: {e}")
+                                import traceback
+                                traceback.print_exc()
+                            finally:
+                                # Always log completion, even if there was an error
+                                logger.info(f"Async ONVIF notification thread for {cam_ip} finished and will be cleaned up.")
 
-                    # Process notification asynchronously in a named thread
-                    def async_handle():
+                        # 4. Start the async processing thread
+                        thread_name = f"Thread-ONVIF-Notification-{cam_ip}-{utc_time}"
+                        t = threading.Thread(target=async_handle, name=thread_name, daemon=True)
+                        t.start()
+
+                        # 5. Try to send response to client, but don't fail if client disconnected
                         try:
-                            if is_motion_value:
-                                logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
-                                handle_notification(cam_ip, utc_time, is_motion_value)
-                        except Exception as e:
-                            logger.error(f"Exception in async_handle for ONVIF notification: {e}")
-                            import traceback
-                            traceback.print_exc()
-                        finally:
-                            logger.info(f"Async ONVIF notification thread for {cam_ip} finished and will be cleaned up.")
+                            self.send_response(200)
+                            self.end_headers()
+                            self.wfile.write(b'Notification handled')
+                        except (ConnectionResetError, BrokenPipeError) as e:
+                            # Client disconnected before we could send response - this is okay
+                            logger.warning(f"Client disconnected while sending response: {e}")
+                            return
+                    except Exception as e:
+                        # 6. Handle any other errors in the main request processing
+                        logger.error(f"Error in ONVIF notification handler: {e}")
+                        traceback.print_exc()
+                        try:
+                            self.send_response(500)
+                            self.end_headers()
+                            self.wfile.write(b'Internal Server Error')
+                        except (ConnectionResetError, BrokenPipeError):
+                            # Client disconnected while sending error response - this is okay
+                            logger.warning("Client disconnected while sending error response")
+                            return
 
-                    thread_name = f"Thread-ONVIF-Notification-{cam_ip}-{utc_time}"
-                    t = threading.Thread(target=async_handle, name=thread_name, daemon=True)
-                    t.start()
-                    
                 else:
                     self.send_response(404)
                     self.end_headers()
@@ -1154,7 +1176,7 @@ def monitor_stop_event(thread_gstreamer):
 
     thread_gstreamer.stop_event.wait()  # Wait indefinitely for the event to be set
     thread_gstreamer.join()  # Join the stopped thread
-
+    
     # Check for forced stop
     if thread_gstreamer.force_stop.is_set():
         logger.info(f"{cam_ip} Force stop detected, exiting monitor")
