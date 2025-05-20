@@ -145,7 +145,7 @@ def function_handler(event, context):
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event:
-            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', True)
+            handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z', True)
     elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/change_var":
         logger.info(f"function_handler change_var event: ${event}")
         for key, value in event.items():
@@ -925,6 +925,12 @@ def fetch_scanner_output_queue():
 
             uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 
+            # Truncate to seconds for cloud payload
+            record_start_internal = message['payload']['start_datetime']
+            record_end_internal = message['payload']['end_datetime']
+            record_start = record_start_internal.split('.')[0] + 'Z'
+            record_end = record_end_internal.split('.')[0] + 'Z'
+
             payload = {
                 "hostId": os.environ['HOST_ID'],
                 "propertyCode": os.environ['PROPERTY_CODE'],
@@ -933,8 +939,8 @@ def fetch_scanner_output_queue():
                 "equipmentId": message['payload']['cam_uuid'],
                 "equipmentName": message['payload']['cam_name'],
                 "cameraIp": message['payload']['cam_ip'],
-                "recordStart": message['payload']['start_datetime'],
-                "recordEnd": message['payload']['end_datetime'],
+                "recordStart": record_start,
+                "recordEnd": record_end,
                 "identityId": os.environ['IDENTITY_ID'],
                 "s3level": 'private',
                 "videoKey": video_key,
@@ -1236,7 +1242,7 @@ def set_recording_time(cam_ip, delay, utc_time):
     recording_timers[cam_ip].start()
     # recording_timers[cam_ip].join()
 
-def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S") + 'Z', is_motion_value=False):
+def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z', is_motion_value=False):
     logger.info(f"{cam_ip} handle_notification in is_motion_value: {is_motion_value}, utc_time: {utc_time}")
 
     global thread_detector
