@@ -666,7 +666,12 @@ class StreamCapture(threading.Thread):
 
         with self.recording_lock:
             self.is_recording = True
-            self.recordings[utc_time] = datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            # Try parsing with milliseconds, fallback to seconds
+            try:
+                self.recordings[utc_time] = datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%S.%fZ")
+            except ValueError:
+                self.recordings[utc_time] = datetime.strptime(utc_time, "%Y-%m-%dT%H:%M:%SZ")
+            self.recordings[utc_time] = self.recordings[utc_time].replace(tzinfo=timezone.utc)
 
         logger.debug(f"{self.cam_ip} start_recording out")
 
