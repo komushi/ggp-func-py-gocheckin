@@ -141,12 +141,12 @@ def function_handler(event, context):
 
         init_cameras()
 
-    elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
+    elif topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/force_detect":
         logger.info('function_handler force_detect')
 
         if 'cam_ip' in event:
             handle_notification(event['cam_ip'], datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z', True)
-    elif topic == f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/change_var":
+    elif topic == f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/change_var":
         logger.info(f"function_handler change_var event: ${event}")
         for key, value in event.items():
             os.environ[key] = value
@@ -880,7 +880,7 @@ def claim_camera(cam_ip):
                 }
 
                 iotClient.publish(
-                    topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+                    topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
                     payload=json.dumps(data)
                 )
                 
@@ -895,7 +895,7 @@ def claim_camera(cam_ip):
     }
 
     iotClient.publish(
-        topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
+        topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/camera_heartbeat",
         payload=json.dumps(data)
     )
 
@@ -950,7 +950,7 @@ def fetch_scanner_output_queue():
             logger.debug(f"fetch_scanner_output_queue, video_clipped with IoT Publish payload: {payload}")
 
             iotClient.publish(
-                topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
+                topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
                 payload=json.dumps(payload)
             )
 
@@ -977,7 +977,7 @@ def fetch_scanner_output_queue():
                         logger.debug(f"fetch_scanner_output_queue, member_detected with IoT Publish snapshot_payload: {snapshot_payload}")
 
                         iotClient.publish(
-                            topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
+                            topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/video_clipped",
                             payload=json.dumps(snapshot_payload)
                         )
 
@@ -995,7 +995,7 @@ def fetch_scanner_output_queue():
                             logger.info(f"fetch_scanner_output_queue, member_detected with IoT Publish payload: {message['payload']}")
 
                             iotClient.publish(
-                                topic=f"gocheckin/{os.environ['STAGE']}/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
+                                topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
                                 payload=json.dumps(message['payload'])
                             )
 
