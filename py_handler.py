@@ -245,8 +245,14 @@ def init_face_detector():
     for thread in threading.enumerate():
         logger.info(f"init_face_detector in thread.name {thread.name}")
 
+    if os.environ['USE_INSIGHTFACE'] == 'true':
+        init_insightface_app()
+
+    if face_app is None:
+        logger.info('init_face_detector out, face_app is None')
+        return
+    
     fetch_members()
-    init_face_app()
 
     thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
     thread_detector.start()
@@ -292,7 +298,7 @@ def monitor_detector():
             thread_monitor_detector.start()
 
 
-def init_face_app(model='buffalo_sc'):
+def init_insightface_app(model='buffalo_sc'):
     class FaceAnalysisChild(FaceAnalysis):
         def get(self, img, max_num=0, det_size=(640, 640)):
             if det_size is not None:
