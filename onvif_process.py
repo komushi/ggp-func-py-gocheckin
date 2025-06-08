@@ -202,141 +202,141 @@ class OnvifConnector():
         return onvif_sub_address
 
 
-    def start_pullpoint(self, camera_item, motion_detection_queue):
+    # def start_pullpoint(self, camera_item, motion_detection_queue):
 
-        def pull_messages(ip_address, motion_detection_queue, stop_event):
+    #     def pull_messages(ip_address, motion_detection_queue, stop_event):
         
-            while not stop_event.is_set():
-                try:
-                    pullmess = pullpoint_service.PullMessages(Timeout='PT1M', MessageLimit=10)
-                    for msg in pullmess.NotificationMessage:
+    #         while not stop_event.is_set():
+    #             try:
+    #                 pullmess = pullpoint_service.PullMessages(Timeout='PT1M', MessageLimit=10)
+    #                 for msg in pullmess.NotificationMessage:
 
-                        message = serialize_object(msg)
+    #                     message = serialize_object(msg)
 
-                        message_element = message['Message']['_value_1']
+    #                     message_element = message['Message']['_value_1']
 
-                        utc_time = None
-                        is_motion = None
-                        for simple_item in message_element.findall(".//ns0:SimpleItem", namespaces={'ns0': 'http://www.onvif.org/ver10/schema'}):
-                            if simple_item.attrib.get('Name') == "IsMotion":
-                                is_motion = simple_item.attrib.get('Value')
-                                utc_time = message_element.attrib.get('UtcTime')
-                                motion_detection_queue.put((ip_address, is_motion == 'true', utc_time), block=False)
-                                break
+    #                     utc_time = None
+    #                     is_motion = None
+    #                     for simple_item in message_element.findall(".//ns0:SimpleItem", namespaces={'ns0': 'http://www.onvif.org/ver10/schema'}):
+    #                         if simple_item.attrib.get('Name') == "IsMotion":
+    #                             is_motion = simple_item.attrib.get('Value')
+    #                             utc_time = message_element.attrib.get('UtcTime')
+    #                             motion_detection_queue.put((ip_address, is_motion == 'true', utc_time), block=False)
+    #                             break
 
-                        if utc_time is not None and is_motion is not None:
-                            logger.debug(f"onvif.start_pullpoint.pull_messages Motion detected: cam_ip: {ip_address} utc_time: {utc_time} is_motion: {is_motion}")
+    #                     if utc_time is not None and is_motion is not None:
+    #                         logger.debug(f"onvif.start_pullpoint.pull_messages Motion detected: cam_ip: {ip_address} utc_time: {utc_time} is_motion: {is_motion}")
 
-                except Exception as e:
-                    pass
+    #             except Exception as e:
+    #                 pass
 
-        onvif_sub_address = None
-        if 'onvifSubAddress' in camera_item:
-            onvif_sub_address = camera_item['onvifSubAddress']
-        else:
-            onvif_sub_address = None
+    #     onvif_sub_address = None
+    #     if 'onvifSubAddress' in camera_item:
+    #         onvif_sub_address = camera_item['onvifSubAddress']
+    #     else:
+    #         onvif_sub_address = None
             
-        cam_ip = None
-        if 'localIp' in camera_item:
-            cam_ip = camera_item['localIp']
-        else:
-            cam_ip = None
+    #     cam_ip = None
+    #     if 'localIp' in camera_item:
+    #         cam_ip = camera_item['localIp']
+    #     else:
+    #         cam_ip = None
 
-        logger.info(f"onvif.start_pullpoint in cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
+    #     logger.info(f"onvif.start_pullpoint in cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
 
-        try:
+    #     try:
 
-            pullpoint_subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}PullPointSubscriptionBinding'
-            event_binding = '{http://www.onvif.org/ver10/events/wsdl}EventBinding'
+    #         pullpoint_subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}PullPointSubscriptionBinding'
+    #         event_binding = '{http://www.onvif.org/ver10/events/wsdl}EventBinding'
 
-            event_service = self.client.create_service(event_binding, self.service_url)
+    #         event_service = self.client.create_service(event_binding, self.service_url)
 
-            subscription = event_service.CreatePullPointSubscription(InitialTerminationTime='PT24H')
+    #         subscription = event_service.CreatePullPointSubscription(InitialTerminationTime='PT24H')
 
-            pullpoint_service = self.client.create_service(pullpoint_subscription_binding, subscription.SubscriptionReference.Address._value_1)
+    #         pullpoint_service = self.client.create_service(pullpoint_subscription_binding, subscription.SubscriptionReference.Address._value_1)
 
-            onvif_sub_address = subscription.SubscriptionReference.Address._value_1
-
-
-        except Exception as e:
-            logger.error(f"onvif.start_pullpoint, Exception during running, cam_ip: {cam_ip} Error: {e}")
-            # traceback.print_exc()
-            onvif_sub_address = None
-
-            return onvif_sub_address
-
-        if cam_ip in self.thread_pullpoints:
-            self.clear_pullmessage(camera_item)
-            # logger.info(f"onvif.start_pullpoint, out, thread_pullpoints already running, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
-            # return onvif_sub_address
-
-        self.stop_events[cam_ip] = threading.Event()
-
-        self.thread_pullpoints[cam_ip] = threading.Thread(target=pull_messages, name=f"Thread-OnvifPull-{cam_ip}", args=(cam_ip, motion_detection_queue, self.stop_events[cam_ip]))
-        self.thread_pullpoints[cam_ip].start()
-
-        logger.info(f"onvif.start_pullpoint, out, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
-
-        return onvif_sub_address
+    #         onvif_sub_address = subscription.SubscriptionReference.Address._value_1
 
 
-    def unsubscribe_pullpoint(self, camera_item):
-        onvif_sub_address = None
-        if 'onvifSubAddress' in camera_item:
-            onvif_sub_address = camera_item['onvifSubAddress']
+    #     except Exception as e:
+    #         logger.error(f"onvif.start_pullpoint, Exception during running, cam_ip: {cam_ip} Error: {e}")
+    #         # traceback.print_exc()
+    #         onvif_sub_address = None
 
-        if onvif_sub_address is None:
-            logger.info(f"onvif.unsubscribe_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
-            logger.info(f"onvif.unsubscribe_pullpoint out cam_ip: {camera_item['localIp']}")
+    #         return onvif_sub_address
 
-            return
+    #     if cam_ip in self.thread_pullpoints:
+    #         self.clear_pullmessage(camera_item)
+    #         # logger.info(f"onvif.start_pullpoint, out, thread_pullpoints already running, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
+    #         # return onvif_sub_address
 
-        logger.info(f"onvif.unsubscribe_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+    #     self.stop_events[cam_ip] = threading.Event()
 
-        try:
+    #     self.thread_pullpoints[cam_ip] = threading.Thread(target=pull_messages, name=f"Thread-OnvifPull-{cam_ip}", args=(cam_ip, motion_detection_queue, self.stop_events[cam_ip]))
+    #     self.thread_pullpoints[cam_ip].start()
 
-            subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}SubscriptionManagerBinding'
+    #     logger.info(f"onvif.start_pullpoint, out, cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
 
-            subscription_service = self.client.create_service(subscription_binding, self.service_url)
+    #     return onvif_sub_address
 
-            addressing_header_type = xsd.ComplexType(
-                xsd.Sequence([
-                    xsd.Element('{http://www.w3.org/2005/08/addressing}To', xsd.String())
-                ])
-            )
 
-            addressing_header = addressing_header_type(To=onvif_sub_address)
+    # def unsubscribe_pullpoint(self, camera_item):
+    #     onvif_sub_address = None
+    #     if 'onvifSubAddress' in camera_item:
+    #         onvif_sub_address = camera_item['onvifSubAddress']
 
-            response = subscription_service.Unsubscribe(_soapheaders=[addressing_header])
+    #     if onvif_sub_address is None:
+    #         logger.info(f"onvif.unsubscribe_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
+    #         logger.info(f"onvif.unsubscribe_pullpoint out cam_ip: {camera_item['localIp']}")
 
-            logger.info(f"onvif.unsubscribe_pullpoint cam_ip: {camera_item['localIp']} response: {response}")
+    #         return
 
-        except BrokenPipeError:
-            logger.error("onvif.unsubscribe_pullpoint, Client disconnected before the response could be sent.")
+    #     logger.info(f"onvif.unsubscribe_pullpoint in cam_ip: {camera_item['localIp']} onvif_sub_address: {onvif_sub_address}")
 
-        except Exception as e:
-            logger.error(f"onvif.unsubscribe_pullpoint, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
-            traceback.print_exc()
-            pass
+    #     try:
 
-    def stop_pullpoint(self, camera_item):
-        logger.info(f"onvif.stop_pullpoint in cam_ip: {camera_item['localIp']}")
+    #         subscription_binding = '{http://www.onvif.org/ver10/events/wsdl}SubscriptionManagerBinding'
 
-        self.clear_pullmessage(camera_item)
+    #         subscription_service = self.client.create_service(subscription_binding, self.service_url)
 
-        self.unsubscribe_pullpoint(camera_item)
+    #         addressing_header_type = xsd.ComplexType(
+    #             xsd.Sequence([
+    #                 xsd.Element('{http://www.w3.org/2005/08/addressing}To', xsd.String())
+    #             ])
+    #         )
 
-        logger.info(f"onvif.stop_pullpoint out cam_ip: {camera_item['localIp']}")
+    #         addressing_header = addressing_header_type(To=onvif_sub_address)
 
-    def clear_pullmessage(self, camera_item):
-        logger.info(f"onvif.clear_pullmessage in cam_ip: {camera_item['localIp']}")
+    #         response = subscription_service.Unsubscribe(_soapheaders=[addressing_header])
+
+    #         logger.info(f"onvif.unsubscribe_pullpoint cam_ip: {camera_item['localIp']} response: {response}")
+
+    #     except BrokenPipeError:
+    #         logger.error("onvif.unsubscribe_pullpoint, Client disconnected before the response could be sent.")
+
+    #     except Exception as e:
+    #         logger.error(f"onvif.unsubscribe_pullpoint, Exception during running, cam_ip: {camera_item['localIp']} Error: {e}")
+    #         traceback.print_exc()
+    #         pass
+
+    # def stop_pullpoint(self, camera_item):
+    #     logger.info(f"onvif.stop_pullpoint in cam_ip: {camera_item['localIp']}")
+
+    #     self.clear_pullmessage(camera_item)
+
+    #     self.unsubscribe_pullpoint(camera_item)
+
+    #     logger.info(f"onvif.stop_pullpoint out cam_ip: {camera_item['localIp']}")
+
+    # def clear_pullmessage(self, camera_item):
+    #     logger.info(f"onvif.clear_pullmessage in cam_ip: {camera_item['localIp']}")
         
-        self.stop_events[camera_item['localIp']].set()
-        self.thread_pullpoints[camera_item['localIp']].join()
-        self.thread_pullpoints[camera_item['localIp']] = None
-        del self.thread_pullpoints[camera_item['localIp']]
+    #     self.stop_events[camera_item['localIp']].set()
+    #     self.thread_pullpoints[camera_item['localIp']].join()
+    #     self.thread_pullpoints[camera_item['localIp']] = None
+    #     del self.thread_pullpoints[camera_item['localIp']]
 
-        self.stop_events[camera_item['localIp']] = None
-        del self.stop_events[camera_item['localIp']]
+    #     self.stop_events[camera_item['localIp']] = None
+    #     del self.stop_events[camera_item['localIp']]
 
-        logger.info(f"onvif.clear_pullmessage out cam_ip: {camera_item['localIp']}")
+    #     logger.info(f"onvif.clear_pullmessage out cam_ip: {camera_item['localIp']}")

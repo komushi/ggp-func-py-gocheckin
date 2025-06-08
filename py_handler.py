@@ -102,7 +102,7 @@ thread_monitors = {}
 # Initialize the scanner_output_queue
 scanner_output_queue = Queue(maxsize=50)
 cam_queue = Queue(maxsize=500)
-motion_detection_queue = Queue(maxsize=500)
+# motion_detection_queue = Queue(maxsize=500)
 
 # Initialize the DynamoDB resource
 dynamodb = boto3.resource(
@@ -468,25 +468,19 @@ def start_http_server():
 
                     # reference_faces = face_app.get(image_bgr)
                     reference_faces = self.analyze_faces(image_bgr)
-                    
 
-                    # print('reference_faces[0].embedding:')
-                    # print(type(reference_faces[0].embedding))
+                    if len(reference_faces) > 0:                    
+                        event['faceEmbedding'] = reference_faces[0].embedding.tolist()
 
-                    event['faceEmbedding'] = reference_faces[0].embedding.tolist()
+                        bbox = reference_faces[0].bbox.astype(int).flatten()
+                        cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
 
-                    # print('event[faceEmbedding]:')
-                    # print(type(event['faceEmbedding']))
+                        # Convert the image to bytes
+                        buffered = io.BytesIO()
+                        cropped_face.save(buffered, format="JPEG")
+                        cropped_face_bytes = buffered.getvalue()
 
-                    bbox = reference_faces[0].bbox.astype(int).flatten()
-                    cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
-
-                    # Convert the image to bytes
-                    buffered = io.BytesIO()
-                    cropped_face.save(buffered, format="JPEG")
-                    cropped_face_bytes = buffered.getvalue()
-
-                    event['faceImgBase64'] = base64.b64encode(cropped_face_bytes).decode('utf-8')
+                        event['faceImgBase64'] = base64.b64encode(cropped_face_bytes).decode('utf-8')
 
                     # Send the response
                     self.wfile.write(json.dumps(event).encode())
@@ -571,14 +565,21 @@ def start_http_server():
 
 
         def analyze_faces(self, img_data: np.ndarray, det_size=(640, 640)):
+
+            if face_app is None:
+                logger.info('analyze_faces out, face_app is None')
+                return []
+
             # NOTE: try detect faces, if no faces detected, lower det_size until it does
             detection_sizes = [None] + [(size, size) for size in range(640, 256, -64)] + [(256, 256)]
 
             for size in detection_sizes:
                 faces = face_app.get(img_data, det_size=size)
                 if len(faces) > 0:
+                    logger.info(f'analyze_faces out with {len(faces)} faces')
                     return faces
 
+            logger.info('analyze_faces out, no faces detected')
             return []
 
     try:
