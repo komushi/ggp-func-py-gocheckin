@@ -162,7 +162,7 @@ def has_config_changed(current_item, new_item):
     """Compare camera configurations to determine if update is needed"""
     critical_fields = [
         'username', 'password', 'isRecording', 'isDetecting',
-        'onvif', 'rtsp', 'uuid', 'equipmentName', 'localIp'
+        'onvif', 'rtsp', 'uuid', 'assetName', 'localIp'
     ]
     
     for field in critical_fields:
@@ -943,8 +943,8 @@ def fetch_scanner_output_queue():
                 "propertyCode": os.environ['PROPERTY_CODE'],
                 "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
                 "coreName": os.environ['AWS_IOT_THING_NAME'],
-                "equipmentId": message['payload']['cam_uuid'],
-                "equipmentName": message['payload']['cam_name'],
+                "assetId": message['payload']['cam_uuid'],
+                "assetName": message['payload']['cam_name'],
                 "cameraIp": message['payload']['cam_ip'],
                 "recordStart": record_start,
                 "recordEnd": record_end,
@@ -1092,7 +1092,7 @@ def start_gstreamer_thread(host_id, cam_ip):
     params['framerate'] = camera_item['rtsp']['framerate']
     params['cam_ip'] = cam_ip
     params['cam_uuid'] = camera_item['uuid']
-    params['cam_name'] = camera_item['equipmentName']
+    params['cam_name'] = camera_item['assetName']
 
     thread_gstreamers[cam_ip] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
     thread_gstreamers[cam_ip].start()
