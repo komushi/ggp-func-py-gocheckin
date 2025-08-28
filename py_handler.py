@@ -910,8 +910,8 @@ def claim_camera(cam_ip):
 
 def claim_scanner():
     data = {
-        "equipmentId": os.environ['AWS_IOT_THING_NAME'],
-        "equipmentName": os.environ['AWS_IOT_THING_NAME'],
+        "assetId": os.environ['AWS_IOT_THING_NAME'],
+        "assetName": os.environ['AWS_IOT_THING_NAME'],
         "localIp": scanner_local_ip
     }
     
