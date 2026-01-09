@@ -15,6 +15,9 @@ Receives `trigger_detection` / `stop_detection` from TypeScript component to sta
 | `member_detected` payload | ✅ DONE | `py_handler.py:991-1004` - adds `onvifTriggered`, `occupancyTriggeredLocks` |
 | `handle_notification()` | ✅ DONE | `py_handler.py:1309-1312` - calls `trigger_face_detection(cam_ip, None)` |
 | `function.conf` | ✅ DONE | Both topics in inputTopics |
+| Timer extension | ✅ DONE | `py_handler.py:1403-1423` - extend on occupancy (always) or ONVIF (if started by ONVIF) |
+| `extend_timer()` in GStreamer | ✅ DONE | `gstreamer_threading.py:639-661` - new method |
+| `started_by_onvif` in context | ✅ DONE | `py_handler.py:1368` - tracks initial trigger source |
 
 ---
 
@@ -46,12 +49,17 @@ ONVIF motion → handle_notification()
 ```python
 trigger_lock_context = {
     cam_ip: {
-        'onvif_triggered': bool,     # True if ONVIF motion triggered
-        'specific_locks': set(),     # Lock IDs to unlock (removed on occupancy:false)
-        'active_occupancy': set()    # Locks with active occupancy sensor
+        'started_by_onvif': True/False,  # Boolean: True if INITIALLY started by ONVIF, set once
+        'onvif_triggered': True/False,   # Boolean: True if ONVIF motion triggered (for unlock)
+        'specific_locks': set(),         # Lock IDs to unlock (removed on occupancy:false)
+        'active_occupancy': set()        # Locks with active occupancy sensor
     }
 }
 ```
+
+**Field Details:**
+- `started_by_onvif`: Boolean, set to `(lock_asset_id is None)` when context is first created. Never changes after initial set. Used for timer extension logic.
+- `onvif_triggered`: Boolean, can be set/merged later when ONVIF event arrives. Used for unlock logic.
 
 ## Lock Sensor Flag (`withKeypad`)
 
@@ -322,11 +330,241 @@ occupancy:false from Lock A (after timeout)
 
 ---
 
+## Timer Extension Scenarios
+
+### Current Behavior (No Extension)
+
+When `feed_detecting()` is called while already feeding, it returns early without resetting the timer:
+```python
+if self.is_feeding:
+    return  # Timer NOT extended
+```
+
+### Problem: Second Occupancy Trigger Gets Short Window
+
+```
+Locks: [Lock A (KEYPAD_LOCK), Lock B (KEYPAD_LOCK)]
+
+t=0: occupancy:true from Lock A
+    → START detection, timer set for t=10
+    → context = { specific_locks: [A], active_occupancy: [A] }
+
+t=8: occupancy:true from Lock B
+    → context MERGED: { specific_locks: [A, B], active_occupancy: [A, B] }
+    → feed_detecting() returns early (already feeding)
+    → Timer still expires at t=10 ⚠️
+    → Lock B person only has 2 seconds for face detection!
+
+t=10: TIMER_DETECT expires
+    → Detection stops
+    → If no face detected, neither lock unlocks
+```
+
+### Timer Extension Rules
+
+Extension depends on both the **initial trigger** and the **new trigger**:
+
+| Initial Trigger | New Trigger | Extend? | Reason |
+|-----------------|-------------|---------|--------|
+| Occupancy | Occupancy | ✅ YES | Another sensor person waiting |
+| Occupancy | ONVIF | ❌ NO | Occupancy person is priority |
+| ONVIF | Occupancy | ✅ YES | Sensor person waiting |
+| ONVIF | ONVIF | ✅ YES | Legacy lock person still waiting |
+
+**Summary**:
+- Occupancy trigger always extends (new person at sensor lock)
+- ONVIF trigger only extends if detection was initially started by ONVIF
+
+### Scenario 13: Multiple occupancy triggers - timer extended
+
+```
+Locks: [Lock A (KEYPAD_LOCK), Lock B (KEYPAD_LOCK)]
+
+t=0: occupancy:true from Lock A
+    → START detection, timer set for t=10
+    → context = { specific_locks: [A], active_occupancy: [A] }
+
+t=8: occupancy:true from Lock B
+    → context MERGED: { specific_locks: [A, B], active_occupancy: [A, B] }
+    → Timer EXTENDED to t=18 ✓ (lock_asset_id is NOT None)
+
+t=15: Face detected
+    → member_detected { occupancyTriggeredLocks: [A, B] }
+    → Both Lock A and Lock B unlocked ✓
+```
+
+### Scenario 14: Occupancy first, ONVIF joins - timer NOT extended
+
+```
+Locks: [Lock A (KEYPAD_LOCK), Lock B (LOCK)]
+
+t=0: occupancy:true from Lock A
+    → START detection, timer set for t=10
+    → context = { onvif_triggered: false, specific_locks: [A], active_occupancy: [A] }
+
+t=8: ONVIF motion arrives
+    → context MERGED: { onvif_triggered: true, specific_locks: [A], active_occupancy: [A] }
+    → Timer NOT extended (lock_asset_id is None)
+    → Timer still expires at t=10
+
+t=10: TIMER_DETECT expires (no face detected)
+    → Detection stops
+    → Neither lock unlocks
+```
+
+### Scenario 15: ONVIF first, occupancy joins - timer extended
+
+```
+Locks: [Lock A (KEYPAD_LOCK), Lock B (LOCK)]
+
+t=0: ONVIF motion
+    → START detection, timer set for t=10
+    → context = { onvif_triggered: true, specific_locks: [], active_occupancy: [] }
+
+t=8: occupancy:true from Lock A
+    → context MERGED: { onvif_triggered: true, specific_locks: [A], active_occupancy: [A] }
+    → Timer EXTENDED to t=18 ✓ (lock_asset_id is NOT None)
+
+t=15: Face detected
+    → member_detected { occupancyTriggeredLocks: [A], onvifTriggered: true }
+    → Lock A unlocked (specific)
+    → Lock B unlocked (legacy)
+```
+
+### Scenario 16: Three occupancy triggers in sequence
+
+```
+Locks: [Lock A, Lock B, Lock C] (all KEYPAD_LOCK)
+
+t=0: occupancy:true from Lock A
+    → START detection, timer → t=10
+    → context = { started_by_onvif: false, specific_locks: [A], active_occupancy: [A] }
+
+t=5: occupancy:true from Lock B
+    → context MERGED: { specific_locks: [A, B], active_occupancy: [A, B] }
+    → Timer EXTENDED → t=15 (occupancy always extends)
+
+t=12: occupancy:true from Lock C
+    → context MERGED: { specific_locks: [A, B, C], active_occupancy: [A, B, C] }
+    → Timer EXTENDED → t=22 (occupancy always extends)
+
+t=20: Face detected
+    → member_detected { occupancyTriggeredLocks: [A, B, C] }
+    → All three locks unlocked ✓
+```
+
+### Scenario 17: ONVIF first, another ONVIF - timer extended
+
+```
+Locks: [Lock A (KEYPAD_LOCK), Lock B (LOCK - legacy)]
+
+t=0: ONVIF motion (person at legacy Lock B)
+    → START detection, timer → t=10
+    → context = { started_by_onvif: true, onvif_triggered: true, specific_locks: [] }
+
+t=8: Another ONVIF motion (same person still waiting)
+    → context unchanged (already onvif_triggered: true)
+    → Timer EXTENDED → t=18 (ONVIF extends because started_by_onvif=true)
+
+t=15: Face detected
+    → member_detected { occupancyTriggeredLocks: [], onvifTriggered: true }
+    → Lock B unlocked (legacy) ✓
+```
+
+### Scenario 18: Occupancy first, ONVIF joins - timer NOT extended
+
+```
+Locks: [Lock A (KEYPAD_LOCK), Lock B (LOCK - legacy)]
+
+t=0: occupancy:true from Lock A
+    → START detection, timer → t=10
+    → context = { started_by_onvif: false, onvif_triggered: false, specific_locks: [A] }
+
+t=8: ONVIF motion arrives
+    → context MERGED: { started_by_onvif: false, onvif_triggered: true, specific_locks: [A] }
+    → Timer NOT extended (started_by_onvif=false, ONVIF can't extend)
+    → Timer still expires at t=10
+
+t=9: Face detected
+    → member_detected { occupancyTriggeredLocks: [A], onvifTriggered: true }
+    → Lock A unlocked (specific) ✓
+    → Lock B unlocked (legacy) ✓
+```
+
+### Implementation Note
+
+Timer extension should happen in `trigger_face_detection()` (Python), NOT in `feed_detecting()` (GStreamer), because:
+1. `trigger_face_detection()` knows the `lock_asset_id` value
+2. `trigger_face_detection()` has access to `started_by_onvif` context
+3. `feed_detecting()` doesn't have context about trigger source
+
+```python
+def trigger_face_detection(cam_ip, lock_asset_id=None):
+    global trigger_lock_context
+
+    is_new_detection = cam_ip not in trigger_lock_context
+
+    # Initialize context for new detection
+    if is_new_detection:
+        trigger_lock_context[cam_ip] = {
+            'started_by_onvif': (lock_asset_id is None),  # Set once, never changes
+            'onvif_triggered': False,
+            'specific_locks': set(),
+            'active_occupancy': set()
+        }
+
+    context = trigger_lock_context[cam_ip]
+
+    # Merge trigger info
+    if lock_asset_id is None:
+        context['onvif_triggered'] = True
+    else:
+        context['specific_locks'].add(lock_asset_id)
+        context['active_occupancy'].add(lock_asset_id)
+
+    # ... validation checks ...
+
+    # Handle timer extension if already detecting
+    if thread_gstreamer.is_feeding:
+        should_extend = False
+
+        if lock_asset_id is not None:
+            # Occupancy trigger - ALWAYS extend
+            should_extend = True
+        elif context['started_by_onvif']:
+            # ONVIF trigger - only extend if detection started by ONVIF
+            should_extend = True
+
+        if should_extend:
+            thread_gstreamer.extend_timer(TIMER_DETECT)
+
+        return  # Context already merged, detection continues
+
+    # Start new detection
+    thread_gstreamer.feed_detecting(TIMER_DETECT)
+```
+
+**GStreamer needs new `extend_timer()` method:**
+```python
+def extend_timer(self, running_seconds):
+    """Extend the detection timer without resetting detection state"""
+    if self.feeding_timer is not None:
+        self.feeding_timer.cancel()
+
+    self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
+    self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
+    self.feeding_timer.start()
+    logger.info(f"{self.cam_ip} extend_timer - timer extended to {running_seconds}s")
+```
+
+---
+
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `py_handler.py` | Added `trigger_lock_context`, updated `trigger_face_detection()`, added `handle_occupancy_false()`, MQTT handlers, updated `member_detected` payload, updated `handle_notification()` |
+| `py_handler.py` | Added `trigger_lock_context` with `started_by_onvif`, updated `trigger_face_detection()` with timer extension logic, added `handle_occupancy_false()`, MQTT handlers, updated `member_detected` payload, updated `handle_notification()` |
+| `gstreamer_threading.py` | Added `extend_timer()` method |
 | `function.conf` | Added `stop_detection` to inputTopics |
 
 ---

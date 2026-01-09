@@ -622,7 +622,7 @@ class StreamCapture(threading.Thread):
             self.feeding_timer = None
             logger.info(f"{self.cam_ip} feed_detecting after cancel feeding_timer")
 
-        with self.detecting_lock:            
+        with self.detecting_lock:
             self.is_feeding = True
             self.running_seconds = running_seconds
             self.detecting_txn = str(uuid.uuid4())
@@ -634,6 +634,31 @@ class StreamCapture(threading.Thread):
 
         logger.info(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
         logger.info(f"{self.cam_ip} feed_detecting out")
+
+
+    def extend_timer(self, running_seconds):
+        """Extend the detection timer without resetting detection state.
+
+        Called when a new trigger arrives while detection is already running.
+        Only resets the timer, does not affect is_feeding or other state.
+        """
+        logger.info(f"{self.cam_ip} extend_timer in, extending to {running_seconds}s")
+
+        if not self.is_feeding:
+            logger.warning(f"{self.cam_ip} extend_timer out - not currently feeding, ignoring")
+            return
+
+        # Cancel existing timer
+        if self.feeding_timer is not None:
+            self.feeding_timer.cancel()
+            self.feeding_timer = None
+
+        # Create new timer with fresh duration
+        self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
+        self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
+        self.feeding_timer.start()
+
+        logger.info(f"{self.cam_ip} extend_timer out - timer extended to {running_seconds}s")
 
 
     def stop_feeding(self):

@@ -1359,19 +1359,26 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
             logger.info('trigger_face_detection - skipping ONVIF trigger, no legacy locks: %s', cam_ip)
             return
 
-    # Initialize/merge context (do this BEFORE any validation that might return early)
-    if cam_ip not in trigger_lock_context:
+    # Check if this is a new detection or extending existing one
+    is_new_detection = cam_ip not in trigger_lock_context
+
+    # Initialize context for new detection
+    if is_new_detection:
         trigger_lock_context[cam_ip] = {
+            'started_by_onvif': (lock_asset_id is None),  # Set once, never changes
             'onvif_triggered': False,
             'specific_locks': set(),
             'active_occupancy': set()
         }
 
+    context = trigger_lock_context[cam_ip]
+
+    # Merge trigger info
     if lock_asset_id is None:
-        trigger_lock_context[cam_ip]['onvif_triggered'] = True
+        context['onvif_triggered'] = True
     else:
-        trigger_lock_context[cam_ip]['specific_locks'].add(lock_asset_id)
-        trigger_lock_context[cam_ip]['active_occupancy'].add(lock_asset_id)
+        context['specific_locks'].add(lock_asset_id)
+        context['active_occupancy'].add(lock_asset_id)
 
     # Check if detection is enabled for this camera
     if not camera_item.get('isDetecting', False):
@@ -1393,7 +1400,29 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
         logger.warning('trigger_face_detection - gstreamer not playing: %s', cam_ip)
         return
 
-    # Trigger face detection
+    # Handle timer extension if already detecting
+    if thread_gstreamer.is_feeding:
+        should_extend = False
+
+        if lock_asset_id is not None:
+            # Occupancy trigger - ALWAYS extend timer
+            should_extend = True
+            logger.info('trigger_face_detection - occupancy trigger, will extend timer')
+        elif context.get('started_by_onvif', False):
+            # ONVIF trigger - only extend if detection was started by ONVIF
+            should_extend = True
+            logger.info('trigger_face_detection - ONVIF trigger, started_by_onvif=True, will extend timer')
+        else:
+            logger.info('trigger_face_detection - ONVIF trigger, started_by_onvif=False, timer NOT extended')
+
+        if should_extend:
+            thread_gstreamer.extend_timer(int(os.environ['TIMER_DETECT']))
+            logger.info('trigger_face_detection - timer extended for camera: %s', cam_ip)
+
+        logger.info('trigger_face_detection out - context merged, detection continues')
+        return
+
+    # Start new face detection
     fetch_members()
     if thread_detector is not None:
         thread_gstreamer.feed_detecting(int(os.environ['TIMER_DETECT']))
