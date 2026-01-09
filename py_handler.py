@@ -96,6 +96,10 @@ thread_gstreamers = {}
 # Initialize the camera_items
 camera_items = {}
 
+# Initialize the trigger_lock_context for tracking lock triggers per camera
+# Structure: { cam_ip: { 'onvif_triggered': bool, 'specific_locks': set(), 'active_occupancy': set() } }
+trigger_lock_context = {}
+
 # Initialize the thread_monitors
 thread_monitors = {}
 
@@ -157,6 +161,19 @@ def function_handler(event, context):
             elif key == "TIMER_INIT_ENV_VAR":
                 init_env_var()
                 break
+    elif topic == "gocheckin/trigger_detection":
+        logger.info('function_handler trigger_detection event: %s', json.dumps(event))
+        cam_ip = event.get('cam_ip')
+        lock_asset_id = event.get('lock_asset_id')  # May be None for ONVIF trigger
+        if cam_ip:
+            trigger_face_detection(cam_ip, lock_asset_id)
+    elif topic == "gocheckin/stop_detection":
+        logger.info('function_handler stop_detection event: %s', json.dumps(event))
+        cam_ip = event.get('cam_ip')
+        lock_asset_id = event.get('lock_asset_id')
+        if cam_ip and lock_asset_id:
+            handle_occupancy_false(cam_ip, lock_asset_id)
+
 
 def has_config_changed(current_item, new_item):
     """Compare camera configurations to determine if update is needed"""
@@ -969,11 +986,27 @@ def fetch_scanner_output_queue():
             
             if not message is None and 'type' in message:
                 if message['type'] == 'member_detected':
-                    if 'cam_ip' in message:
-                        cam_ip = message['cam_ip']
+                    cam_ip = message.get('cam_ip')
+
+                    # Add trigger context to payload before publishing
+                    if 'payload' in message and cam_ip:
+                        context = trigger_lock_context.get(cam_ip, {
+                            'onvif_triggered': False,
+                            'specific_locks': set()
+                        })
+                        message['payload']['onvifTriggered'] = context.get('onvif_triggered', False)
+                        message['payload']['occupancyTriggeredLocks'] = list(context.get('specific_locks', set()))
+
+                        logger.info(f"fetch_scanner_output_queue, member_detected with trigger context: onvifTriggered={message['payload']['onvifTriggered']}, occupancyTriggeredLocks={message['payload']['occupancyTriggeredLocks']}")
+
+                        # Clear context after adding to payload
+                        if cam_ip in trigger_lock_context:
+                            del trigger_lock_context[cam_ip]
+
+                    if cam_ip:
                         logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
                         thread_gstreamers[cam_ip].stop_feeding()
-                    
+
                     if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message and uploader_app is not None):
                         local_file_path = message['local_file_path']
                         property_object_key = message['payload']['propertyImgKey']
@@ -991,7 +1024,7 @@ def fetch_scanner_output_queue():
                     if 'keyNotified' in message:
                         keyNotified = message['keyNotified']
 
-                        if not keyNotified:    
+                        if not keyNotified:
                             update_member(message['payload']['reservationCode'], message['payload']['memberNo'])
 
                             timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
@@ -1284,19 +1317,131 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
         return
 
 
-    # detect
-    if camera_item['isDetecting']:
-        
-        fetch_members()
-        if thread_detector is not None:
-            thread_gstreamer.feed_detecting(int(os.environ['TIMER_DETECT']))
-
-    # record 
+    # record
     if camera_item['isRecording']:
         if thread_gstreamer.start_recording(utc_time):
             set_recording_time(cam_ip, int(os.environ['TIMER_RECORD']), utc_time)
 
+    # detect - ONVIF motion triggers detection with lock_asset_id=None
+    # The selective unlock logic is handled by trigger_face_detection() and TypeScript
+    if camera_item['isDetecting']:
+        trigger_face_detection(cam_ip, None)  # None = ONVIF trigger (unlock legacy locks only)
+
     logger.info(f"{cam_ip} handle_notification out")
+
+
+def trigger_face_detection(cam_ip, lock_asset_id=None):
+    """Trigger face detection for a camera
+
+    Args:
+        cam_ip: Camera IP address
+        lock_asset_id: Optional lock assetId that triggered detection
+                       None = ONVIF motion (unlock legacy locks)
+                       string = specific lock occupancy (unlock that lock)
+    """
+    global camera_items, thread_gstreamers, thread_detector, trigger_lock_context
+
+    logger.info('trigger_face_detection in cam_ip: %s, lock_asset_id: %s', cam_ip, lock_asset_id)
+
+    # Validate camera exists
+    if cam_ip not in camera_items:
+        logger.warning('trigger_face_detection - camera not found: %s', cam_ip)
+        return
+
+    camera_item = camera_items[cam_ip]
+
+    # Skip ONVIF trigger if no legacy locks (all locks have sensors)
+    if lock_asset_id is None:
+        camera_locks = camera_item.get('locks', {})
+        # withKeypad=true means has occupancy sensor, withKeypad=false/missing means legacy
+        has_legacy = any(not lock.get('withKeypad', False) for lock in camera_locks.values())
+        if not has_legacy:
+            logger.info('trigger_face_detection - skipping ONVIF trigger, no legacy locks: %s', cam_ip)
+            return
+
+    # Initialize/merge context (do this BEFORE any validation that might return early)
+    if cam_ip not in trigger_lock_context:
+        trigger_lock_context[cam_ip] = {
+            'onvif_triggered': False,
+            'specific_locks': set(),
+            'active_occupancy': set()
+        }
+
+    if lock_asset_id is None:
+        trigger_lock_context[cam_ip]['onvif_triggered'] = True
+    else:
+        trigger_lock_context[cam_ip]['specific_locks'].add(lock_asset_id)
+        trigger_lock_context[cam_ip]['active_occupancy'].add(lock_asset_id)
+
+    # Check if detection is enabled for this camera
+    if not camera_item.get('isDetecting', False):
+        logger.info('trigger_face_detection - detection not enabled for camera: %s', cam_ip)
+        return
+
+    # Validate GStreamer thread exists and is ready
+    if cam_ip not in thread_gstreamers:
+        logger.warning('trigger_face_detection - gstreamer not found: %s', cam_ip)
+        return
+
+    thread_gstreamer = thread_gstreamers[cam_ip]
+
+    if not thread_gstreamer.is_alive():
+        logger.warning('trigger_face_detection - gstreamer not alive: %s', cam_ip)
+        return
+
+    if not thread_gstreamer.is_playing:
+        logger.warning('trigger_face_detection - gstreamer not playing: %s', cam_ip)
+        return
+
+    # Trigger face detection
+    fetch_members()
+    if thread_detector is not None:
+        thread_gstreamer.feed_detecting(int(os.environ['TIMER_DETECT']))
+        logger.info('trigger_face_detection - started for camera: %s', cam_ip)
+    else:
+        logger.warning('trigger_face_detection - detector thread not available')
+
+    logger.info('trigger_face_detection out')
+
+
+def handle_occupancy_false(cam_ip, lock_asset_id):
+    """Handle occupancy:false - remove lock from context and possibly stop detection early"""
+    global trigger_lock_context, thread_gstreamers, camera_items
+
+    logger.info('handle_occupancy_false in cam_ip: %s, lock_asset_id: %s', cam_ip, lock_asset_id)
+
+    if cam_ip not in trigger_lock_context:
+        logger.info('handle_occupancy_false - no context for camera: %s', cam_ip)
+        return
+
+    context = trigger_lock_context[cam_ip]
+
+    # Remove from both sets
+    context['specific_locks'].discard(lock_asset_id)
+    context['active_occupancy'].discard(lock_asset_id)
+
+    logger.info('handle_occupancy_false - context after removal: %s', context)
+
+    # Check if should stop detection early
+    if cam_ip in thread_gstreamers:
+        thread_gstreamer = thread_gstreamers[cam_ip]
+        if thread_gstreamer is not None and thread_gstreamer.is_feeding:
+            # Stop if: active_occupancy empty AND no ONVIF triggered AND no legacy locks
+            if len(context['active_occupancy']) == 0 and not context['onvif_triggered']:
+                camera_locks = camera_items.get(cam_ip, {}).get('locks', {})
+                # withKeypad=true means has occupancy sensor, withKeypad=false/missing means legacy
+                has_legacy = any(not lock.get('withKeypad', False) for lock in camera_locks.values())
+                if not has_legacy:
+                    logger.info('handle_occupancy_false - stopping detection early for: %s', cam_ip)
+                    thread_gstreamer.stop_feeding()
+                    del trigger_lock_context[cam_ip]
+                else:
+                    logger.info('handle_occupancy_false - has legacy locks, continuing detection: %s', cam_ip)
+            else:
+                logger.info('handle_occupancy_false - other triggers active, continuing detection: %s', cam_ip)
+
+    logger.info('handle_occupancy_false out')
+
 
 def subscribe_onvif(cam_ip):
     logger.info(f"{cam_ip} subscribe_onvif in")
