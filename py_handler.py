@@ -956,6 +956,8 @@ def fetch_scanner_output_queue():
             record_start = record_start_internal.split('.')[0] + 'Z'
             record_end = record_end_internal.split('.')[0] + 'Z'
 
+            logger.info(f"{message['payload']['cam_ip']} video_clipped ms precision: record_start_internal={record_start_internal} → truncated={record_start}")
+
             payload = {
                 "hostId": os.environ['HOST_ID'],
                 "propertyCode": os.environ['PROPERTY_CODE'],
