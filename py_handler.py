@@ -530,9 +530,8 @@ def start_http_server():
                             try:
                                 if is_motion_value:
                                     local_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
-                                    logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
-                                    logger.info(f"{cam_ip} ONVIF timestamp comparison: camera_utc_time={utc_time} vs local_now={local_now}")
-                                    handle_notification(cam_ip, utc_time, is_motion_value)
+                                    logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, camera_utc_time={utc_time}, using local_now={local_now}")
+                                    handle_notification(cam_ip, local_now, is_motion_value)
                             except Exception as e:
                                 # Log any errors in the async processing
                                 logger.error(f"Exception in async_handle for ONVIF notification: {e}")
@@ -952,13 +951,11 @@ def fetch_scanner_output_queue():
 
             uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 
-            # Truncate to seconds for cloud payload
-            record_start_internal = message['payload']['start_datetime']
-            record_end_internal = message['payload']['end_datetime']
-            record_start = record_start_internal.split('.')[0] + 'Z'
-            record_end = record_end_internal.split('.')[0] + 'Z'
+            # Keep milliseconds for unique DynamoDB keys (avoids collision when multiple cameras record at same second)
+            record_start = message['payload']['start_datetime']
+            record_end = message['payload']['end_datetime']
 
-            logger.info(f"{message['payload']['cam_ip']} video_clipped ms precision: record_start_internal={record_start_internal} → truncated={record_start}")
+            logger.info(f"{message['payload']['cam_ip']} video_clipped with ms precision: record_start={record_start}, record_end={record_end}")
 
             payload = {
                 "hostId": os.environ['HOST_ID'],
