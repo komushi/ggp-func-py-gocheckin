@@ -438,8 +438,9 @@ def start_http_server():
     global httpd
     global thread_monitors
 
-    class ReusableTCPServer(socketserver.TCPServer):
+    class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         allow_reuse_address = True
+        daemon_threads = True  # Threads die when main thread exits
 
     class NewHandler(http.server.SimpleHTTPRequestHandler):
         def log_message(self, format, *args):
@@ -609,7 +610,7 @@ def start_http_server():
         # Define the server address and port
         server_address = ('', http_port)
 
-        httpd = ReusableTCPServer(server_address, NewHandler)
+        httpd = ThreadedTCPServer(server_address, NewHandler)
         
         httpd.serve_forever()
     except Exception as e:
