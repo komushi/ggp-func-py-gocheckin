@@ -529,7 +529,9 @@ def start_http_server():
                         def async_handle():
                             try:
                                 if is_motion_value:
+                                    local_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
                                     logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, utc_time={utc_time}")
+                                    logger.info(f"{cam_ip} ONVIF timestamp comparison: camera_utc_time={utc_time} vs local_now={local_now}")
                                     handle_notification(cam_ip, utc_time, is_motion_value)
                             except Exception as e:
                                 # Log any errors in the async processing
