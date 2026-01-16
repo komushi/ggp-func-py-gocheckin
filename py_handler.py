@@ -1504,12 +1504,15 @@ def subscribe_onvif(cam_ip):
         logger.info(f"{cam_ip} subscribe_onvif out OnvifConnector　cannot be created")
         return
 
-    logger.info(f"{cam_ip} subscribe_onvif camera_item: {camera_item} old_onvif_sub_address: {old_onvif_sub_address}")
+    # Check if ONVIF subscription is enabled in camera settings
+    onvif_settings = camera_item.get('onvif', {})
+    is_subscription_enabled = onvif_settings.get('isSubscription', False)
 
-        
-    # if 'isDetecting' in camera_item or 'isRecording' in camera_item:
-    if camera_item['isDetecting'] or camera_item['isRecording']:
-        
+    logger.info(f"{cam_ip} subscribe_onvif camera_item: {camera_item} old_onvif_sub_address: {old_onvif_sub_address} is_subscription_enabled: {is_subscription_enabled}")
+
+    # Only subscribe if isSubscription is enabled AND (isDetecting OR isRecording)
+    if is_subscription_enabled and (camera_item['isDetecting'] or camera_item['isRecording']):
+
         onvif_sub_address = onvif_connectors[cam_ip].subscribe(cam_ip, old_onvif_sub_address, scanner_local_ip, http_port)
 
         logger.info(f"subscribe_onvif subscribe cam_ip: {cam_ip} onvif_sub_address: {onvif_sub_address}")
@@ -1517,8 +1520,7 @@ def subscribe_onvif(cam_ip):
         camera_item['onvifSubAddress'] = onvif_sub_address
 
     else:
-        # if cam_ip in onvif_connectors and onvif_connectors[cam_ip] is not None:
-            # if camera_item['onvif']['isSubscription']:
+        # Unsubscribe if isSubscription is disabled or both isDetecting and isRecording are false
         if old_onvif_sub_address is not None:
             onvif_connectors[cam_ip].unsubscribe(cam_ip, old_onvif_sub_address)
             camera_item['onvifSubAddress'] = None
