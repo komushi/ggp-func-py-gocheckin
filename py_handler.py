@@ -1361,6 +1361,32 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
             logger.info('trigger_face_detection - skipping ONVIF trigger, no legacy locks: %s', cam_ip)
             return
 
+    # Check if detection is enabled for this camera
+    if not camera_item.get('isDetecting', False):
+        logger.info('trigger_face_detection - detection not enabled for camera: %s', cam_ip)
+        return
+
+    # Validate GStreamer thread exists and is ready
+    if cam_ip not in thread_gstreamers:
+        logger.warning('trigger_face_detection - gstreamer not found: %s', cam_ip)
+        return
+
+    thread_gstreamer = thread_gstreamers[cam_ip]
+
+    if not thread_gstreamer.is_alive():
+        logger.warning('trigger_face_detection - gstreamer not alive: %s', cam_ip)
+        return
+
+    if not thread_gstreamer.is_playing:
+        logger.warning('trigger_face_detection - gstreamer not playing: %s', cam_ip)
+        return
+
+    # Check if existing context is stale (detection not running)
+    # This fixes the bug where context persists after detection ends without face match
+    if cam_ip in trigger_lock_context and not thread_gstreamer.is_feeding:
+        logger.info('trigger_face_detection - clearing stale context for: %s', cam_ip)
+        del trigger_lock_context[cam_ip]
+
     # Check if this is a new detection or extending existing one
     is_new_detection = cam_ip not in trigger_lock_context
 
@@ -1381,26 +1407,6 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
     else:
         context['specific_locks'].add(lock_asset_id)
         context['active_occupancy'].add(lock_asset_id)
-
-    # Check if detection is enabled for this camera
-    if not camera_item.get('isDetecting', False):
-        logger.info('trigger_face_detection - detection not enabled for camera: %s', cam_ip)
-        return
-
-    # Validate GStreamer thread exists and is ready
-    if cam_ip not in thread_gstreamers:
-        logger.warning('trigger_face_detection - gstreamer not found: %s', cam_ip)
-        return
-
-    thread_gstreamer = thread_gstreamers[cam_ip]
-
-    if not thread_gstreamer.is_alive():
-        logger.warning('trigger_face_detection - gstreamer not alive: %s', cam_ip)
-        return
-
-    if not thread_gstreamer.is_playing:
-        logger.warning('trigger_face_detection - gstreamer not playing: %s', cam_ip)
-        return
 
     # Handle timer extension if already detecting
     if thread_gstreamer.is_feeding:
