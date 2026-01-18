@@ -623,7 +623,15 @@ class StreamCapture(threading.Thread):
             self.feeding_timer = None
             logger.info(f"{self.cam_ip} feed_detecting after cancel feeding_timer")
 
+        # FIX: Flush decode pipeline to reset stale decoder state after idle
+        # This prevents "not-negotiated" error when resuming after long idle periods
+        logger.info(f"{self.cam_ip} feed_detecting flushing decode pipeline")
+        self.decode_appsrc.send_event(Gst.Event.new_flush_start())
+        self.decode_appsrc.send_event(Gst.Event.new_flush_stop(True))
+
         with self.detecting_lock:
+            # FIX: Clear stale buffered frames after flush
+            self.detecting_buffer.clear()
             self.is_feeding = True
             self.running_seconds = running_seconds
             self.detecting_txn = str(uuid.uuid4())
