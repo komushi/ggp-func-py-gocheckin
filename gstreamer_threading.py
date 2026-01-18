@@ -253,7 +253,7 @@ class StreamCapture(threading.Thread):
 
         else:
             self.push_detecting_buffer()
-            
+
             logger.debug(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
             if self.feeding_count > self.framerate * self.running_seconds:
@@ -446,7 +446,8 @@ class StreamCapture(threading.Thread):
             if self.start_playing():
                 logger.info(f"{self.cam_ip} StreamCapture run, start_playing result: {True} {self.name}")
 
-                self.pipeline_decode.set_state(Gst.State.PLAYING)
+                decode_state_ret = self.pipeline_decode.set_state(Gst.State.PLAYING)
+                logger.info(f"{self.cam_ip} Decode pipeline set_state(PLAYING) returned: {decode_state_ret}")
 
                 bus = self.pipeline.get_bus()
                 decode_bus = self.pipeline_decode.get_bus()
@@ -769,7 +770,7 @@ class StreamCapture(threading.Thread):
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
                 old_state, new_state, pending_state = message.parse_state_changed()
-                logger.debug(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
+                logger.info(f"{self.cam_ip} Decode Pipeline state changed from {old_state.value_nick} to {new_state.value_nick} with pending_state {pending_state.value_nick}")
         elif message.type == Gst.MessageType.WARNING:
             logger.warning(f"Warning message {message.parse_warning()}： {message.type}")
         elif message.type == Gst.MessageType.ELEMENT:
