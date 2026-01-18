@@ -71,29 +71,6 @@ The decode pipeline is configured with `is-live=true format=time`, expecting con
 | **No keyframe guarantee** | Resume may not start with IDR frame |
 | **No discontinuity signal** | Pipeline receives no flush/EOS when feeding stops |
 
-### Code Analysis
-
-**`stop_feeding()` does nothing to pipeline:**
-```python
-def stop_feeding(self):
-    self.is_feeding = False
-    self.feeding_count = 0
-    self.metadata_store.clear()
-    # NO PIPELINE FLUSH!
-    # NO EOS TO APPSRC!
-    # Decode pipeline just stops receiving data...
-```
-
-**`feed_detecting()` has no reset:**
-```python
-def feed_detecting(self, running_seconds):
-    if self.is_feeding:
-        return
-    with self.detecting_lock:
-        self.is_feeding = True  # Just sets flag, no pipeline reset
-        ...
-```
-
 ---
 
 ## Confirmed Evidence (2026-01-18 17:20:29)
@@ -131,82 +108,96 @@ decode_pipeline_state=playing, thread=Thread-Gst-192.168.22.3-16:26:44.712152
 
 **Conclusion**: 12 frames pushed, 0 decoded. The decoder was completely stuck after 37 minutes of idle.
 
-### Reproduction Data
-
-| Time | Idle Duration | Pipeline Age | Result |
-|------|---------------|--------------|--------|
-| 14:20:31 | ~5 min | ~12 min | **ERROR** |
-| 15:03:24 | ~19 min | ~23 min | SUCCESS |
-| 15:30:18 | ~16 min | ~50 min | SUCCESS |
-| 15:57:16 | ~6.5 min | ~6.5 min | SUCCESS |
-| **17:20:29** | **~37 min** | **~54 min** | **ERROR** |
-
-The error is intermittent - depends on decoder internal state, buffer contents, and timing.
-
 ---
 
-## Fix Options
+## Fix Attempts
 
-| Option | Approach | When Applied | Pros | Cons | Complexity |
-|--------|----------|--------------|------|------|------------|
-| **1. Flush on Resume** | Send `flush_start`/`flush_stop` events | On resume | Resets decoder state; standard GStreamer pattern; fast | May cause brief frame drop | Medium |
-| **2. Reset Pipeline State** | Cycle `PAUSED → PLAYING` | On resume | Full state reset; guaranteed clean | Slower (~100-500ms) | Medium |
-| **3. Send EOS on Stop** | Send `end-of-stream` to appsrc | On stop | Clean stream termination | Complex state management | High |
-| **4. Wait for Keyframe** | Clear buffer; skip non-keyframes | On resume | Ensures valid keyframe | 1-2s delay; needs keyframe detection | Medium-High |
+### Attempt 1: Flush on Resume (FAILED)
 
-### Option 1: Flush on Resume (Recommended) - IMPLEMENTED
+**Approach**: Send `flush_start`/`flush_stop` events in `feed_detecting()` before setting `is_feeding = True`.
 
 ```python
 def feed_detecting(self, running_seconds):
     if self.is_feeding:
         return
 
-    # 1. Flush decode pipeline FIRST (reset stale decoder state)
+    # Flush decode pipeline to reset stale decoder state
     self.decode_appsrc.send_event(Gst.Event.new_flush_start())
     self.decode_appsrc.send_event(Gst.Event.new_flush_stop(True))
 
-    # 2. Clear buffer SECOND (discard stale frames)
     with self.detecting_lock:
         self.detecting_buffer.clear()
         self.is_feeding = True
         ...
 ```
 
-**Why this order matters**:
+**Why it failed**: Flush causes the decode pipeline to transition to PAUSED state. It takes ~1 second to recover back to PLAYING. But `is_feeding = True` is set immediately, so frames get pushed to the PAUSED pipeline before it recovers.
 
-| Step | Action | Purpose |
-|------|--------|---------|
-| 1 | `flush_start()` | Stop pipeline, discard internal decoder buffers |
-| 2 | `flush_stop(True)` | Resume pipeline, reset running time (fixes timestamp discontinuity) |
-| 3 | `detecting_buffer.clear()` | Don't push old frames into freshly reset pipeline |
-| 4 | `is_feeding = True` | Now ready for fresh frames |
+**Evidence from logs (2026-01-19 01:00:38):**
+```
+01:00:37.783  flush → is_feeding = True (immediate)
+01:00:37.927  Decode Pipeline state changed from paused to paused (pending paused)
+01:00:38.128  ERROR: not-negotiated (pipeline still PAUSED, 4 frames pushed)
+```
 
-**Why NOT on stop**: Pipeline becomes stale during idle anyway. Reset at resume is the right time.
+**Successful flush (for comparison):**
+```
+00:15:20.114  flush
+00:15:20.228  paused → paused (pending paused)
+00:15:20.635  paused → paused (pending playing)
+00:15:21.042  paused → playing  ← ~1 second to recover
+```
 
-**Why recommended**:
-- Standard GStreamer pattern for stream discontinuities
-- Fast (no pipeline state change overhead)
-- Resets decoder internal state without full restart
-- Combined with buffer clear, ensures no stale frames pushed
+The error is a **race condition**: if frames arrive before the pipeline recovers to PLAYING (~1 second), the error occurs.
 
-### Option 2: Reset Pipeline State (Fallback)
+---
+
+### Attempt 2: Flush on Stop (IMPLEMENTED)
+
+**Approach**: Move flush from `feed_detecting()` to `stop_feeding()`. Flush when stopping detection, not when resuming.
 
 ```python
+def stop_feeding(self):
+    with self.detecting_lock:
+        self.is_feeding = False
+        self.feeding_count = 0
+        self.decoding_count = 0
+
+    # FIX: Flush decode pipeline on STOP (not on resume)
+    # This resets decoder state while no frames are being pushed.
+    # Pipeline will recover to PLAYING during idle period,
+    # so it's ready when next detection starts.
+    logger.info(f"{self.cam_ip} stop_feeding flushing decode pipeline")
+    self.decode_appsrc.send_event(Gst.Event.new_flush_start())
+    self.decode_appsrc.send_event(Gst.Event.new_flush_stop(True))
+
+    with self.metadata_lock:
+        self.metadata_store.clear()
+
+
 def feed_detecting(self, running_seconds):
     if self.is_feeding:
         return
 
-    # Reset decode pipeline by cycling through PAUSED
-    self.pipeline_decode.set_state(Gst.State.PAUSED)
-    self.pipeline_decode.get_state(Gst.CLOCK_TIME_NONE)
-    self.pipeline_decode.set_state(Gst.State.PLAYING)
-
+    # No flush here - pipeline already recovered during idle
     with self.detecting_lock:
+        self.detecting_buffer.clear()
         self.is_feeding = True
         ...
 ```
 
-Use if Option 1 doesn't fully resolve the issue.
+**Why this works**:
+
+| Timing | Flush on Resume (failed) | Flush on Stop (fix) |
+|--------|--------------------------|---------------------|
+| **On stop** | Nothing | Flush → PAUSED |
+| **During idle** | Decoder state stale | Pipeline recovers to PLAYING |
+| **On resume** | Flush → PAUSED → race condition | Already PLAYING → ready |
+
+**Benefits**:
+- Flush happens when `is_feeding = False`, so no frames are pushed during PAUSED state
+- Pipeline has entire idle period (~seconds to minutes) to recover to PLAYING
+- On resume, pipeline is already in PLAYING state - no race condition
 
 ---
 
@@ -227,16 +218,21 @@ LIMIT 1000;
 
 When error occurs, these logs are captured automatically:
 
-1. **ERROR CONTEXT** (line 775-783):
+1. **ERROR CONTEXT**:
    ```
    192.168.22.3 ERROR CONTEXT: is_feeding=True, is_playing=True, feeding_count=12,
    decoding_count=0, detecting_buffer_len=0, main_pipeline_state=playing,
    decode_pipeline_state=playing, thread=Thread-Gst-192.168.22.3-16:26:44.712152
    ```
 
-2. **Decode pipeline state changes** (line 789):
+2. **Decode pipeline state changes**:
    ```
    192.168.22.3 Decode Pipeline state changed from paused to playing
+   ```
+
+3. **Flush on stop** (new fix):
+   ```
+   192.168.22.3 stop_feeding flushing decode pipeline
    ```
 
 ### ERROR CONTEXT Fields
@@ -251,13 +247,6 @@ When error occurs, these logs are captured automatically:
 | `main_pipeline_state` | GStreamer state of main pipeline |
 | `decode_pipeline_state` | GStreamer state of decode pipeline |
 | `thread` | Thread name (contains creation timestamp) |
-
-### When Error Occurs
-
-Collect logs ±60 seconds around error timestamp to determine:
-- Idle period (time since last `feed_detecting`)
-- What triggered detection (ONVIF motion, occupancy)
-- Pipeline age (from thread name timestamp)
 
 ---
 
@@ -276,5 +265,6 @@ Collect logs ±60 seconds around error timestamp to determine:
 | 2026-01-18 | Identified "resume after idle" as root cause |
 | 2026-01-18 | Added ERROR CONTEXT diagnostic logging |
 | 2026-01-18 | **ROOT CAUSE CONFIRMED**: feeding_count=12, decoding_count=0 proves decoder stuck after 37 min idle |
-| 2026-01-18 | Added fix options comparison; recommend Option 1 (Flush on Resume) |
-| 2026-01-18 | **FIX IMPLEMENTED**: Option 1 - flush decode pipeline + clear buffer on resume in `feed_detecting()` |
+| 2026-01-18 | Implemented flush on resume in `feed_detecting()` |
+| 2026-01-19 | **Flush on resume FAILED**: Causes race condition - pipeline goes PAUSED, frames arrive before recovery |
+| 2026-01-19 | **NEW FIX**: Moved flush to `stop_feeding()` - flush on stop, not on resume |
