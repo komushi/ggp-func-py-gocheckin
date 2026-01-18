@@ -765,7 +765,23 @@ class StreamCapture(threading.Thread):
             raise ValueError(f"{self.cam_ip} on_message_decode Gst.MessageType.EOS")
         elif message.type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
+
+            # Get pipeline states for diagnosis
+            _, main_state, _ = self.pipeline.get_state(0)
+            _, decode_state, _ = self.pipeline_decode.get_state(0)
+
+            # Log error with full context
             logger.error(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
+            logger.error(f"{self.cam_ip} ERROR CONTEXT: "
+                         f"is_feeding={self.is_feeding}, "
+                         f"is_playing={self.is_playing}, "
+                         f"feeding_count={self.feeding_count}, "
+                         f"decoding_count={self.decoding_count}, "
+                         f"detecting_buffer_len={len(self.detecting_buffer)}, "
+                         f"main_pipeline_state={main_state.value_nick}, "
+                         f"decode_pipeline_state={decode_state.value_nick}, "
+                         f"thread={threading.current_thread().name}")
+
             raise ValueError(f"{self.cam_ip} on_message_decode Gst.MessageType.ERROR: {err}, {debug}")
         elif message.type == Gst.MessageType.STATE_CHANGED:
             if isinstance(message.src, Gst.Pipeline):
