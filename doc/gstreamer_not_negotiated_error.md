@@ -152,9 +152,29 @@ The error is a **race condition**: if frames arrive before the pipeline recovers
 
 ---
 
-### Attempt 2: Flush on Stop (IMPLEMENTED)
+### Attempt 2: Flush on Stop (PARTIALLY WORKED)
 
 **Approach**: Move flush from `feed_detecting()` to `stop_feeding()`. Flush when stopping detection, not when resuming.
+
+**Result**: Worked for short idle periods (~11 minutes), but **failed after ~67 minutes idle**.
+
+**Evidence from logs (2026-01-19 06:50:04):**
+```
+05:43:27.538  stop_feeding + flush
+             ════════════════════════════════════════════════════════════
+                      ~67 MINUTES IDLE (pipeline in PAUSED state)
+             ════════════════════════════════════════════════════════════
+06:50:04.592  feed_detecting in
+06:50:04.934  ERROR: decode_pipeline_state=paused, feeding_count=4, decoding_count=0
+```
+
+**Why it failed**: After flush, pipeline stays in PAUSED state. After very long idle (~67 min), something in the pipeline becomes stale even though we flushed.
+
+---
+
+### Attempt 3: Flush on Stop + set_state(PLAYING) (IMPLEMENTED)
+
+**Approach**: After flush, explicitly set the decode pipeline back to PLAYING state so it doesn't sit idle in PAUSED.
 
 ```python
 def stop_feeding(self):
@@ -165,11 +185,15 @@ def stop_feeding(self):
 
     # FIX: Flush decode pipeline on STOP (not on resume)
     # This resets decoder state while no frames are being pushed.
-    # Pipeline will recover to PLAYING during idle period,
-    # so it's ready when next detection starts.
+    # Then re-assert PLAYING state so pipeline is ready for next detection.
     logger.info(f"{self.cam_ip} stop_feeding flushing decode pipeline")
     self.decode_appsrc.send_event(Gst.Event.new_flush_start())
     self.decode_appsrc.send_event(Gst.Event.new_flush_stop(True))
+
+    # Re-assert PLAYING state after flush to ensure pipeline is ready
+    # Without this, pipeline stays in PAUSED and may have issues after long idle
+    self.pipeline_decode.set_state(Gst.State.PLAYING)
+    logger.info(f"{self.cam_ip} stop_feeding set decode pipeline to PLAYING")
 
     with self.metadata_lock:
         self.metadata_store.clear()
@@ -179,25 +203,26 @@ def feed_detecting(self, running_seconds):
     if self.is_feeding:
         return
 
-    # No flush here - pipeline already recovered during idle
+    # No flush here - pipeline already in PLAYING state from stop_feeding
     with self.detecting_lock:
         self.detecting_buffer.clear()
         self.is_feeding = True
         ...
 ```
 
-**Why this works**:
+**Why this should work**:
 
-| Timing | Flush on Resume (failed) | Flush on Stop (fix) |
-|--------|--------------------------|---------------------|
-| **On stop** | Nothing | Flush → PAUSED |
-| **During idle** | Decoder state stale | Pipeline recovers to PLAYING |
-| **On resume** | Flush → PAUSED → race condition | Already PLAYING → ready |
+| Timing | Flush on Stop (Attempt 2) | Flush + set_state(PLAYING) (Attempt 3) |
+|--------|---------------------------|----------------------------------------|
+| **On stop** | Flush → PAUSED | Flush → PAUSED → PLAYING |
+| **During idle** | Sits in PAUSED (stale after long time) | Stays in PLAYING (active, ready) |
+| **On resume** | May fail after long idle | Pipeline already PLAYING → ready |
 
 **Benefits**:
-- Flush happens when `is_feeding = False`, so no frames are pushed during PAUSED state
-- Pipeline has entire idle period (~seconds to minutes) to recover to PLAYING
-- On resume, pipeline is already in PLAYING state - no race condition
+- Flush resets decoder state (clears stale buffers)
+- `set_state(PLAYING)` ensures pipeline is active during idle
+- Pipeline is immediately ready when next detection starts
+- No race condition on resume
 
 ---
 
@@ -230,9 +255,10 @@ When error occurs, these logs are captured automatically:
    192.168.22.3 Decode Pipeline state changed from paused to playing
    ```
 
-3. **Flush on stop** (new fix):
+3. **Flush on stop + set PLAYING** (current fix):
    ```
    192.168.22.3 stop_feeding flushing decode pipeline
+   192.168.22.3 stop_feeding set decode pipeline to PLAYING
    ```
 
 ### ERROR CONTEXT Fields
@@ -267,4 +293,6 @@ When error occurs, these logs are captured automatically:
 | 2026-01-18 | **ROOT CAUSE CONFIRMED**: feeding_count=12, decoding_count=0 proves decoder stuck after 37 min idle |
 | 2026-01-18 | Implemented flush on resume in `feed_detecting()` |
 | 2026-01-19 | **Flush on resume FAILED**: Causes race condition - pipeline goes PAUSED, frames arrive before recovery |
-| 2026-01-19 | **NEW FIX**: Moved flush to `stop_feeding()` - flush on stop, not on resume |
+| 2026-01-19 | **Attempt 2**: Moved flush to `stop_feeding()` - flush on stop, not on resume |
+| 2026-01-19 | **Attempt 2 FAILED**: Error still occurred after ~67 min idle - pipeline stuck in PAUSED |
+| 2026-01-19 | **Attempt 3**: Added `set_state(PLAYING)` after flush to keep pipeline active during idle |

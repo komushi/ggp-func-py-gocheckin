@@ -680,11 +680,15 @@ class StreamCapture(threading.Thread):
 
         # FIX: Flush decode pipeline on STOP (not on resume)
         # This resets decoder state while no frames are being pushed.
-        # Pipeline will recover to PLAYING during idle period,
-        # so it's ready when next detection starts.
+        # Then re-assert PLAYING state so pipeline is ready for next detection.
         logger.info(f"{self.cam_ip} stop_feeding flushing decode pipeline")
         self.decode_appsrc.send_event(Gst.Event.new_flush_start())
         self.decode_appsrc.send_event(Gst.Event.new_flush_stop(True))
+
+        # Re-assert PLAYING state after flush to ensure pipeline is ready
+        # Without this, pipeline stays in PAUSED and may have issues after long idle
+        self.pipeline_decode.set_state(Gst.State.PLAYING)
+        logger.info(f"{self.cam_ip} stop_feeding set decode pipeline to PLAYING")
 
         with self.metadata_lock:
             self.metadata_store.clear()
