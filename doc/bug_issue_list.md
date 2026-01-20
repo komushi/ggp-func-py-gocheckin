@@ -7,7 +7,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | # | Bug | Status | Priority | File |
 |---|-----|--------|----------|------|
 | 1 | Stale Trigger Context (`onvifTriggered=True` when ONVIF disabled) | **FIXED** | High | `stale_trigger_context_bug.md` |
-| 2 | GStreamer "not-negotiated" Error | **OBSERVING** | High | `gstreamer_not_negotiated_error.md` |
+| 2 | GStreamer "not-negotiated" Error | **TESTING FIX** | High | `gstreamer_not_negotiated_error.md` |
 | 3 | OOM / Memory Leak Issue | **OPEN** | High | `OOM_MEMORY_LEAK_ISSUE.md` |
 | 4 | ONVIF `isSubscription` Setting Not Checked | **FIXED** | Medium | `bug_onvif_isSubscription_not_checked.md` |
 
@@ -48,7 +48,7 @@ See `stale_trigger_context_bug.md` for full details and regression test.
 
 ## Bug #2: GStreamer "not-negotiated" Error
 
-**Status:** OBSERVING (Updated 2026-01-20)
+**Status:** TESTING FIX (Updated 2026-01-20)
 
 ### Summary
 The decode pipeline (`appsrc → h265parse → avdec → appsink`) intermittently fails with "not-negotiated" error after idle periods. Multiple fix attempts have failed. Currently observing baseline error frequency.
@@ -97,10 +97,18 @@ streaming stopped, reason not-negotiated (-4)
 | 2 | Flush on stop | Stale after ~67 min |
 | 3 | Flush + set_state(PLAYING) | Still stale |
 | 4 | `is-live=false` | Silent stall (no error) |
+| **5** | **Trickle feed (1 frame/5sec)** | **TESTING** |
 
-**Current Status**: Reverted to baseline (`is-live=true`, no flush) to observe error frequency.
+**Current Status**: Testing Attempt 5 - Trickle feed keep-alive.
 
-**Root Cause**: Unknown. The H.265 decoder becomes stale after idle periods regardless of mitigation strategy.
+**Root Cause**: The H.265 decoder becomes stale after extended idle periods with NO data. Previous flush-based attempts failed because they didn't address the idle period. Attempt 5 keeps a trickle of data flowing (1 frame every 5 seconds) to prevent staleness.
+
+### Camera Restart Observation (2026-01-20)
+
+After reverting to baseline, a crash loop occurred (error on every first detection). **Camera restart fixed the crash loop** with the same codebase. This suggests:
+- The RTSP stream from the camera can enter a "bad state"
+- Camera restart provides a fresh stream that allows normal operation
+- The bug may be partially camera-related, not purely code-related
 
 ### Documentation
 See `gstreamer_not_negotiated_error.md` for full details.
@@ -204,3 +212,6 @@ Bug #1 fix addresses the stale context, but Bug #2 (root cause of crashes) remai
 | 2026-01-17 | - | Identified Bug #1 and Bug #2 |
 | 2026-01-18 | - | Fixed Bug #1, added diagnostic logging for Bug #2 |
 | 2026-01-18 | - | Bug #2: New analysis - identified "Resume After Idle" failure mode distinct from startup race condition |
+| 2026-01-20 | - | Bug #2: All 4 fix attempts failed, reverted to baseline for observation |
+| 2026-01-20 | - | Bug #2: **Camera restart fixed crash loop** - suggests issue may be partially camera-related |
+| 2026-01-20 | - | Bug #2: **Attempt 5** - Implemented trickle feed keep-alive (1 frame/5sec during idle) |

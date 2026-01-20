@@ -148,6 +148,7 @@ class StreamCapture(threading.Thread):
         self.decoding_count = 0
         self.is_recording = False
         self.running_seconds = 10
+        self.last_keepalive_time = 0  # For trickle feed to keep decoder warm
 
         self.recordings = {}
 
@@ -250,6 +251,16 @@ class StreamCapture(threading.Thread):
 
         if not self.is_feeding:
             self.add_detecting_frame(self.edit_sample_caption(sample, current_time), current_time)
+
+            # Trickle feed: push 1 frame every 5 seconds to keep decoder warm
+            # Decoded output is auto-discarded in on_new_sample_decode() when is_feeding=False
+            if current_time - self.last_keepalive_time >= 5.0:
+                self.last_keepalive_time = current_time
+                ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample, current_time))
+                if ret != Gst.FlowReturn.OK:
+                    logger.warning(f"{self.cam_ip} on_new_sample keepalive, Error pushing sample to decode_appsrc: {ret}")
+                else:
+                    logger.debug(f"{self.cam_ip} on_new_sample keepalive frame pushed")
 
         else:
             self.push_detecting_buffer()

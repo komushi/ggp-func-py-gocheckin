@@ -273,20 +273,82 @@ The underlying decoder staleness issue is the same. `is-live=false` just **masks
 
 ---
 
-## Current Status: Baseline Observation
+### Attempt 5: Trickle Feed Keep-Alive (TESTING)
 
 **Date**: 2026-01-20
 
-After all fix attempts failed, reverted to baseline configuration (same as commit 48fbd32):
+**Problem Analysis**: All previous attempts failed because the decoder becomes stale after extended idle periods. The root cause is that the decode pipeline receives NO data during idle, causing decoder internal state to become invalid.
+
+**Approach**: Keep the decoder "warm" by pushing a small trickle of frames even when not detecting:
+- Push 1 frame every 5 seconds during idle periods
+- Decoded output is automatically discarded (existing `is_feeding` check)
+- Decoder stays active without wasting CPU on face detection
+
+**Implementation**:
+
+```python
+# In __init__:
+self.last_keepalive_time = 0  # For trickle feed to keep decoder warm
+
+# In on_new_sample(), when not is_feeding:
+if current_time - self.last_keepalive_time >= 5.0:
+    self.last_keepalive_time = current_time
+    ret = self.decode_appsrc.emit('push-sample', sample)
+    # Decoded output auto-discarded in on_new_sample_decode() when is_feeding=False
+```
+
+**Why This Should Work**:
+
+| Issue | How Trickle Feed Addresses It |
+|-------|------------------------------|
+| Decoder buffers flush | Continuous (slow) data keeps buffers populated |
+| Parser state resets | Parser always has recent NAL context |
+| Timestamp discontinuity | No large gaps - max 5 seconds between frames |
+| No keyframe guarantee | Regular frames include periodic IDR |
+| Decoder staleness | Never idle long enough to become stale |
+
+**Resource Impact**:
+
+| Metric | Value |
+|--------|-------|
+| Frames/minute | 12 (1 per 5 sec) |
+| CPU impact | Minimal (decode only, no face detection) |
+| Memory impact | None (frames discarded after decode) |
+
+**Data Flow**:
+
+```
+Idle period (is_feeding = False)
+    │
+    ├── Every 5 sec: push keepalive frame
+    │       │
+    │       ▼
+    │   decode_appsrc → decoder → on_new_sample_decode()
+    │                                   │
+    │                                   ▼
+    │                              is_feeding=False → DISCARDED
+    │                              (no face detection)
+    │
+    └── Decoder stays warm and ready
+```
+
+---
+
+## Current Status: Testing Attempt 5
+
+**Date**: 2026-01-20
+
+Currently testing Attempt 5 (Trickle Feed Keep-Alive):
 
 | Setting | Value |
 |---------|-------|
 | `is-live` | `true` |
+| Trickle feed | Yes (1 frame per 5 seconds during idle) |
 | Flush on stop_feeding | No |
 | Flush on feed_detecting | No |
 | Diagnostic logging | Yes (ERROR CONTEXT) |
 
-**Purpose**: Observe error frequency with baseline configuration to compare with previous attempts.
+**Hypothesis**: The decoder becomes stale because it receives NO data during idle periods. By feeding 1 frame every 5 seconds, we keep the decoder warm without significant CPU overhead.
 
 ### Summary of All Attempts
 
@@ -297,8 +359,67 @@ After all fix attempts failed, reverted to baseline configuration (same as commi
 | 2 | Flush on stop | FAILED | Stale after ~67 min idle |
 | 3 | Flush on stop + set_state(PLAYING) | FAILED | Still stale after idle |
 | 4 | `is-live=false` | FAILED | Silent stall after ~2.5 hrs |
+| **5** | **Trickle feed (1 frame/5sec)** | **TESTING** | - |
 
-**Root cause remains unknown**: The H.265 decoder becomes stale after idle periods. All mitigation attempts have failed. The decoder staleness occurs regardless of flush strategy or is-live setting.
+**Root cause identified**: The H.265 decoder becomes stale after extended idle periods with no data. Previous attempts tried to fix this with flush/state changes, but the real solution is to prevent the idle state entirely by keeping a trickle of data flowing.
+
+---
+
+## Observation: Camera Restart Fixed Crash Loop (2026-01-20)
+
+### The Problem
+
+After reverting to baseline (`is-live=true`, no flush), a crash loop occurred:
+- Error on every first detection attempt
+- ERROR CONTEXT showed `decode_pipeline_state=paused`
+- Greengrass restart did NOT fix the issue
+- Same codebase (identical to commit 48fbd32) that worked before
+
+### Evidence (Crash Loop at 22:48)
+
+```
+22:48:41  feed_detecting in/out
+22:48:41  ERROR: not-negotiated, decode_pipeline_state=paused
+22:48:42  Thread restarted
+22:48:43  feed_detecting in/out
+22:48:43  ERROR: not-negotiated, decode_pipeline_state=paused
+...repeating...
+```
+
+### Resolution
+
+**Camera restart (192.168.22.3) fixed the crash loop** with the exact same codebase.
+
+### Evidence (Working After Camera Restart at 23:07)
+
+```
+23:07:27.042  feed_detecting in/out
+23:07:27.4    detecting_txn frame 1
+23:07:27.6    detecting_txn frame 2
+...
+23:07:28.041  Decode Pipeline state changed from paused to playing
+...
+23:07:37.688  detecting_txn frame 100
+```
+
+### Key Observation
+
+With `is-live=true`, the decode pipeline transitions from PAUSED to PLAYING **after** data starts flowing. This is normal behavior. The crash loop was caused by something in the camera/RTSP stream, not the code.
+
+### Implications
+
+| Factor | Before Camera Restart | After Camera Restart |
+|--------|----------------------|---------------------|
+| Codebase | Baseline (is-live=true) | Same |
+| Greengrass | Restarted multiple times | Same |
+| Camera | Running continuously | Restarted |
+| Result | Crash loop | Works |
+
+This suggests:
+1. The RTSP stream from the camera can enter a "bad state"
+2. A stale camera stream prevents proper GStreamer pipeline negotiation
+3. Camera restart provides a fresh RTSP stream that allows normal operation
+4. The intermittent nature of this bug may be partially camera-related, not purely code-related
 
 ---
 
@@ -371,3 +492,6 @@ When error occurs, these logs are captured automatically:
 | 2026-01-20 | **Attempt 4**: Changed decode pipeline `is-live=true` to `is-live=false` (flush logic removed for clean test) |
 | 2026-01-20 | **Attempt 4 FAILED**: Silent stall after ~2.5 hrs - decoder stuck but no error reported |
 | 2026-01-20 | Reverted to baseline (`is-live=true`, no flush) for observation - comparing error frequency |
+| 2026-01-20 | **Crash Loop Observed**: After reverting to baseline, crash loop occurred (error on every first detection) |
+| 2026-01-20 | **Camera Restart Fixed Crash Loop**: Restarting camera 192.168.22.3 resolved the crash loop with same codebase |
+| 2026-01-20 | **Attempt 5**: Implemented trickle feed keep-alive (1 frame/5sec during idle) to prevent decoder staleness |
