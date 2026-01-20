@@ -97,12 +97,12 @@ class StreamCapture(threading.Thread):
 
         pipeline_str_decode = ''
         if self.codec == 'h264':
-            pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
+            pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=false format=time
                 ! queue name=queue_after_appsrc ! h264parse ! queue ! avdec_h264 name=m_avdec
                 ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
         elif self.codec == 'h265':
-            pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
+            pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=false format=time
                 ! queue name=queue_after_appsrc ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
                 ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
                 ! queue ! appsink name=m_appsink"""
@@ -624,8 +624,6 @@ class StreamCapture(threading.Thread):
             logger.info(f"{self.cam_ip} feed_detecting after cancel feeding_timer")
 
         with self.detecting_lock:
-            # Clear any stale buffered frames before starting
-            self.detecting_buffer.clear()
             self.is_feeding = True
             self.running_seconds = running_seconds
             self.detecting_txn = str(uuid.uuid4())
@@ -677,18 +675,6 @@ class StreamCapture(threading.Thread):
             self.is_feeding = False
             self.feeding_count = 0
             self.decoding_count = 0
-
-        # FIX: Flush decode pipeline on STOP (not on resume)
-        # This resets decoder state while no frames are being pushed.
-        # Then re-assert PLAYING state so pipeline is ready for next detection.
-        logger.info(f"{self.cam_ip} stop_feeding flushing decode pipeline")
-        self.decode_appsrc.send_event(Gst.Event.new_flush_start())
-        self.decode_appsrc.send_event(Gst.Event.new_flush_stop(True))
-
-        # Re-assert PLAYING state after flush to ensure pipeline is ready
-        # Without this, pipeline stays in PAUSED and may have issues after long idle
-        self.pipeline_decode.set_state(Gst.State.PLAYING)
-        logger.info(f"{self.cam_ip} stop_feeding set decode pipeline to PLAYING")
 
         with self.metadata_lock:
             self.metadata_store.clear()

@@ -59,7 +59,7 @@ Main Pipeline (appsink)
 
 ### The Problem
 
-The decode pipeline is configured with `is-live=true format=time`, expecting continuous timestamped data. When `is_feeding = False`, the decode pipeline receives **no data** for extended periods. After long idle periods (5+ minutes), the H.265 decoder loses its internal state and cannot recover when data resumes.
+The decode pipeline was originally configured with `is-live=true format=time`, expecting continuous timestamped data. (Now changed to `is-live=false` - see Attempt 4) When `is_feeding = False`, the decode pipeline receives **no data** for extended periods. After long idle periods (5+ minutes), the H.265 decoder loses its internal state and cannot recover when data resumes.
 
 ### Why It Happens
 
@@ -172,7 +172,7 @@ The error is a **race condition**: if frames arrive before the pipeline recovers
 
 ---
 
-### Attempt 3: Flush on Stop + set_state(PLAYING) (IMPLEMENTED)
+### Attempt 3: Flush on Stop + set_state(PLAYING) (REMOVED - replaced by Attempt 4)
 
 **Approach**: After flush, explicitly set the decode pipeline back to PLAYING state so it doesn't sit idle in PAUSED.
 
@@ -226,6 +226,44 @@ def feed_detecting(self, running_seconds):
 
 ---
 
+### Attempt 4: Change `is-live=true` to `is-live=false` (IMPLEMENTED)
+
+**Problem Identified (2026-01-20)**: Analysis of crash loop pattern revealed errors occurring on newly created pipelines with `decode_pipeline_state=paused`.
+
+**Root Cause**: With `appsrc is-live=true`:
+- Pipeline needs data flow to transition from PAUSED to PLAYING
+- `set_state(PLAYING)` only sets the **target** state, not the actual state
+- Pipeline stays PAUSED until data arrives, causing "not-negotiated" error
+
+**Solution**: Change decode pipeline appsrc from `is-live=true` to `is-live=false`:
+
+```python
+# Before (problematic):
+pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time ...
+
+# After (fixed):
+pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=false format=time ...
+```
+
+**Why this works**:
+
+| Behavior | `is-live=true` (old) | `is-live=false` (new) |
+|----------|----------------------|------------------------|
+| State after `set_state(PLAYING)` | Stays PAUSED until data | Reaches PLAYING immediately |
+| During idle (no data) | May become unstable | Stays in PLAYING |
+| Timestamp gaps | Expects continuity | More forgiving |
+| Data flow requirement | Continuous | Tolerant of gaps |
+
+**Benefits**:
+- Pipeline reaches PLAYING immediately after creation (fixes startup race)
+- Pipeline stays in PLAYING during idle periods (fixes resume after idle)
+- Simpler than flush-based approaches
+- Works for both new pipelines and idle resume scenarios
+
+**Note**: Testing with `is-live=false` only - flush logic from Attempt 3 removed to get a clean test.
+
+---
+
 ## Monitoring
 
 ### CloudWatch Insights Query
@@ -253,12 +291,6 @@ When error occurs, these logs are captured automatically:
 2. **Decode pipeline state changes**:
    ```
    192.168.22.3 Decode Pipeline state changed from paused to playing
-   ```
-
-3. **Flush on stop + set PLAYING** (current fix):
-   ```
-   192.168.22.3 stop_feeding flushing decode pipeline
-   192.168.22.3 stop_feeding set decode pipeline to PLAYING
    ```
 
 ### ERROR CONTEXT Fields
@@ -296,3 +328,6 @@ When error occurs, these logs are captured automatically:
 | 2026-01-19 | **Attempt 2**: Moved flush to `stop_feeding()` - flush on stop, not on resume |
 | 2026-01-19 | **Attempt 2 FAILED**: Error still occurred after ~67 min idle - pipeline stuck in PAUSED |
 | 2026-01-19 | **Attempt 3**: Added `set_state(PLAYING)` after flush to keep pipeline active during idle |
+| 2026-01-20 | Observed **Startup Race / Crash Loop** pattern: new pipelines after crash fail immediately |
+| 2026-01-20 | Flush on creation considered but rejected - flushing empty pipeline is meaningless |
+| 2026-01-20 | **Attempt 4**: Changed decode pipeline `is-live=true` to `is-live=false` (flush logic removed for clean test) |
