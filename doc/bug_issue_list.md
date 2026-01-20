@@ -7,7 +7,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | # | Bug | Status | Priority | File |
 |---|-----|--------|----------|------|
 | 1 | Stale Trigger Context (`onvifTriggered=True` when ONVIF disabled) | **FIXED** | High | `stale_trigger_context_bug.md` |
-| 2 | GStreamer "not-negotiated" Error | **INVESTIGATING** | High | `gstreamer_not_negotiated_error.md` |
+| 2 | GStreamer "not-negotiated" Error | **OBSERVING** | High | `gstreamer_not_negotiated_error.md` |
 | 3 | OOM / Memory Leak Issue | **OPEN** | High | `OOM_MEMORY_LEAK_ISSUE.md` |
 | 4 | ONVIF `isSubscription` Setting Not Checked | **FIXED** | Medium | `bug_onvif_isSubscription_not_checked.md` |
 
@@ -48,10 +48,10 @@ See `stale_trigger_context_bug.md` for full details and regression test.
 
 ## Bug #2: GStreamer "not-negotiated" Error
 
-**Status:** INVESTIGATING (Updated 2026-01-18)
+**Status:** OBSERVING (Updated 2026-01-20)
 
 ### Summary
-The decode pipeline (`appsrc → h265parse → avdec → appsink`) intermittently fails with "not-negotiated" error. Originally thought to be a startup race condition, but new analysis reveals a **"Resume After Idle"** problem.
+The decode pipeline (`appsrc → h265parse → avdec → appsink`) intermittently fails with "not-negotiated" error after idle periods. Multiple fix attempts have failed. Currently observing baseline error frequency.
 
 ### Error Signature
 ```
@@ -89,16 +89,18 @@ streaming stopped, reason not-negotiated (-4)
 1. Line 450: Log decode pipeline `set_state(PLAYING)` return value
 2. Line 772: Changed decode pipeline state changes from DEBUG to INFO
 
-### Potential Fixes
+### Fix Attempts (All Failed)
 
-**For Resume After Idle:**
-1. Flush decode pipeline on resume (`flush_start`/`flush_stop` events)
-2. Reset decode pipeline state (PAUSED → PLAYING cycle)
-3. Send EOS when stopping, signal stream restart on resume
-4. Clear `detecting_buffer` to avoid pushing stale frames
+| Attempt | Approach | Result |
+|---------|----------|--------|
+| 1 | Flush on resume | Race condition |
+| 2 | Flush on stop | Stale after ~67 min |
+| 3 | Flush + set_state(PLAYING) | Still stale |
+| 4 | `is-live=false` | Silent stall (no error) |
 
-**For Startup Race:**
-- Check pipeline state before enabling feeding
+**Current Status**: Reverted to baseline (`is-live=true`, no flush) to observe error frequency.
+
+**Root Cause**: Unknown. The H.265 decoder becomes stale after idle periods regardless of mitigation strategy.
 
 ### Documentation
 See `gstreamer_not_negotiated_error.md` for full details.

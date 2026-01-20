@@ -59,7 +59,9 @@ Main Pipeline (appsink)
 
 ### The Problem
 
-The decode pipeline was originally configured with `is-live=true format=time`, expecting continuous timestamped data. (Now changed to `is-live=false` - see Attempt 4) When `is_feeding = False`, the decode pipeline receives **no data** for extended periods. After long idle periods (5+ minutes), the H.265 decoder loses its internal state and cannot recover when data resumes.
+The decode pipeline is configured with `is-live=true format=time`, expecting continuous timestamped data. When `is_feeding = False`, the decode pipeline receives **no data** for extended periods. After idle periods, the H.265 decoder loses its internal state and cannot recover when data resumes.
+
+**Current Status**: Back to baseline (`is-live=true`) for observation after Attempt 4 failed.
 
 ### Why It Happens
 
@@ -172,9 +174,11 @@ The error is a **race condition**: if frames arrive before the pipeline recovers
 
 ---
 
-### Attempt 3: Flush on Stop + set_state(PLAYING) (REMOVED - replaced by Attempt 4)
+### Attempt 3: Flush on Stop + set_state(PLAYING) (FAILED)
 
 **Approach**: After flush, explicitly set the decode pipeline back to PLAYING state so it doesn't sit idle in PAUSED.
+
+**Result**: Still failed after extended idle periods. The flush + set_state(PLAYING) approach did not prevent decoder staleness.
 
 ```python
 def stop_feeding(self):
@@ -226,41 +230,75 @@ def feed_detecting(self, running_seconds):
 
 ---
 
-### Attempt 4: Change `is-live=true` to `is-live=false` (IMPLEMENTED)
+### Attempt 4: Change `is-live=true` to `is-live=false` (FAILED)
 
 **Problem Identified (2026-01-20)**: Analysis of crash loop pattern revealed errors occurring on newly created pipelines with `decode_pipeline_state=paused`.
 
-**Root Cause**: With `appsrc is-live=true`:
+**Hypothesis**: With `appsrc is-live=true`:
 - Pipeline needs data flow to transition from PAUSED to PLAYING
 - `set_state(PLAYING)` only sets the **target** state, not the actual state
 - Pipeline stays PAUSED until data arrives, causing "not-negotiated" error
 
-**Solution**: Change decode pipeline appsrc from `is-live=true` to `is-live=false`:
+**Change Applied**: Decode pipeline appsrc from `is-live=true` to `is-live=false`.
 
-```python
-# Before (problematic):
-pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time ...
+**Result**: **FAILED - Silent Stall**
 
-# After (fixed):
-pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=false format=time ...
+Tested on 2026-01-20:
+- Worked for 31 detection cycles (~2.5 hours, 14:14 to 16:45)
+- At 16:46, decoder silently stopped producing frames
+- `feed_detecting in/out` logged successfully
+- Frames pushed to decode pipeline (no error)
+- But **ZERO frames decoded** - no `detecting_txn` logs
+- **No error reported** - silent failure
+
+**Evidence from logs (2026-01-20 16:46:38):**
+```
+16:45:13  Last successful frame (frame 100)
+16:45:17  Timer expires, stop_feeding called
+16:46:38  ONVIF Motion → feed_detecting in/out (success)
+16:46:39  extend_timer in/out (success)
+          ════ NO detecting_txn LOGS - DECODER SILENTLY STUCK ════
 ```
 
-**Why this works**:
+**Why it failed**:
 
-| Behavior | `is-live=true` (old) | `is-live=false` (new) |
-|----------|----------------------|------------------------|
-| State after `set_state(PLAYING)` | Stays PAUSED until data | Reaches PLAYING immediately |
-| During idle (no data) | May become unstable | Stays in PLAYING |
-| Timestamp gaps | Expects continuity | More forgiving |
-| Data flow requirement | Continuous | Tolerant of gaps |
+| Setting | After Idle | Failure Mode |
+|---------|-----------|--------------|
+| `is-live=true` | Decoder stalls | **Error reported** ("not-negotiated") |
+| `is-live=false` | Decoder stalls | **Silent failure** (no error, no frames) |
 
-**Benefits**:
-- Pipeline reaches PLAYING immediately after creation (fixes startup race)
-- Pipeline stays in PLAYING during idle periods (fixes resume after idle)
-- Simpler than flush-based approaches
-- Works for both new pipelines and idle resume scenarios
+The underlying decoder staleness issue is the same. `is-live=false` just **masks the error** instead of fixing it. The decoder still gets stuck, but no error is thrown - making it harder to detect and recover.
 
-**Note**: Testing with `is-live=false` only - flush logic from Attempt 3 removed to get a clean test.
+**Conclusion**: `is-live=false` is worse than `is-live=true` because failures are silent.
+
+---
+
+## Current Status: Baseline Observation
+
+**Date**: 2026-01-20
+
+After all fix attempts failed, reverted to baseline configuration (same as commit 48fbd32):
+
+| Setting | Value |
+|---------|-------|
+| `is-live` | `true` |
+| Flush on stop_feeding | No |
+| Flush on feed_detecting | No |
+| Diagnostic logging | Yes (ERROR CONTEXT) |
+
+**Purpose**: Observe error frequency with baseline configuration to compare with previous attempts.
+
+### Summary of All Attempts
+
+| Attempt | Approach | Result | Failure Mode |
+|---------|----------|--------|--------------|
+| Baseline | `is-live=true`, no flush | Errors occur | "not-negotiated" after idle |
+| 1 | Flush on resume | FAILED | Race condition (~1s recovery) |
+| 2 | Flush on stop | FAILED | Stale after ~67 min idle |
+| 3 | Flush on stop + set_state(PLAYING) | FAILED | Still stale after idle |
+| 4 | `is-live=false` | FAILED | Silent stall after ~2.5 hrs |
+
+**Root cause remains unknown**: The H.265 decoder becomes stale after idle periods. All mitigation attempts have failed. The decoder staleness occurs regardless of flush strategy or is-live setting.
 
 ---
 
@@ -331,3 +369,5 @@ When error occurs, these logs are captured automatically:
 | 2026-01-20 | Observed **Startup Race / Crash Loop** pattern: new pipelines after crash fail immediately |
 | 2026-01-20 | Flush on creation considered but rejected - flushing empty pipeline is meaningless |
 | 2026-01-20 | **Attempt 4**: Changed decode pipeline `is-live=true` to `is-live=false` (flush logic removed for clean test) |
+| 2026-01-20 | **Attempt 4 FAILED**: Silent stall after ~2.5 hrs - decoder stuck but no error reported |
+| 2026-01-20 | Reverted to baseline (`is-live=true`, no flush) for observation - comparing error frequency |
