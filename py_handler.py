@@ -1410,22 +1410,15 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
 
     # Handle timer extension if already detecting
     if thread_gstreamer.is_feeding:
-        should_extend = False
-
         if lock_asset_id is not None:
-            # Occupancy trigger - ALWAYS extend timer
-            should_extend = True
-            logger.info('trigger_face_detection - occupancy trigger, will extend timer')
-        elif context.get('started_by_onvif', False):
-            # ONVIF trigger - only extend if detection was started by ONVIF
-            should_extend = True
-            logger.info('trigger_face_detection - ONVIF trigger, started_by_onvif=True, will extend timer')
-        else:
-            logger.info('trigger_face_detection - ONVIF trigger, started_by_onvif=False, timer NOT extended')
-
-        if should_extend:
+            # Occupancy trigger (keypad sensor) - extend timer
+            # Keypad is a deliberate action, worth extending detection
             thread_gstreamer.extend_timer(int(os.environ['TIMER_DETECT']))
-            logger.info('trigger_face_detection - timer extended for camera: %s', cam_ip)
+            logger.info('trigger_face_detection - occupancy trigger, timer extended for camera: %s', cam_ip)
+        else:
+            # ONVIF trigger - do NOT extend timer, let it expire naturally
+            # ONVIF motion can trigger constantly in busy areas, avoid indefinite detection
+            logger.info('trigger_face_detection - ONVIF trigger, timer NOT extended (let expire naturally)')
 
         logger.info('trigger_face_detection out - context merged, detection continues')
         return
