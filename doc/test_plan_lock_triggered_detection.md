@@ -226,11 +226,11 @@
 
 | Test | Scenario | Camera | Status | Notes |
 |------|----------|--------|--------|-------|
-| 1 | Legacy-only ONVIF | 192.168.22.4 | | |
-| 2 | Sensor-only ONVIF skip | 192.168.22.5 | | |
-| 3 | Sensor-only occupancy | 192.168.22.5 | | |
-| 4 | Mixed ONVIF only | 192.168.22.3 | | |
-| 5 | Mixed occupancy only | 192.168.22.3 | | |
+| 1 | Legacy-only ONVIF | 192.168.22.4 | PASS | 2026-01-20 |
+| 2 | Sensor-only ONVIF skip | 192.168.22.5 | PASS | 2026-01-20 |
+| 3 | Sensor-only occupancy | 192.168.22.5 | PASS | 2026-01-20 |
+| 4 | Mixed ONVIF only | 192.168.22.3 | PASS | 2026-01-20 |
+| 5 | Mixed occupancy only | 192.168.22.3 | PASS | 2026-01-20 |
 | 6 | Mixed ONVIF->occupancy | 192.168.22.3 | | |
 | 7 | Mixed occupancy->ONVIF | 192.168.22.3 | | |
 | 8 | Occupancy false no face | 192.168.22.5 | | |

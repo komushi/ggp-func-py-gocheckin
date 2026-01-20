@@ -97,11 +97,14 @@ streaming stopped, reason not-negotiated (-4)
 | 2 | Flush on stop | Stale after ~67 min |
 | 3 | Flush + set_state(PLAYING) | Still stale |
 | 4 | `is-live=false` | Silent stall (no error) |
-| **5** | **Trickle feed (1 frame/5sec)** | **TESTING** |
+| 5 | Trickle feed (1 frame/5sec) | FAILED (crash loop) |
+| **6** | **Continuous feed + skip-frame** | **TESTING** |
 
-**Current Status**: Testing Attempt 5 - Trickle feed keep-alive.
+**Current Status**: Testing Attempt 6 - Continuous feed with skip-frame.
 
-**Root Cause**: The H.265 decoder becomes stale after extended idle periods with NO data. Previous flush-based attempts failed because they didn't address the idle period. Attempt 5 keeps a trickle of data flowing (1 frame every 5 seconds) to prevent staleness.
+**Root Cause**: The H.265 decoder needs continuous frames to maintain reference frame chain. Sparse input causes timestamp discontinuities.
+
+**Attempt 6 Approach**: Push ALL frames continuously, but use `skip-frame=2` during idle to skip heavy IDCT/Dequant computation (saves CPU).
 
 ### Camera Restart Observation (2026-01-20)
 
@@ -214,4 +217,5 @@ Bug #1 fix addresses the stale context, but Bug #2 (root cause of crashes) remai
 | 2026-01-18 | - | Bug #2: New analysis - identified "Resume After Idle" failure mode distinct from startup race condition |
 | 2026-01-20 | - | Bug #2: All 4 fix attempts failed, reverted to baseline for observation |
 | 2026-01-20 | - | Bug #2: **Camera restart fixed crash loop** - suggests issue may be partially camera-related |
-| 2026-01-20 | - | Bug #2: **Attempt 5** - Implemented trickle feed keep-alive (1 frame/5sec during idle) |
+| 2026-01-20 | - | Bug #2: **Attempt 5 FAILED** - Trickle feed caused crash loop (timestamp discontinuities) |
+| 2026-01-20 | - | Bug #2: **Attempt 6** - Continuous feed with skip-frame property (push ALL frames, skip-frame=2 during idle) |

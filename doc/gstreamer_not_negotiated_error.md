@@ -273,7 +273,7 @@ The underlying decoder staleness issue is the same. `is-live=false` just **masks
 
 ---
 
-### Attempt 5: Trickle Feed Keep-Alive (TESTING)
+### Attempt 5: Trickle Feed Keep-Alive (FAILED)
 
 **Date**: 2026-01-20
 
@@ -297,17 +297,28 @@ if current_time - self.last_keepalive_time >= 5.0:
     # Decoded output auto-discarded in on_new_sample_decode() when is_feeding=False
 ```
 
-**Why This Should Work**:
+**Result**: **FAILED - Crash Loop**
 
-| Issue | How Trickle Feed Addresses It |
-|-------|------------------------------|
-| Decoder buffers flush | Continuous (slow) data keeps buffers populated |
-| Parser state resets | Parser always has recent NAL context |
-| Timestamp discontinuity | No large gaps - max 5 seconds between frames |
-| No keyframe guarantee | Regular frames include periodic IDR |
-| Decoder staleness | Never idle long enough to become stale |
+Tested on 2026-01-20:
+- Decode pipeline reached PLAYING immediately (good)
+- 4 minutes later: continuous "not-negotiated" errors
+- Crash loop: error → restart → error → restart
 
-**Resource Impact**:
+**Why It Failed**:
+
+The 5-second gaps between trickle frames caused **timestamp discontinuities** that the H.265 decoder couldn't handle:
+
+```
+Frame at T=0   → decode OK
+(5 sec gap - no data to decoder)
+Frame at T=5   → decoder sees 5-second timestamp jump → "not-negotiated" error
+```
+
+The decoder expects continuous timestamp progression. Sparse frames with large gaps confuse it worse than no frames at all.
+
+**Conclusion**: Trickle feed is worse than baseline because it actively causes errors instead of just failing after idle.
+
+**Resource Impact (theoretical, not reached)**:
 
 | Metric | Value |
 |--------|-------|
@@ -334,21 +345,109 @@ Idle period (is_feeding = False)
 
 ---
 
-## Current Status: Testing Attempt 5
+### Attempt 6: Continuous Feed with skip-frame (TESTING)
 
 **Date**: 2026-01-20
 
-Currently testing Attempt 5 (Trickle Feed Keep-Alive):
+**Problem Analysis**:
+- Attempt 5 (trickle feed) failed because sparse frames caused timestamp discontinuities
+- The H.265 decoder needs continuous frames to maintain reference frame chain
+- But continuous full decoding wastes CPU during idle
+
+**Key Insight**: GStreamer's avdec_h265 has a `skip-frame` property that can skip heavy decoding work while still processing the bitstream:
+
+```bash
+$ gst-inspect-1.0 avdec_h265 | grep -A5 skip-frame
+  skip-frame          : Which types of frames to skip during decoding
+                        flags: readable, writable
+                        Enum "GstLibAVVidDecSkipFrame" Default: 0, "Skip nothing"
+                           (0): Skip nothing     - full decode
+                           (1): Skip B-frames    - decode I and P only
+                           (2): Skip IDCT/Dequantization - skip heavy math
+```
+
+**Approach**: Push ALL frames continuously, but use `skip-frame` to minimize CPU during idle:
+- Idle mode (is_feeding=False): `skip-frame=2` (skip IDCT/Dequant)
+- Detection mode (is_feeding=True): `skip-frame=0` (full decode)
+
+**Implementation**:
+
+```python
+# In __init__: Get decoder element and set initial idle mode
+self.decode_avdec = self.pipeline_decode.get_by_name('m_avdec')
+if self.decode_avdec is not None:
+    self.decode_avdec.set_property('skip-frame', 2)  # idle mode
+
+# In on_new_sample(): Always push ALL frames to decoder
+edited_sample = self.edit_sample_caption(sample, current_time)
+ret = self.decode_appsrc.emit('push-sample', edited_sample)
+
+# In feed_detecting(): Switch to full decode
+if self.decode_avdec is not None:
+    self.decode_avdec.set_property('skip-frame', 0)  # full decode
+
+# In stop_feeding(): Switch back to idle mode
+if self.decode_avdec is not None:
+    self.decode_avdec.set_property('skip-frame', 2)  # idle mode
+```
+
+**Why This Should Work**:
+
+| Issue | How Continuous Feed + skip-frame Addresses It |
+|-------|----------------------------------------------|
+| Timestamp discontinuity | No gaps - ALL frames pushed continuously |
+| Reference frame chain | Maintained - continuous frame sequence |
+| CPU during idle | Reduced - skip-frame=2 skips heavy IDCT/Dequant |
+| Decoder staleness | Prevented - decoder always processing frames |
+
+**Data Flow**:
+
+```
+Idle (is_feeding=False, skip-frame=2):
+    │
+    ├── ALL frames pushed to decoder (continuous)
+    │       │
+    │       ▼
+    │   decoder skips IDCT/Dequant (minimal CPU)
+    │       │
+    │       ▼
+    │   on_new_sample_decode() → DISCARDED (is_feeding=False)
+    │
+    └── Decoder maintains state, ready for detection
+
+Detection (is_feeding=True, skip-frame=0):
+    │
+    ├── ALL frames pushed to decoder (continuous)
+    │       │
+    │       ▼
+    │   decoder does full decode
+    │       │
+    │       ▼
+    │   on_new_sample_decode() → face detection
+```
+
+**Expected Resource Impact**:
+
+| Mode | skip-frame | Frames/sec | CPU | Face Detection |
+|------|------------|-----------|-----|----------------|
+| Idle | 2 | 15 (all) | Low | No |
+| Detection | 0 | 15 (all) | Normal | Yes |
+
+---
+
+## Current Status: Testing Attempt 6
+
+**Date**: 2026-01-20
+
+Currently testing Attempt 6 (Continuous Feed with skip-frame):
 
 | Setting | Value |
 |---------|-------|
 | `is-live` | `true` |
-| Trickle feed | Yes (1 frame per 5 seconds during idle) |
-| Flush on stop_feeding | No |
-| Flush on feed_detecting | No |
+| Continuous feed | Yes (ALL frames) |
+| skip-frame (idle) | 2 (skip IDCT/Dequant) |
+| skip-frame (detection) | 0 (full decode) |
 | Diagnostic logging | Yes (ERROR CONTEXT) |
-
-**Hypothesis**: The decoder becomes stale because it receives NO data during idle periods. By feeding 1 frame every 5 seconds, we keep the decoder warm without significant CPU overhead.
 
 ### Summary of All Attempts
 
@@ -359,9 +458,10 @@ Currently testing Attempt 5 (Trickle Feed Keep-Alive):
 | 2 | Flush on stop | FAILED | Stale after ~67 min idle |
 | 3 | Flush on stop + set_state(PLAYING) | FAILED | Still stale after idle |
 | 4 | `is-live=false` | FAILED | Silent stall after ~2.5 hrs |
-| **5** | **Trickle feed (1 frame/5sec)** | **TESTING** | - |
+| 5 | Trickle feed (1 frame/5sec) | FAILED | Crash loop (timestamp gaps) |
+| **6** | **Continuous feed + skip-frame** | **TESTING** | - |
 
-**Root cause identified**: The H.265 decoder becomes stale after extended idle periods with no data. Previous attempts tried to fix this with flush/state changes, but the real solution is to prevent the idle state entirely by keeping a trickle of data flowing.
+**Root cause identified**: The H.265 decoder needs continuous frame input to maintain its reference frame chain. Sparse input (trickle) causes timestamp discontinuities. Solution: feed ALL frames but use `skip-frame` property to minimize CPU during idle.
 
 ---
 
@@ -495,3 +595,5 @@ When error occurs, these logs are captured automatically:
 | 2026-01-20 | **Crash Loop Observed**: After reverting to baseline, crash loop occurred (error on every first detection) |
 | 2026-01-20 | **Camera Restart Fixed Crash Loop**: Restarting camera 192.168.22.3 resolved the crash loop with same codebase |
 | 2026-01-20 | **Attempt 5**: Implemented trickle feed keep-alive (1 frame/5sec during idle) to prevent decoder staleness |
+| 2026-01-20 | **Attempt 5 FAILED**: Trickle feed caused crash loop - timestamp gaps between sparse frames confused decoder |
+| 2026-01-20 | **Attempt 6**: Continuous feed with skip-frame property - push ALL frames, use skip-frame=2 during idle to save CPU |

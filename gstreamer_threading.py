@@ -116,6 +116,13 @@ class StreamCapture(threading.Thread):
         #     self.decode_appsrc.connect('need-data', self.on_need_data, {})
         #     self.decode_appsrc.connect('push-sample', self.on_push_sample, {})
 
+        # Get decoder element for skip-frame control (Attempt 6: continuous feed with skip)
+        self.decode_avdec = self.pipeline_decode.get_by_name('m_avdec')
+        if self.decode_avdec is not None:
+            # Start in idle mode (skip IDCT/Dequant to save CPU)
+            self.decode_avdec.set_property('skip-frame', 2)
+            logger.info(f"{self.cam_ip} avdec skip-frame initialized to 2 (idle mode)")
+
         queue_after_appsrc = self.pipeline_decode.get_by_name('queue_after_appsrc')
         if queue_after_appsrc:
             sink_pad = queue_after_appsrc.get_static_pad('sink')
@@ -148,7 +155,6 @@ class StreamCapture(threading.Thread):
         self.decoding_count = 0
         self.is_recording = False
         self.running_seconds = 10
-        self.last_keepalive_time = 0  # For trickle feed to keep decoder warm
 
         self.recordings = {}
 
@@ -249,32 +255,21 @@ class StreamCapture(threading.Thread):
 
         self.add_recording_frame(sample, current_time)
 
-        if not self.is_feeding:
-            self.add_detecting_frame(self.edit_sample_caption(sample, current_time), current_time)
+        # Attempt 6: Always push ALL frames to decoder (continuous feed)
+        # During idle: skip-frame=2 (skip IDCT/Dequant, minimal CPU)
+        # During detection: skip-frame=0 (full decode for face detection)
+        # Decoded output is discarded by on_new_sample_decode() when is_feeding=False
 
-            # Trickle feed: push 1 frame every 5 seconds to keep decoder warm
-            # Decoded output is auto-discarded in on_new_sample_decode() when is_feeding=False
-            if current_time - self.last_keepalive_time >= 5.0:
-                self.last_keepalive_time = current_time
-                ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample, current_time))
-                if ret != Gst.FlowReturn.OK:
-                    logger.warning(f"{self.cam_ip} on_new_sample keepalive, Error pushing sample to decode_appsrc: {ret}")
-                else:
-                    logger.debug(f"{self.cam_ip} on_new_sample keepalive frame pushed")
+        edited_sample = self.edit_sample_caption(sample, current_time)
+        ret = self.decode_appsrc.emit('push-sample', edited_sample)
+        if ret != Gst.FlowReturn.OK:
+            logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
 
-        else:
-            self.push_detecting_buffer()
-
-            logger.debug(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
-
-            if self.feeding_count > self.framerate * self.running_seconds:
-                return Gst.FlowReturn.OK
-
-            ret = self.decode_appsrc.emit('push-sample', self.edit_sample_caption(sample, current_time))
-            if ret != Gst.FlowReturn.OK:
-                logger.error(f"{self.cam_ip} on_new_sample, Error pushing sample to decode_appsrc: {ret}")
-
-            self.feeding_count += 1
+        if self.is_feeding:
+            # Track feeding count for detection frame limit
+            if self.feeding_count <= self.framerate * self.running_seconds:
+                self.feeding_count += 1
+                logger.debug(f"{self.cam_ip} on_new_sample feeding_count: {self.feeding_count}")
 
         sample = None
         return Gst.FlowReturn.OK
@@ -639,6 +634,11 @@ class StreamCapture(threading.Thread):
             self.running_seconds = running_seconds
             self.detecting_txn = str(uuid.uuid4())
 
+        # Attempt 6: Switch decoder to full decode mode
+        if self.decode_avdec is not None:
+            self.decode_avdec.set_property('skip-frame', 0)
+            logger.info(f"{self.cam_ip} feed_detecting set skip-frame=0 (full decode)")
+
         # Create a new timer
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
         self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
@@ -686,6 +686,11 @@ class StreamCapture(threading.Thread):
             self.is_feeding = False
             self.feeding_count = 0
             self.decoding_count = 0
+
+        # Attempt 6: Switch decoder to idle mode (skip IDCT/Dequant to save CPU)
+        if self.decode_avdec is not None:
+            self.decode_avdec.set_property('skip-frame', 2)
+            logger.info(f"{self.cam_ip} stop_feeding set skip-frame=2 (idle mode)")
 
         with self.metadata_lock:
             self.metadata_store.clear()
