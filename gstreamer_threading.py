@@ -519,7 +519,17 @@ class StreamCapture(threading.Thread):
 
                 # NEW: Force garbage collection to clean up any remaining references
                 gc.collect()
-                
+
+                # Attempt 7: Explicitly unreference pipeline elements to aid cleanup
+                # This ensures Python releases references so GStreamer can fully cleanup
+                # These are per-camera instance variables, so only affects this camera
+                self.pipeline = None
+                self.pipeline_decode = None
+                self.decode_appsrc = None
+                self.decode_avdec = None
+                self.decode_appsink = None
+                logger.info(f"{self.cam_ip} Pipeline elements unreferenced")
+
                 self.is_playing = False
                 logger.info(f"{self.cam_ip} StreamCapture run, Pipeline stopped and cleaned up {self.name}")
                 
@@ -529,7 +539,7 @@ class StreamCapture(threading.Thread):
 
     def start_playing(self, count = 0, playing = False):
         logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
-        interval = 10
+        interval = 3  # Reduced from 10s - actual state transition takes ~1.7s
 
         if count > 1:
             logger.warning(f"{self.cam_ip} start_playing, count ended with result playing: {playing}, count: {count}")

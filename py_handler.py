@@ -1251,6 +1251,15 @@ def monitor_stop_event(thread_gstreamer):
     thread_gstreamers[cam_ip] = None
     thread_monitors[cam_ip] = None
     del thread_monitors[cam_ip]
+
+    # Attempt 7: Add delay before restart to allow resource cleanup
+    # This gives time for:
+    # - GStreamer global state to release
+    # - Python garbage collection to complete
+    # Note: 3s is sufficient as actual pipeline state transition takes ~1.7s
+    logger.info(f"{cam_ip} waiting 3s before restart for resource cleanup...")
+    time.sleep(3)
+
     new_thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
 
     if new_thread_gstreamer is not None:

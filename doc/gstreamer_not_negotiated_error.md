@@ -435,11 +435,180 @@ Detection (is_feeding=True, skip-frame=0):
 
 ---
 
-## Current Status: Testing Attempt 6
+### Attempt 7: Per-Camera Thorough Cleanup with Restart Delay (IMPLEMENTED)
 
-**Date**: 2026-01-20
+**Date**: 2026-01-22
 
-Currently testing Attempt 6 (Continuous Feed with skip-frame):
+**Goal**: Enable automatic self-recovery when "not-negotiated" error occurs.
+
+The error may still happen, but the pipeline should recover automatically in ~8 seconds instead of entering a crash loop that requires manual service restart. This achieves the same recovery effect as a Greengrass service restart, but per-camera only (other cameras unaffected).
+
+**Problem Analysis**:
+
+When crash loop occurs, three types of restarts have different effects:
+
+| Restart Type | Recovery | Why |
+|--------------|----------|-----|
+| GStreamer thread restart | ✗ Loop continues | Old state persists (TCP connections, GStreamer global state) |
+| Greengrass service restart | ✓ Works | Complete process restart, all resources released |
+| Camera restart | ✓ Works | Camera RTSP server reset |
+
+Key observation (2026-01-21):
+- Crash loop occurred and persisted through ~600 thread restarts over 3+ hours
+- **Single Greengrass service restart fixed it immediately**
+- This proves the issue is Pi-side state, not camera-side
+
+**Hypothesis**: Thread restart doesn't fully release resources because:
+1. **TCP connections** in TIME_WAIT state (~60-120 seconds)
+2. **GStreamer global state** (plugin registry, type factory cache)
+3. **Python object references** preventing garbage collection
+4. **No delay** between old thread exit and new thread start
+
+**Approach**: Three changes to simulate service restart effect per-camera:
+
+**Change 1: Explicit Unreferencing (gstreamer_threading.py)**
+
+In the `finally` block, after `gc.collect()`, explicitly set pipeline references to None:
+
+```python
+# In finally block, after gc.collect()
+
+                gc.collect()
+
+                # Attempt 7: Explicitly unreference pipeline elements
+                # This ensures Python releases references so GStreamer can fully cleanup
+                self.pipeline = None
+                self.pipeline_decode = None
+                self.decode_appsrc = None
+                self.decode_avdec = None
+                self.decode_appsink = None
+                logger.info(f"{self.cam_ip} Pipeline elements unreferenced")
+
+                self.is_playing = False
+```
+
+**Change 2: Restart Delay (py_handler.py)**
+
+In `monitor_stop_event()`, add 3s delay before starting new thread:
+
+```python
+# In monitor_stop_event()
+
+    # Clear previous references before restarting
+    thread_gstreamers[cam_ip] = None
+    thread_monitors[cam_ip] = None
+    del thread_monitors[cam_ip]
+
+    # Attempt 7: Add delay before restart to allow resource cleanup
+    # This gives time for:
+    # - GStreamer global state to release
+    # - Python garbage collection to complete
+    # Note: 3s is sufficient as actual pipeline state transition takes ~1.7s
+    logger.info(f"{cam_ip} waiting 3s before restart for resource cleanup...")
+    time.sleep(3)
+
+    new_thread_gstreamer, _ = start_gstreamer_thread(host_id=os.environ['HOST_ID'], cam_ip=cam_ip)
+```
+
+**Change 3: Reduce start_playing Interval (gstreamer_threading.py)**
+
+Reduced wait interval from 10s to 3s since actual pipeline state transition takes only ~1.7s:
+
+```python
+def start_playing(self, count = 0, playing = False):
+    logger.info(f"{self.cam_ip} start_playing, count: {count} playing: {playing}")
+    interval = 3  # Reduced from 10s - actual state transition takes ~1.7s
+```
+
+**Evidence for 3s interval**: Startup logs show `set_state(PLAYING)` returns `ASYNC`, but actual state transition (null → ready → paused → playing) completes in ~1.7 seconds:
+
+```
+18:20:23.414 - start_playing count:1, result: True
+18:20:23.419 - Pipeline: null → ready
+18:20:23.420 - Pipeline: ready → paused
+18:20:25.125 - Pipeline: paused → playing  (1.7s later)
+```
+
+**Why This Should Work**:
+
+| Issue | How This Fix Addresses It |
+|-------|---------------------------|
+| GStreamer global state | 3s delay + unreferencing allows GStreamer to release per-camera state |
+| Python references | Explicit `= None` + gc.collect() ensures objects are freed |
+| Immediate restart race | 3s delay prevents race with old resources |
+| Excessive wait times | Reduced from 10s to 3s based on actual state transition timing |
+
+**Per-Camera Isolation**:
+
+- `self.pipeline = None` only affects **this camera's instance**
+- `time.sleep(3)` only blocks **this camera's monitor thread**
+- Other cameras continue running normally during cleanup
+
+**Recovery Timeline**:
+
+| Phase | Before | After |
+|-------|--------|-------|
+| Old thread cleanup | ~0.5s | ~0.5s |
+| Restart delay | 0s | 3s |
+| start_playing wait | 10s | 3s |
+| Pipeline state transition | ~1.7s | ~1.7s |
+| **Total recovery time** | **~12s** | **~8s** |
+
+**Expected Behavior**:
+
+```
+Error in on_message_decode()
+    │
+    ▼
+finally block: cleanup + unreference + gc.collect()
+    │
+    ▼
+Thread exits (resources released)
+    │
+    ▼
+Monitor detects thread stopped
+    │
+    ▼
+Wait 3 seconds (GStreamer cleanup)
+    │
+    ▼
+start_gstreamer_thread() - fresh start
+    │
+    ▼
+start_playing (3s wait if ASYNC)
+    │
+    ▼
+Pipeline PLAYING (~1.7s state transition)
+    │
+    ▼
+Should work (like after service restart)
+```
+
+---
+
+## Current Status: Attempt 6 + Attempt 7 Implemented
+
+**Date**: 2026-01-22
+
+### Important: Error Recovery, Not Error Elimination
+
+**We do NOT expect to eliminate the "not-negotiated" error.** The error may still occur due to:
+- Camera RTSP stream issues
+- Network instability
+- GStreamer/decoder edge cases
+
+**What we DO expect**: When the error occurs, the pipeline **self-recovers in ~8 seconds** instead of entering a crash loop that requires manual service restart.
+
+### Summary
+
+| Attempt | Purpose | Expectation |
+|---------|---------|-------------|
+| **Attempt 6** | Keep decoder warm during idle | May reduce error frequency |
+| **Attempt 7** | Proper cleanup before thread restart | **Self-recovery works** (no crash loop) |
+
+**Attempt 6** (Continuous Feed with skip-frame) keeps the decoder processing frames during idle to reduce staleness.
+
+**Attempt 7** (Per-Camera Thorough Cleanup) ensures that when an error occurs, the thread restart properly cleans up resources so the new pipeline can start fresh - similar to a service restart but per-camera only.
 
 | Setting | Value |
 |---------|-------|
@@ -447,6 +616,8 @@ Currently testing Attempt 6 (Continuous Feed with skip-frame):
 | Continuous feed | Yes (ALL frames) |
 | skip-frame (idle) | 2 (skip IDCT/Dequant) |
 | skip-frame (detection) | 0 (full decode) |
+| start_playing interval | 3s (reduced from 10s) |
+| Restart delay | 3s (new) |
 | Diagnostic logging | Yes (ERROR CONTEXT) |
 
 ### Summary of All Attempts
@@ -459,9 +630,15 @@ Currently testing Attempt 6 (Continuous Feed with skip-frame):
 | 3 | Flush on stop + set_state(PLAYING) | FAILED | Still stale after idle |
 | 4 | `is-live=false` | FAILED | Silent stall after ~2.5 hrs |
 | 5 | Trickle feed (1 frame/5sec) | FAILED | Crash loop (timestamp gaps) |
-| **6** | **Continuous feed + skip-frame** | **TESTING** | - |
+| 6 | Continuous feed + skip-frame | TESTING | Stable so far (2026-01-21) |
+| **7** | **Per-camera cleanup + 3s restart delay** | **IMPLEMENTED** | Testing required |
 
-**Root cause identified**: The H.265 decoder needs continuous frame input to maintain its reference frame chain. Sparse input (trickle) causes timestamp discontinuities. Solution: feed ALL frames but use `skip-frame` property to minimize CPU during idle.
+**Two separate issues identified**:
+
+1. **Decoder staleness after idle** → Attempt 6 (continuous feed) may reduce error frequency
+2. **Crash loop not self-recovering** → Attempt 7 (cleanup + delay) enables self-recovery
+
+**Note**: The goal is NOT to eliminate errors, but to ensure **automatic recovery** when errors occur. Expected recovery time: ~8 seconds per camera (other cameras unaffected).
 
 ---
 
@@ -597,3 +774,8 @@ When error occurs, these logs are captured automatically:
 | 2026-01-20 | **Attempt 5**: Implemented trickle feed keep-alive (1 frame/5sec during idle) to prevent decoder staleness |
 | 2026-01-20 | **Attempt 5 FAILED**: Trickle feed caused crash loop - timestamp gaps between sparse frames confused decoder |
 | 2026-01-20 | **Attempt 6**: Continuous feed with skip-frame property - push ALL frames, use skip-frame=2 during idle to save CPU |
+| 2026-01-21 | **Attempt 5 Crash Loop**: 3+ hour crash loop (~600 restarts) during Attempt 5 testing |
+| 2026-01-21 | **Service Restart Fixed Loop**: Single Greengrass restart fixed crash loop immediately (not camera restart this time) |
+| 2026-01-21 | **Key Insight**: Thread restart ≠ service restart. Service restart clears Pi-side state that thread restart doesn't |
+| 2026-01-22 | **Attempt 7 IMPLEMENTED**: Per-camera thorough cleanup with 3s restart delay (reduced from initial 10s plan) |
+| 2026-01-22 | **Optimization**: Reduced `start_playing` interval from 10s to 3s - actual state transition takes only ~1.7s |
