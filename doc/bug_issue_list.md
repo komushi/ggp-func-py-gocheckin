@@ -7,7 +7,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | # | Bug | Status | Priority | File |
 |---|-----|--------|----------|------|
 | 1 | Stale Trigger Context (`onvifTriggered=True` when ONVIF disabled) | **FIXED** | High | `stale_trigger_context_bug.md` |
-| 2 | GStreamer "not-negotiated" Error | **TESTING FIX** | High | `gstreamer_not_negotiated_error.md` |
+| 2 | GStreamer "not-negotiated" Error | **LAN TEST** | High | `gstreamer_not_negotiated_error.md` |
 | 3 | OOM / Memory Leak Issue | **OPEN** | High | `OOM_MEMORY_LEAK_ISSUE.md` |
 | 4 | ONVIF `isSubscription` Setting Not Checked | **FIXED** | Medium | `bug_onvif_isSubscription_not_checked.md` |
 
@@ -48,10 +48,10 @@ See `stale_trigger_context_bug.md` for full details and regression test.
 
 ## Bug #2: GStreamer "not-negotiated" Error
 
-**Status:** TESTING FIX (Updated 2026-01-20)
+**Status:** LAN TEST (Updated 2026-01-23)
 
 ### Summary
-The decode pipeline (`appsrc → h265parse → avdec → appsink`) intermittently fails with "not-negotiated" error after idle periods. Multiple fix attempts have failed. Currently observing baseline error frequency.
+The decode pipeline (`appsrc → h265parse → avdec → appsink`) intermittently fails with "not-negotiated" error after idle periods. Multiple fix attempts have failed. Currently testing on LAN cameras to determine if network (WiFi) is a contributing factor.
 
 ### Error Signature
 ```
@@ -89,7 +89,7 @@ streaming stopped, reason not-negotiated (-4)
 1. Line 450: Log decode pipeline `set_state(PLAYING)` return value
 2. Line 772: Changed decode pipeline state changes from DEBUG to INFO
 
-### Fix Attempts (All Failed)
+### Fix Attempts
 
 | Attempt | Approach | Result |
 |---------|----------|--------|
@@ -98,13 +98,16 @@ streaming stopped, reason not-negotiated (-4)
 | 3 | Flush + set_state(PLAYING) | Still stale |
 | 4 | `is-live=false` | Silent stall (no error) |
 | 5 | Trickle feed (1 frame/5sec) | FAILED (crash loop) |
-| **6** | **Continuous feed + skip-frame** | **TESTING** |
+| 6 | Continuous feed + skip-frame | **REVERTED** (high CPU) |
+| **7** | **Per-camera cleanup + 3s restart delay** | **PARTIAL** (26 min recovery) |
 
-**Current Status**: Testing Attempt 6 - Continuous feed with skip-frame.
+**Current Status**: Baseline + Attempt 7, testing on LAN cameras.
 
-**Root Cause**: The H.265 decoder needs continuous frames to maintain reference frame chain. Sparse input causes timestamp discontinuities.
+**Attempt 6 Reverted (2026-01-23)**: Continuous feed causes high CPU with multiple cameras. Reverted to baseline frame handling.
 
-**Attempt 6 Approach**: Push ALL frames continuously, but use `skip-frame=2` during idle to skip heavy IDCT/Dequant computation (saves CPU).
+**Attempt 7 Results (2026-01-22)**: Error reproduced, crash loop lasted 26 minutes before self-recovery. Quick recovery (~8s) NOT achieved, but eventual self-recovery works without manual intervention.
+
+**LAN Test (2026-01-23)**: Testing on napir environment (LAN cameras at 192.168.11.x) to compare with rulin environment (WiFi cameras at 192.168.22.x). Hypothesis: if error is less frequent on LAN, network instability is a contributing factor.
 
 ### Camera Restart Observation (2026-01-20)
 
@@ -219,3 +222,7 @@ Bug #1 fix addresses the stale context, but Bug #2 (root cause of crashes) remai
 | 2026-01-20 | - | Bug #2: **Camera restart fixed crash loop** - suggests issue may be partially camera-related |
 | 2026-01-20 | - | Bug #2: **Attempt 5 FAILED** - Trickle feed caused crash loop (timestamp discontinuities) |
 | 2026-01-20 | - | Bug #2: **Attempt 6** - Continuous feed with skip-frame property (push ALL frames, skip-frame=2 during idle) |
+| 2026-01-22 | - | Bug #2: **Attempt 7 IMPLEMENTED** - Per-camera cleanup + 3s restart delay |
+| 2026-01-22 | - | Bug #2: **Attempt 7 TESTED** - Crash loop lasted 26 min, eventual self-recovery works, quick recovery (~8s) not achieved |
+| 2026-01-23 | - | Bug #2: **Attempt 6 REVERTED** - High CPU with multiple cameras, reverted to baseline frame handling |
+| 2026-01-23 | - | Bug #2: **LAN TEST** - Testing on napir (LAN) vs rulin (WiFi) to isolate network as a factor |

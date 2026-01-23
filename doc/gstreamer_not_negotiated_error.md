@@ -435,13 +435,15 @@ Detection (is_feeding=True, skip-frame=0):
 
 ---
 
-### Attempt 7: Per-Camera Thorough Cleanup with Restart Delay (IMPLEMENTED)
+### Attempt 7: Per-Camera Thorough Cleanup with Restart Delay (TESTED - PARTIAL SUCCESS)
 
 **Date**: 2026-01-22
 
 **Goal**: Enable automatic self-recovery when "not-negotiated" error occurs.
 
 The error may still happen, but the pipeline should recover automatically in ~8 seconds instead of entering a crash loop that requires manual service restart. This achieves the same recovery effect as a Greengrass service restart, but per-camera only (other cameras unaffected).
+
+**Test Results (2026-01-22 18:01)**: See "Attempt 7 Test Results" section below.
 
 **Problem Analysis**:
 
@@ -544,17 +546,19 @@ def start_playing(self, count = 0, playing = False):
 - `time.sleep(3)` only blocks **this camera's monitor thread**
 - Other cameras continue running normally during cleanup
 
-**Recovery Timeline**:
+**Recovery Timeline (Expected vs Actual)**:
 
-| Phase | Before | After |
-|-------|--------|-------|
-| Old thread cleanup | ~0.5s | ~0.5s |
-| Restart delay | 0s | 3s |
-| start_playing wait | 10s | 3s |
-| Pipeline state transition | ~1.7s | ~1.7s |
-| **Total recovery time** | **~12s** | **~8s** |
+| Phase | Before | Expected | Actual (2026-01-22 test) |
+|-------|--------|----------|--------------------------|
+| Old thread cleanup | ~0.5s | ~0.5s | ~0.5s ✓ |
+| Restart delay | 0s | 3s | 3s ✓ |
+| start_playing wait | 10s | 3s | 3s ✓ |
+| Pipeline state transition | ~1.7s | ~1.7s | ERROR (loop) |
+| **Total recovery time** | **~12s** | **~8s** | **~26 minutes** |
 
-**Expected Behavior**:
+**Note**: The mechanism works correctly, but the decode pipeline fails immediately after restart (~50ms). Recovery only happens after ~249 restart attempts over 26 minutes.
+
+**Expected Behavior** (theory):
 
 ```
 Error in on_message_decode()
@@ -584,41 +588,171 @@ Pipeline PLAYING (~1.7s state transition)
 Should work (like after service restart)
 ```
 
+**Actual Behavior** (2026-01-22 test):
+
+```
+Error in on_message_decode()
+    │
+    ▼
+finally block: cleanup + unreference + gc.collect() ✓
+    │
+    ▼
+Thread exits ✓
+    │
+    ▼
+Monitor detects thread stopped ✓
+    │
+    ▼
+Wait 3 seconds ✓
+    │
+    ▼
+start_gstreamer_thread() ✓
+    │
+    ▼
+start_playing ✓
+    │
+    ▼
+Pipeline: null → ready → paused → ERROR (not-negotiated) ✗
+    │
+    ▼
+LOOP REPEATS (~249 times over 26 minutes)
+    │
+    ▼
+Eventually: paused → playing ✓ (random success after ~26 min)
+```
+
 ---
 
-## Current Status: Attempt 6 + Attempt 7 Implemented
+## Attempt 7 Test Results (2026-01-22)
 
-**Date**: 2026-01-22
+### Test Execution
 
-### Important: Error Recovery, Not Error Elimination
+**Error reproduced**: 2026-01-22 18:01:33 (camera 192.168.22.3)
 
-**We do NOT expect to eliminate the "not-negotiated" error.** The error may still occur due to:
-- Camera RTSP stream issues
-- Network instability
-- GStreamer/decoder edge cases
+### Expected vs Actual
 
-**What we DO expect**: When the error occurs, the pipeline **self-recovers in ~8 seconds** instead of entering a crash loop that requires manual service restart.
+| Metric | Expected | Actual |
+|--------|----------|--------|
+| Recovery time | ~8 seconds | **~26 minutes** |
+| Restart attempts | 1-2 | **~249** |
+| Error duration | 18:01:33 → 18:01:41 | 18:01:33 → **18:27:36** |
+| Manual intervention | None | **None** (self-recovered) |
+
+### Timeline
+
+```
+18:01:33.584  ERROR: not-negotiated (-4)
+18:01:33.713  Pipeline elements unreferenced ✓
+18:01:33.713  Monitor detects stop, will restart
+18:01:33.713  "waiting 3s before restart for resource cleanup..." ✓
+18:01:36.724  New thread starts (Thread-Gst-192.168.22.3-18:01:36.713933)
+18:01:36.825  start_playing NOT SUCCESS, sleeping 3s
+18:01:39.879  ERROR: not-negotiated (-4)  ← Error recurs ~50ms after decode pipeline starts
+             ════════════════════════════════════════════════════════════
+                   CRASH LOOP: ~249 restart cycles over 26 minutes
+                   Each cycle: error → cleanup → 3s delay → restart → error
+             ════════════════════════════════════════════════════════════
+18:27:29.802  Last error
+18:27:32.917  New thread starts (Thread-Gst-192.168.22.3-18:27:32.907270)
+18:27:36.058  Decode Pipeline: paused → playing ✓  ← SUCCESS (same sequence, randomly worked)
+18:27:36.159  Main Pipeline: paused → playing ✓
+```
+
+### Analysis
+
+**What worked:**
+- Thread restart mechanism ✓
+- 3s cleanup delay executed ✓
+- Pipeline elements unreferenced ✓
+- Monitor detected thread stop ✓
+
+**What didn't work:**
+- Quick recovery (~8s) ✗
+- Thread restart did NOT clear the problematic state
+
+**The error pattern:**
+```
+Failed attempt:  null → ready → paused → ERROR (not-negotiated) ~50ms
+Success attempt: null → ready → paused → playing ✓ ~36ms
+```
+
+The decode pipeline consistently failed at the `paused → playing` transition for 26 minutes, then randomly succeeded. Nothing special triggered the recovery.
+
+### Why Thread Restart Doesn't Provide Quick Recovery
+
+| Theory | Explanation |
+|--------|-------------|
+| **Process-level GStreamer state** | Thread restart doesn't clear GStreamer's global plugin registry, type factory cache, or internal state |
+| **TCP connection state** | RTSP connections may linger in TIME_WAIT; camera may cache session state |
+| **Non-deterministic timing** | The `paused → playing` transition has a race condition that occasionally succeeds (~0.4% rate = 1/249) |
+| **~30 min timeout** | Something (RTSP session? TCP connection? GStreamer cache?) times out after ~26-30 minutes |
+
+### Conclusion
+
+**Attempt 7 provides EVENTUAL self-recovery, not QUICK self-recovery.**
+
+| Aspect | Result |
+|--------|--------|
+| Thread restart mechanism | ✅ Works correctly |
+| 3s cleanup delay | ✅ Executes correctly |
+| Explicit unreferencing | ✅ Executes correctly |
+| Quick recovery (~8s) | ❌ Failed |
+| Eventual self-recovery | ✅ Works (~26 min, no manual intervention) |
+
+**Key insight**: The issue is **process-level state** that persists across thread restarts. Only service restart (full process kill) or waiting ~26 minutes resolves it. Thread-level cleanup is necessary but not sufficient.
+
+---
+
+## Current Status: Baseline + Attempt 7 (LAN Test)
+
+**Date**: 2026-01-23
+
+### Configuration Change: Attempt 6 Reverted
+
+**Reason**: Attempt 6 (continuous feed + skip-frame) increases CPU load significantly with multiple cameras. To test whether the "not-negotiated" error is network-related (WiFi vs LAN), we reverted to baseline frame handling while keeping Attempt 7's recovery mechanism.
+
+### Current Configuration
+
+| Setting | Value | Notes |
+|---------|-------|-------|
+| `is-live` | `true` | Baseline |
+| Continuous feed | **No** | Reverted - only push when `is_feeding=True` |
+| skip-frame | **Removed** | No skip-frame switching |
+| start_playing interval | 3s | Attempt 7 |
+| Restart delay | 3s | Attempt 7 |
+| Explicit unreferencing | Yes | Attempt 7 |
+| Diagnostic logging | Yes | ERROR CONTEXT |
+
+### What Was Changed (2026-01-23)
+
+**Removed (Attempt 6):**
+- skip-frame initialization in `__init__`
+- Continuous frame push in `on_new_sample()` - reverted to baseline
+- skip-frame=0 in `feed_detecting()`
+- skip-frame=2 in `stop_feeding()`
+
+**Kept (Attempt 7):**
+- 3s delay before restart (`py_handler.py`)
+- Explicit pipeline unreferencing in finally block
+- 3s start_playing interval
+
+### LAN vs WiFi Test
+
+Testing on **napir environment** (LAN cameras) to compare with **rulin environment** (WiFi cameras):
+
+| Environment | Core | Cameras | Network | Error frequency |
+|-------------|------|---------|---------|-----------------|
+| rulin/demo_Core | 192.168.22.2 | .3, .4, .5 | **WiFi** | Frequent (26 min crash loops) |
+| napir/JSH | 192.168.11.66 | .62, .25 | **LAN** | **Testing...** |
+
+**Hypothesis**: If error occurs less frequently on LAN, network instability (WiFi) is a contributing factor.
 
 ### Summary
 
-| Attempt | Purpose | Expectation |
-|---------|---------|-------------|
-| **Attempt 6** | Keep decoder warm during idle | May reduce error frequency |
-| **Attempt 7** | Proper cleanup before thread restart | **Self-recovery works** (no crash loop) |
-
-**Attempt 6** (Continuous Feed with skip-frame) keeps the decoder processing frames during idle to reduce staleness.
-
-**Attempt 7** (Per-Camera Thorough Cleanup) ensures that when an error occurs, the thread restart properly cleans up resources so the new pipeline can start fresh - similar to a service restart but per-camera only.
-
-| Setting | Value |
-|---------|-------|
-| `is-live` | `true` |
-| Continuous feed | Yes (ALL frames) |
-| skip-frame (idle) | 2 (skip IDCT/Dequant) |
-| skip-frame (detection) | 0 (full decode) |
-| start_playing interval | 3s (reduced from 10s) |
-| Restart delay | 3s (new) |
-| Diagnostic logging | Yes (ERROR CONTEXT) |
+| Attempt | Purpose | Result |
+|---------|---------|--------|
+| **Attempt 6** | Keep decoder warm during idle | **REVERTED** (high CPU with multiple cameras) |
+| **Attempt 7** | Proper cleanup before thread restart | **Kept** (eventual self-recovery) |
 
 ### Summary of All Attempts
 
@@ -630,15 +764,19 @@ Should work (like after service restart)
 | 3 | Flush on stop + set_state(PLAYING) | FAILED | Still stale after idle |
 | 4 | `is-live=false` | FAILED | Silent stall after ~2.5 hrs |
 | 5 | Trickle feed (1 frame/5sec) | FAILED | Crash loop (timestamp gaps) |
-| 6 | Continuous feed + skip-frame | TESTING | Stable so far (2026-01-21) |
-| **7** | **Per-camera cleanup + 3s restart delay** | **IMPLEMENTED** | Testing required |
+| 6 | Continuous feed + skip-frame | **REVERTED** | High CPU with multiple cameras |
+| **7** | **Per-camera cleanup + 3s restart delay** | **PARTIAL** | Eventual recovery (~26 min), not quick (~8s) |
 
 **Two separate issues identified**:
 
-1. **Decoder staleness after idle** → Attempt 6 (continuous feed) may reduce error frequency
-2. **Crash loop not self-recovering** → Attempt 7 (cleanup + delay) enables self-recovery
+1. **Decoder staleness after idle** → Attempt 6 was tested but reverted due to high CPU
+2. **Crash loop not self-recovering** → Attempt 7 (cleanup + delay) enables eventual self-recovery
 
-**Note**: The goal is NOT to eliminate errors, but to ensure **automatic recovery** when errors occur. Expected recovery time: ~8 seconds per camera (other cameras unaffected).
+**Current behavior**: Baseline frame handling + Attempt 7 recovery. Testing on LAN to determine if network stability affects error frequency.
+
+**Why quick recovery failed**: Thread restart does not clear process-level GStreamer state. Only full process restart (service restart) or waiting ~26 minutes for some internal timeout provides quick recovery.
+
+**Current test**: Comparing WiFi (rulin) vs LAN (napir) to isolate network as a factor.
 
 ---
 
@@ -779,3 +917,6 @@ When error occurs, these logs are captured automatically:
 | 2026-01-21 | **Key Insight**: Thread restart ≠ service restart. Service restart clears Pi-side state that thread restart doesn't |
 | 2026-01-22 | **Attempt 7 IMPLEMENTED**: Per-camera thorough cleanup with 3s restart delay (reduced from initial 10s plan) |
 | 2026-01-22 | **Optimization**: Reduced `start_playing` interval from 10s to 3s - actual state transition takes only ~1.7s |
+| 2026-01-22 | **Attempt 7 TESTED**: Error reproduced at 18:01:33. Crash loop lasted 26 minutes (~249 restarts) before spontaneous recovery at 18:27:36. Quick recovery (~8s) NOT achieved - thread restart doesn't clear process-level state. Eventual self-recovery confirmed (no manual intervention needed). |
+| 2026-01-23 | **Attempt 6 REVERTED**: Continuous feed + skip-frame causes high CPU with multiple cameras. Reverted to baseline frame handling (only push when `is_feeding=True`). Attempt 7 kept for recovery. |
+| 2026-01-23 | **LAN Test Started**: Testing on napir environment (LAN cameras at 192.168.11.x) to compare with rulin environment (WiFi cameras at 192.168.22.x). Hypothesis: if error is less frequent on LAN, network instability is a contributing factor. |
