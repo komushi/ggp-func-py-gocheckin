@@ -167,17 +167,26 @@
 
 ---
 
-### Test 10: Mixed - Occupancy Leaves, Legacy Continues (Scenario 10)
+### Test 10: Mixed Camera - No Face, Context Update (Scenario 10)
 **Camera:** 192.168.22.3 (Dahua)
 **Locks:** MAG001 (legacy), DC001 (sensor)
 
+**Similar to Test 8** but on mixed camera (ONVIF + occupancy contexts).
+
+**What This Test Verifies**:
+- `occupancyTriggeredLocks` is correctly updated when occupancy:false is received
+- Detection stops when timer expires with no face shown
+- Mixed context (ONVIF + occupancy) behaves correctly
+
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 1 | Trigger ONVIF motion on 192.168.22.3 | Detection starts |
-| 2 | Trigger occupancy:true on DC001 | Context merged |
-| 3 | Trigger occupancy:false on DC001 | DC001 removed, detection CONTINUES (has legacy) |
-| 4 | Show face, wait for match | `member_detected` with `onvifTriggered: true`, `occupancyTriggeredLocks: []` |
-| 5 | Check unlock | MAG001 unlocked, DC001 NOT unlocked (guest left) |
+| 1 | Trigger ONVIF motion on 192.168.22.3 | Detection starts, timer=10s |
+| 2 | Trigger occupancy:true on DC001 | Context merged, timer extended to 10s |
+| 3 | **Do NOT show face** | Detection running... |
+| 4 | Wait for occupancy:false on DC001 (~10s) | Log: DC001 removed from `occupancyTriggeredLocks` |
+| 5 | Check | Detection STOPPED, NO `member_detected`, NO unlock |
+
+**Note**: Test 6 already covers "face shown while both contexts active" scenario.
 
 ---
 
@@ -209,16 +218,25 @@
 
 ---
 
-### Test 13: Timer Extended - ONVIF First, ONVIF Again (Scenario 17)
+### Test 13: Timer NOT Extended - ONVIF First, ONVIF Again (Scenario 17)
 **Camera:** 192.168.22.4 (Dahua)
 **Locks:** MAG001 (legacy)
 
+**Note**: ONVIF + ONVIF does NOT extend timer (by design). ONVIF motion can trigger constantly in busy areas, so extending would cause indefinite detection.
+
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 1 | Trigger ONVIF motion | Detection starts, `started_by_onvif: true` |
+| 1 | Trigger ONVIF motion | Detection starts, timer=10s |
 | 2 | Wait 8 seconds | Timer at 2s remaining |
-| 3 | Trigger another ONVIF motion | Log: `extend_timer`, timer reset |
-| 4 | Show face in extended window | MAG001 unlocked |
+| 3 | Trigger another ONVIF motion | Log: `ONVIF trigger, timer NOT extended`, timer continues |
+| 4 | Show face within 2s | MAG001 unlocked |
+| 5 | Or wait 2s, no face | Timer expires, detection stops |
+
+**Timer Extension Rules**:
+- Occupancy + Occupancy → **extend** (deliberate action)
+- ONVIF + Occupancy → **extend** (deliberate action joins)
+- Occupancy + ONVIF → **NO extend**
+- ONVIF + ONVIF → **NO extend** (avoid indefinite detection)
 
 ---
 
@@ -231,14 +249,14 @@
 | 3 | Sensor-only occupancy | 192.168.22.5 | PASS | 2026-01-20 |
 | 4 | Mixed ONVIF only | 192.168.22.3 | PASS | 2026-01-20 |
 | 5 | Mixed occupancy only | 192.168.22.3 | PASS | 2026-01-20 |
-| 6 | Mixed ONVIF->occupancy | 192.168.22.3 | | |
-| 7 | Mixed occupancy->ONVIF | 192.168.22.3 | | |
+| 6 | Mixed ONVIF->occupancy | 192.168.22.3 | PASS | 2026-01-21: ONVIF first, DC001 occ joined ~670ms later, context merged, timer extended, both locks unlocked. |
+| 7 | Mixed occupancy->ONVIF | 192.168.22.3 | PASS | 2026-01-21: DC001 occ first, ONVIF joined, both locks unlocked. Timer NOT extended (correct). |
 | 8 | Occupancy false no face | 192.168.22.5 | | |
 | 9 | Multi-occupancy one leaves | 192.168.22.5 | | |
-| 10 | Mixed occupancy leaves | 192.168.22.3 | | |
+| 10 | Mixed: no face, context update | 192.168.22.3 | | Similar to Test 8, but mixed camera |
 | 11 | Timer extend occ+occ | 192.168.22.5 | | |
 | 12 | Timer NO extend occ->ONVIF | 192.168.22.3 | | |
-| 13 | Timer extend ONVIF->ONVIF | 192.168.22.4 | | |
+| 13 | Timer NO extend ONVIF->ONVIF | 192.168.22.4 | | |
 
 ---
 
