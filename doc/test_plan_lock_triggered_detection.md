@@ -339,7 +339,7 @@
 | 3 | Sensor-only occupancy | 192.168.22.5 | PASS | 2026-01-20 |
 | 4 | Mixed ONVIF only | 192.168.22.3 | PASS | 2026-01-20 |
 | 5 | Mixed occupancy only | 192.168.22.3 | PASS | 2026-01-20 |
-| 6 | Mixed ONVIF→Occ (extends, face matched) | 192.168.22.3 | | Retest with fix |
+| 6 | Mixed ONVIF→Occ (extends, face matched) | 192.168.22.3 | PASS | 2026-01-24: Fix verified. `running_seconds: 10 -> 14.8`, 144 frames processed. Note: DC001 not unlocked because occupancy:false received before face match (expected) |
 | 7 | Mixed Occ→ONVIF (no extend, face matched) | 192.168.22.3 | | Retest with fix |
 | 8 | Occupancy false no face | 192.168.22.5 | | |
 | 9 | Multi-occupancy one leaves | 192.168.22.5 | | |
