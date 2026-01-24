@@ -651,7 +651,7 @@ class StreamCapture(threading.Thread):
         """Extend the detection timer without resetting detection state.
 
         Called when a new trigger arrives while detection is already running.
-        Only resets the timer, does not affect is_feeding or other state.
+        Resets the timer and updates running_seconds to extend frame limit.
         """
         logger.info(f"{self.cam_ip} extend_timer in, extending to {running_seconds}s")
 
@@ -663,6 +663,14 @@ class StreamCapture(threading.Thread):
         if self.feeding_timer is not None:
             self.feeding_timer.cancel()
             self.feeding_timer = None
+
+        # Update running_seconds to extend frame limit
+        # New running_seconds = elapsed + new_duration
+        with self.detecting_lock:
+            elapsed_seconds = self.feeding_count / self.framerate
+            old_running_seconds = self.running_seconds
+            self.running_seconds = elapsed_seconds + running_seconds
+            logger.info(f"{self.cam_ip} extend_timer - running_seconds: {old_running_seconds} -> {self.running_seconds:.1f} (elapsed: {elapsed_seconds:.1f}s)")
 
         # Create new timer with fresh duration
         self.feeding_timer = threading.Timer(running_seconds, self.stop_feeding)
