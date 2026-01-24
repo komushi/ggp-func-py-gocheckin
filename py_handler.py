@@ -336,7 +336,7 @@ def init_cameras():
     name = "Thread-InitCameras-Timer"
 
     for thread in threading.enumerate():
-        logger.info(f"init_cameras thread.name {thread.name}")
+        logger.debug(f"init_cameras thread.name {thread.name}")
         if isinstance(thread, threading.Timer) and thread.name == name:
             thread.cancel()
 
@@ -374,7 +374,7 @@ def init_cameras():
     timer.start()
 
     for thread in threading.enumerate():
-        logger.info(f"init_cameras out thread.name {thread.name}")
+        logger.debug(f"init_cameras out thread.name {thread.name}")
 
     logger.info(f"init_cameras out")
 
@@ -1516,7 +1516,7 @@ def subscribe_onvif(cam_ip):
     onvif_settings = camera_item.get('onvif', {})
     is_subscription_enabled = onvif_settings.get('isSubscription', False)
 
-    logger.info(f"{cam_ip} subscribe_onvif camera_item: {camera_item} old_onvif_sub_address: {old_onvif_sub_address} is_subscription_enabled: {is_subscription_enabled}")
+    # logger.debug(f"{cam_ip} subscribe_onvif camera_item: {camera_item} old_onvif_sub_address: {old_onvif_sub_address} is_subscription_enabled: {is_subscription_enabled}")
 
     # Only subscribe if isSubscription is enabled AND (isDetecting OR isRecording)
     if is_subscription_enabled and (camera_item['isDetecting'] or camera_item['isRecording']):

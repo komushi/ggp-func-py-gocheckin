@@ -52,6 +52,7 @@ class StreamCommands(Enum):
     MOTION_BEGIN = 5
     MOTION_END = 6
     VIDEO_CLIPPED = 7
+    SESSION_END = 8
     STOP = 8
 
 class StreamCapture(threading.Thread):
@@ -682,6 +683,14 @@ class StreamCapture(threading.Thread):
 
     def stop_feeding(self):
         logger.debug(f"{self.cam_ip} stop_feeding in")
+
+        # Send session end signal to face_recognition before clearing state
+        if self.detecting_txn is not None:
+            self.cam_queue.put((StreamCommands.SESSION_END, None, {
+                "cam_ip": self.cam_ip,
+                "detecting_txn": self.detecting_txn
+            }), block=False)
+
         # Check if the timer exists before trying to cancel
         if self.feeding_timer is not None:
             logger.debug(f"{self.cam_ip} stop_feeding before cancel feeding_timer")

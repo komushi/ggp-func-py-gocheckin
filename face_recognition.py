@@ -49,7 +49,15 @@ class FaceRecognition(threading.Thread):
             try:
 
                 if not self.cam_queue.empty():
-                    _, raw_img, cam_info = self.cam_queue.get(False)
+                    cmd, raw_img, cam_info = self.cam_queue.get(False)
+
+                    # Handle session end signal
+                    if cmd == gst.StreamCommands.SESSION_END:
+                        if cam_info['cam_ip'] in self.cam_detection_his:
+                            prev = self.cam_detection_his[cam_info['cam_ip']]
+                            if prev['detecting_txn'] == cam_info['detecting_txn']:
+                                logger.info(f"{cam_info['cam_ip']} session ended - frames: {prev['fetched']}, identified: {prev['identified']}")
+                        continue
 
                     if cam_info['cam_ip'] not in self.cam_detection_his:
                         self.cam_detection_his[cam_info['cam_ip']] = {}
@@ -60,14 +68,9 @@ class FaceRecognition(threading.Thread):
                         self.cam_detection_his[cam_info['cam_ip']]['fetched'] += 1
 
                         if self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] != cam_info['detecting_txn']:
-                            # Log last frame from previous session before starting new one
-                            last = self.cam_detection_his[cam_info['cam_ip']].get('last_frame')
-                            if last:
-                                logger.info(f"{cam_info['cam_ip']} last frame - fetched: {last['fetched']} age: {last['age']:.3f} duration: {last['duration']:.3f} face(s): {last['faces']}")
                             self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
                             self.cam_detection_his[cam_info['cam_ip']]['identified'] = False
                             self.cam_detection_his[cam_info['cam_ip']]['fetched'] = 1
-                            self.cam_detection_his[cam_info['cam_ip']]['last_frame'] = None
 
                     if self.cam_detection_his[cam_info['cam_ip']]['identified']:
                         continue
@@ -84,20 +87,9 @@ class FaceRecognition(threading.Thread):
                     else:
                         faces = self.face_app.get(raw_img)
                         duration = time.time() - current_time
-                        # Store last frame info for logging when session ends (reuse dict to avoid allocation)
-                        last_frame = self.cam_detection_his[cam_info['cam_ip']].get('last_frame')
-                        if last_frame is None:
-                            self.cam_detection_his[cam_info['cam_ip']]['last_frame'] = {
-                                'fetched': fetched, 'age': age, 'duration': duration, 'faces': len(faces)
-                            }
-                        else:
-                            last_frame['fetched'] = fetched
-                            last_frame['age'] = age
-                            last_frame['duration'] = duration
-                            last_frame['faces'] = len(faces)
-                        # Only log first frame at INFO level
+                        # Log first frame for near-real-time feedback
                         if fetched == 1:
-                            logger.info(f"{cam_info['cam_ip']} fetched: {fetched} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
+                            logger.info(f"{cam_info['cam_ip']} detection started - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
                     for face in faces:
                         for active_member in self.active_members:
@@ -109,9 +101,8 @@ class FaceRecognition(threading.Thread):
                             if sim >= float(os.environ['FACE_THRESHOLD']):
                             #   with self.captured_members_lock:
 
-                                # Log last frame when face is identified
-                                last = self.cam_detection_his[cam_info['cam_ip']].get('last_frame', {})
-                                logger.info(f"{cam_info['cam_ip']} last frame - fetched: {last.get('fetched', 'N/A')} age: {last.get('age', 0):.3f} duration: {last.get('duration', 0):.3f} face(s): {last.get('faces', 0)}")
+                                # Log frame where face is identified
+                                logger.info(f"{cam_info['cam_ip']} fetched: {fetched} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
                                 self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
                                 memberKey = f"{active_member['reservationCode']}-{active_member['memberNo']}"
                                 # if memberKey not in self.captured_members:
