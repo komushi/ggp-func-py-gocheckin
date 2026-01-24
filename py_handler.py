@@ -530,7 +530,7 @@ def start_http_server():
                             try:
                                 if is_motion_value:
                                     local_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
-                                    logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, camera_utc_time={utc_time}, using local_now={local_now}")
+                                    # logger.info(f"ONVIF Motion detected: is_motion_value={is_motion_value}, cam_ip={cam_ip}, camera_utc_time={utc_time}, using local_now={local_now}")
                                     handle_notification(cam_ip, local_now, is_motion_value)
                             except Exception as e:
                                 # Log any errors in the async processing
@@ -539,7 +539,7 @@ def start_http_server():
                                 traceback.print_exc()
                             finally:
                                 # Always log completion, even if there was an error
-                                logger.info(f"Async ONVIF notification thread for {cam_ip} finished and will be cleaned up.")
+                                logger.debug(f"Async ONVIF notification thread for {cam_ip} finished and will be cleaned up.")
 
                         # 4. Start the async processing thread
                         thread_name = f"Thread-ONVIF-Notification-{cam_ip}-{utc_time}"
