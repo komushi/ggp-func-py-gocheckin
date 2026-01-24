@@ -10,6 +10,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | 2 | GStreamer "not-negotiated" Error | **LAN TEST** | High | `gstreamer_not_negotiated_error.md` |
 | 3 | OOM / Memory Leak Issue | **OPEN** | High | `OOM_MEMORY_LEAK_ISSUE.md` |
 | 4 | ONVIF `isSubscription` Setting Not Checked | **FIXED** | Medium | `bug_onvif_isSubscription_not_checked.md` |
+| 5 | Occupancy Context Race Condition (Security) | **FIXED** | **Critical** | `bug_occupancy_context_race_condition.md` |
 
 ---
 
@@ -180,6 +181,50 @@ See `bug_onvif_isSubscription_not_checked.md` for full details.
 
 ---
 
+## Bug #5: Occupancy Context Race Condition (Security)
+
+**Status:** FIXED (2026-01-25)
+**Priority:** Critical (Security Risk)
+
+### Summary
+When a face is detected, the `occupancyTriggeredLocks` is read from the current context at **process time**, not at **frame capture time**. This causes a race condition where `occupancy:false` events can clear the context before the face match is processed, resulting in an empty `occupancyTriggeredLocks` array and triggering the "unlock all" fallback behavior.
+
+### Security Risk
+The "unlock all" fallback is a **security vulnerability**:
+- Guest touches their room's lock (DC006)
+- Race condition causes empty context
+- Fallback unlocks ALL locks on camera
+- **Result:** Other rooms (DC001) also unlock - security violation
+
+### Symptom
+- User touches keypad lock, shows face while lock is active
+- Lock's 10-second MCU timer expires, sends `occupancy:false`
+- Face match processed AFTER context is cleared
+- `member_detected` shows `occupancyTriggeredLocks: []`
+- TypeScript triggers "unlock all" fallback → ALL locks on camera unlock
+
+### Root Cause
+Context is read in `py_handler.py:fetch_scanner_output_queue()` at process time (~T+19s), but the face was captured earlier (~T+15s). If `occupancy:false` arrives between capture and processing, context is already empty.
+
+### Timeline Example
+```
+T+0     DC001 occupancy:true        context: {DC001}
+T+5     DC006 occupancy:true        context: {DC001, DC006}
+T+10    DC001 occupancy:false       context: {DC006}
+T+15    Frame captured (face)       context: {DC006} ← face in frame
+T+17    DC006 occupancy:false       context: {} ← CLEARED
+T+19    Face match processed        context: {} ← reads EMPTY
+```
+
+### Required Fix (Two Parts)
+1. **Capture context at frame time** - Store context snapshot with `detecting_txn`
+2. **Remove "unlock all" fallback** - Never use "unlock all" as fallback (security risk)
+
+### Documentation
+See `bug_occupancy_context_race_condition.md` for full details and fix options.
+
+---
+
 ## Related Issues
 
 ### Pipeline Crash → Stale Context Chain
@@ -190,6 +235,13 @@ Bug #2 (GStreamer crash) can trigger Bug #1 (stale context):
 4. Later trigger reuses stale context → wrong `onvifTriggered` value
 
 Bug #1 fix addresses the stale context, but Bug #2 (root cause of crashes) remains.
+
+### Context Management Issues (Bug #1 and Bug #5)
+Both bugs relate to `detection_contexts` timing:
+- **Bug #1 (Stale Context):** Context persists TOO LONG (after detection ends)
+- **Bug #5 (Race Condition):** Context read TOO LATE (after `occupancy:false` clears it)
+
+Bug #1 was fixed by clearing stale contexts. Bug #5 requires capturing context earlier (at frame capture time, not at `member_detected` process time).
 
 ---
 
@@ -226,3 +278,5 @@ Bug #1 fix addresses the stale context, but Bug #2 (root cause of crashes) remai
 | 2026-01-22 | - | Bug #2: **Attempt 7 TESTED** - Crash loop lasted 26 min, eventual self-recovery works, quick recovery (~8s) not achieved |
 | 2026-01-23 | - | Bug #2: **Attempt 6 REVERTED** - High CPU with multiple cameras, reverted to baseline frame handling |
 | 2026-01-23 | - | Bug #2: **LAN TEST** - Testing on napir (LAN) vs rulin (WiFi) to isolate network as a factor |
+| 2026-01-25 | - | Bug #5: **NEW** - Occupancy Context Race Condition discovered during Test 9 |
+| 2026-01-25 | - | Bug #5: **FIXED** - Context snapshots + removed "unlock all" fallback |

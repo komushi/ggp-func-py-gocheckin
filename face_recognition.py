@@ -174,6 +174,7 @@ class FaceRecognition(threading.Thread):
                                         "keyNotified": keyNotified,
                                         "payload": self.captured_members[memberKey],
                                         "cam_ip": cam_info['cam_ip'],
+                                        "detecting_txn": cam_info['detecting_txn'],
                                         "local_file_path": local_file_path,
                                         "snapshot_payload": snapshot_payload
                                     }, block=False)

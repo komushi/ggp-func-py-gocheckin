@@ -159,13 +159,16 @@
 **Camera:** 192.168.22.5 (Hikvision) - **Enable isDetecting first!**
 **Locks:** DC001 (sensor), DC006 (sensor)
 
+**Purpose:** Verify context correctly tracks multiple occupancy locks, and when one leaves, detection continues with remaining lock only.
+
 | Step | Action | Expected Result |
 |------|--------|-----------------|
-| 1 | Trigger occupancy:true on DC001 | Detection starts, `specific_locks: [DC001]` |
-| 2 | Trigger occupancy:true on DC006 | Context merged, `specific_locks: [DC001, DC006]` |
-| 3 | Trigger occupancy:false on DC001 | DC001 removed, `specific_locks: [DC006]`, detection CONTINUES |
-| 4 | Show face, wait for match | `member_detected` with `occupancyTriggeredLocks: ["0x1051dbfffe182b18"]` (DC006 only) |
-| 5 | Check unlock | DC006 unlocked, DC001 NOT unlocked |
+| 1 | Trigger occupancy:true on DC001 | Detection starts, `running_seconds=10`, `active_occupancy: [DC001]` |
+| 2 | Wait 3-4 seconds | ~30-40 frames processed |
+| 3 | Trigger occupancy:true on DC006 | Timer extended `running_seconds: 10 -> ~13-14`, `active_occupancy: [DC001, DC006]` |
+| 4 | Trigger occupancy:false on DC001 | DC001 removed, `active_occupancy: [DC006]`, detection CONTINUES |
+| 5 | Show face, wait for match | `member_detected` with `occupancyTriggeredLocks: ["0x1051dbfffe182b18"]` (DC006 only) |
+| 6 | Check unlock | DC006 unlocked, DC001 NOT unlocked |
 
 ---
 
@@ -340,8 +343,8 @@
 | 4 | Mixed ONVIF only | 192.168.22.3 | PASS | 2026-01-20 |
 | 5 | Mixed occupancy only | 192.168.22.3 | PASS | 2026-01-20 |
 | 6 | Mixed ONVIF→Occ (extends, face matched) | 192.168.22.3 | PASS | 2026-01-24: Fix verified. `running_seconds: 10 -> 14.8`, 144 frames processed. Note: DC001 not unlocked because occupancy:false received before face match (expected) |
-| 7 | Mixed Occ→ONVIF (no extend, face matched) | 192.168.22.3 | | Retest with fix |
-| 8 | Occupancy false no face | 192.168.22.5 | | |
+| 7 | Mixed Occ→ONVIF (no extend, face matched) | 192.168.22.3 | PASS | 2026-01-24: Occupancy at 23:21:48, ONVIF joined at 23:21:49 (timer NOT extended). Face matched at frame 41. Both MAG001 and DC001 unlocked. |
+| 8 | Occupancy false no face | 192.168.22.5 | PASS | 2026-01-24: 101 frames processed, no face detected, session ended with `identified: False`. No unlock triggered. |
 | 9 | Multi-occupancy one leaves | 192.168.22.5 | | |
 | 10 | Mixed: no face, context update | 192.168.22.3 | | |
 | 11 | Timer extend Occ+Occ (sensor-only) | 192.168.22.5 | | |
