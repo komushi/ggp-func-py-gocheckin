@@ -1497,7 +1497,7 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
 
 def handle_occupancy_false(cam_ip, lock_asset_id):
     """Handle occupancy:false - remove lock from context and possibly stop detection early"""
-    global trigger_lock_context, thread_gstreamers, camera_items
+    global trigger_lock_context, thread_gstreamers, camera_items, context_snapshots
 
     logger.info('handle_occupancy_false in cam_ip: %s, lock_asset_id: %s', cam_ip, lock_asset_id)
 
@@ -1513,6 +1513,21 @@ def handle_occupancy_false(cam_ip, lock_asset_id):
 
     logger.info('handle_occupancy_false - context after removal: %s', context)
 
+    # Update context snapshot to reflect the removal
+    # This ensures the snapshot stays in sync with the current context
+    if cam_ip in thread_gstreamers:
+        thread_gstreamer = thread_gstreamers[cam_ip]
+        if thread_gstreamer is not None:
+            detecting_txn = thread_gstreamer.detecting_txn
+            if detecting_txn:
+                snapshot_key = (cam_ip, detecting_txn)
+                if snapshot_key in context_snapshots:
+                    context_snapshots[snapshot_key] = {
+                        'onvif_triggered': context.get('onvif_triggered', False),
+                        'specific_locks': set(context.get('specific_locks', set()))
+                    }
+                    logger.info('handle_occupancy_false - updated context snapshot: %s', context_snapshots[snapshot_key])
+
     # Check if should stop detection early
     if cam_ip in thread_gstreamers:
         thread_gstreamer = thread_gstreamers[cam_ip]
@@ -1525,6 +1540,13 @@ def handle_occupancy_false(cam_ip, lock_asset_id):
                 if not has_legacy:
                     logger.info('handle_occupancy_false - stopping detection early for: %s', cam_ip)
                     thread_gstreamer.stop_feeding()
+                    # Clean up snapshot when stopping detection early
+                    detecting_txn = thread_gstreamer.detecting_txn
+                    if detecting_txn:
+                        snapshot_key = (cam_ip, detecting_txn)
+                        if snapshot_key in context_snapshots:
+                            del context_snapshots[snapshot_key]
+                            logger.info('handle_occupancy_false - deleted context snapshot for early stop')
                     del trigger_lock_context[cam_ip]
                 else:
                     logger.info('handle_occupancy_false - has legacy locks, continuing detection: %s', cam_ip)

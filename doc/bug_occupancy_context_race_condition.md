@@ -214,3 +214,4 @@ Result: Only DC006 unlocks (CORRECT)
 | 2026-01-25 | TS fallback "unlock all" behavior confirmed in logs |
 | 2026-01-25 | **FIX IMPLEMENTED**: Part 1 - Context snapshots captured at detection start |
 | 2026-01-25 | **FIX IMPLEMENTED**: Part 2 - Removed "unlock all" fallback in TypeScript |
+| 2026-01-25 | **FIX UPDATED**: Part 1 - Snapshot now updated on occupancy:false to remove departed locks |
