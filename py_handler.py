@@ -1540,13 +1540,9 @@ def handle_occupancy_false(cam_ip, lock_asset_id):
                 if not has_legacy:
                     logger.info('handle_occupancy_false - stopping detection early for: %s', cam_ip)
                     thread_gstreamer.stop_feeding()
-                    # Clean up snapshot when stopping detection early
-                    detecting_txn = thread_gstreamer.detecting_txn
-                    if detecting_txn:
-                        snapshot_key = (cam_ip, detecting_txn)
-                        if snapshot_key in context_snapshots:
-                            del context_snapshots[snapshot_key]
-                            logger.info('handle_occupancy_false - deleted context snapshot for early stop')
+                    # NOTE: Do NOT delete snapshot here - face recognition may still be
+                    # processing frames captured before stop. Let fetch_scanner_output_queue
+                    # delete the snapshot after member_detected is processed.
                     del trigger_lock_context[cam_ip]
                 else:
                     logger.info('handle_occupancy_false - has legacy locks, continuing detection: %s', cam_ip)
