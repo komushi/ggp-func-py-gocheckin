@@ -280,3 +280,4 @@ Bug #1 was fixed by clearing stale contexts. Bug #5 requires capturing context e
 | 2026-01-23 | - | Bug #2: **LAN TEST** - Testing on napir (LAN) vs rulin (WiFi) to isolate network as a factor |
 | 2026-01-25 | - | Bug #5: **NEW** - Occupancy Context Race Condition discovered during Test 9 |
 | 2026-01-25 | - | Bug #5: **FIXED** - Context snapshots + removed "unlock all" fallback |
+| 2026-01-25 | - | Bug #5: **TEST 9 PASSED** - Both directions verified (DC001 first, DC006 first) |

@@ -215,3 +215,4 @@ Result: Only DC006 unlocks (CORRECT)
 | 2026-01-25 | **FIX IMPLEMENTED**: Part 1 - Context snapshots captured at detection start |
 | 2026-01-25 | **FIX IMPLEMENTED**: Part 2 - Removed "unlock all" fallback in TypeScript |
 | 2026-01-25 | **FIX UPDATED**: Part 1 - Snapshot now updated on occupancy:false to remove departed locks |
+| 2026-01-25 | **TEST 9 PASSED**: DC001 first → only DC006 unlocked. DC006 first → only DC001 unlocked. |
