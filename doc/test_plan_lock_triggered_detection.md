@@ -346,16 +346,16 @@
 | 7 | Mixed Occ→ONVIF (no extend, face matched) | 192.168.22.3 | PASS | 2026-01-24: Occupancy at 23:21:48, ONVIF joined at 23:21:49 (timer NOT extended). Face matched at frame 41. Both MAG001 and DC001 unlocked. |
 | 8 | Occupancy false no face | 192.168.22.5 | PASS | 2026-01-24: 101 frames processed, no face detected, session ended with `identified: False`. No unlock triggered. |
 | 9 | Multi-occupancy one leaves | 192.168.22.5 | PASS | 2026-01-25: Bug #5 fix verified. DC001 first→DC006 only unlocked. DC006 first→DC001 only unlocked. Context snapshot correctly updated on occupancy:false. |
-| 10 | Mixed: no face, context update | 192.168.22.3 | | |
-| 11 | Timer extend Occ+Occ (sensor-only) | 192.168.22.5 | | |
-| 12 | Timer NO extend Occ→ONVIF (face matched) | 192.168.22.3 | | |
-| 13 | Timer NO extend ONVIF→ONVIF (legacy, face) | 192.168.22.4 | | |
-| 14 | Timer NO extend ONVIF→ONVIF (mixed, face) | 192.168.22.3 | | |
-| 15 | Timer extend Occ+Occ (mixed) | 192.168.22.3 | | |
-| 16 | Timer NO extend Occ→ONVIF (expires) | 192.168.22.3 | | |
-| 17 | Timer NO extend ONVIF→ONVIF (legacy, expires) | 192.168.22.4 | | |
-| 18 | Timer NO extend ONVIF→ONVIF (mixed, expires) | 192.168.22.3 | | |
-| 19 | Timer extended, face at T+12s | 192.168.22.3 | | Verify extended window works |
+| 10 | Mixed: no face, context update | 192.168.22.3 | PASS | 2026-01-25: ONVIF at T+0, DC001 occupancy at T+5.4s (timer 10→15.4s). DC001 occupancy:false at T+14s removed from context. Detection continued (ONVIF active). No face, no unlock. |
+| 11 | Timer extend Occ+Occ (sensor-only) | 192.168.22.5 | PASS | 2026-01-25: DC001 at T+0, DC006 at T+5.1s (timer 10→15.1s). Face matched at frame 73. Both DC001 and DC006 in occupancyTriggeredLocks. |
+| 12 | Timer NO extend Occ→ONVIF (face matched) | 192.168.22.3 | PASS | 2026-01-25: Occupancy at T+0, ONVIF at T+2.2s. Timer NOT extended. Face matched at frame 62. Both DC001 and MAG001 unlocked. |
+| 13 | Timer NO extend ONVIF→ONVIF (legacy, face) | 192.168.22.4 | PASS | 2026-01-25: ONVIF at T+0, second ONVIF at T+4.9s. Timer NOT extended. Face matched at frame 82. MAG001 unlocked. |
+| 14 | Timer NO extend ONVIF→ONVIF (mixed, face) | 192.168.22.3 | PASS | 2026-01-25: ONVIF at T+0, second ONVIF at T+7.1s. Timer NOT extended. Face matched at frame 95. Only MAG001 unlocked. |
+| 15 | Timer extend Occ+Occ (mixed) | 192.168.22.3 | SKIP | Covered by Test 11. Timer extension logic is identical regardless of camera type. |
+| 16 | Timer NO extend Occ→ONVIF (expires) | 192.168.22.3 | PASS | 2026-01-25: Occupancy at T+0, ONVIF at T+5.8s. Timer NOT extended. No face (identified_at=0). Timer expired at T+10s. |
+| 17 | Timer NO extend ONVIF→ONVIF (legacy, expires) | 192.168.22.4 | PASS | 2026-01-25: ONVIF at T+0, second ONVIF at T+7.1s. Timer NOT extended. No face (identified_at=0). Timer expired at T+10s. |
+| 18 | Timer NO extend ONVIF→ONVIF (mixed, expires) | 192.168.22.3 | PASS | 2026-01-25: ONVIF at T+0, second ONVIF at T+7.9s. Timer NOT extended. No face (identified_at=0). Timer expired at T+10.4s. |
+| 19 | Timer extended, face at T+12s | 192.168.22.3 | PASS | 2026-01-25: ONVIF at T+0, Occupancy at T+6.6s (timer 10→17.6s). Face matched at T+13.7s (past original T+10s, within extended window). Both MAG001 and DC001 unlocked. |
 
 ---
 
