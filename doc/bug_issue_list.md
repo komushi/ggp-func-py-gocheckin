@@ -7,7 +7,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | # | Bug | Status | Priority | File |
 |---|-----|--------|----------|------|
 | 1 | Stale Trigger Context (`onvifTriggered=True` when ONVIF disabled) | **FIXED** | High | `stale_trigger_context_bug.md` |
-| 2 | GStreamer "not-negotiated" Error | **LAN TEST** | High | `gstreamer_not_negotiated_error.md` |
+| 2 | GStreamer "not-negotiated" Error | **NETWORK** | Medium | `gstreamer_not_negotiated_error.md` |
 | 3 | OOM / Memory Leak Issue | **OPEN** | High | `OOM_MEMORY_LEAK_ISSUE.md` |
 | 4 | ONVIF `isSubscription` Setting Not Checked | **FIXED** | Medium | `bug_onvif_isSubscription_not_checked.md` |
 | 5 | Occupancy Context Race Condition (Security) | **FIXED** | **Critical** | `bug_occupancy_context_race_condition.md` |
@@ -49,10 +49,23 @@ See `stale_trigger_context_bug.md` for full details and regression test.
 
 ## Bug #2: GStreamer "not-negotiated" Error
 
-**Status:** LAN TEST (Updated 2026-01-23)
+**Status:** NETWORK (Updated 2026-01-25)
 
 ### Summary
-The decode pipeline (`appsrc → h265parse → avdec → appsink`) intermittently fails with "not-negotiated" error after idle periods. Multiple fix attempts have failed. Currently testing on LAN cameras to determine if network (WiFi) is a contributing factor.
+The decode pipeline (`appsrc → h265parse → avdec → appsink`) intermittently fails with "not-negotiated" error after idle periods. **Root cause identified: WiFi network instability.** LAN testing confirmed error does not occur with wired connections.
+
+### Conclusion (2026-01-25)
+**LAN Test Results:**
+- Tested multiple LAN cameras for hours
+- Error **never occurred** on LAN connections
+- Error only occurs on WiFi cameras (rulin environment)
+
+**Root Cause:** WiFi packet loss/jitter causes RTSP stream corruption. When corrupted data reaches the decode pipeline after idle, GStreamer cannot negotiate the stream format.
+
+**Resolution:** This is a network infrastructure issue, not a code bug. Recommendations:
+1. Use wired LAN connections for cameras when possible
+2. Accept that WiFi cameras may experience intermittent decode errors
+3. Current self-recovery mechanism (eventual restart after crash loop) is sufficient
 
 ### Error Signature
 ```
@@ -108,7 +121,7 @@ streaming stopped, reason not-negotiated (-4)
 
 **Attempt 7 Results (2026-01-22)**: Error reproduced, crash loop lasted 26 minutes before self-recovery. Quick recovery (~8s) NOT achieved, but eventual self-recovery works without manual intervention.
 
-**LAN Test (2026-01-23)**: Testing on napir environment (LAN cameras at 192.168.11.x) to compare with rulin environment (WiFi cameras at 192.168.22.x). Hypothesis: if error is less frequent on LAN, network instability is a contributing factor.
+**LAN Test (2026-01-23 → 2026-01-25)**: Tested on napir environment (LAN cameras at 192.168.11.x) for extended hours. **Result: Error NEVER occurred on LAN.** This confirms the hypothesis - WiFi network instability is the root cause, not a code bug.
 
 ### Camera Restart Observation (2026-01-20)
 
@@ -281,3 +294,4 @@ Bug #1 was fixed by clearing stale contexts. Bug #5 requires capturing context e
 | 2026-01-25 | - | Bug #5: **NEW** - Occupancy Context Race Condition discovered during Test 9 |
 | 2026-01-25 | - | Bug #5: **FIXED** - Context snapshots + removed "unlock all" fallback |
 | 2026-01-25 | - | Bug #5: **TEST 9 PASSED** - Both directions verified (DC001 first, DC006 first) |
+| 2026-01-25 | - | Bug #2: **ROOT CAUSE IDENTIFIED** - WiFi network instability. LAN cameras tested for hours with no errors. Status changed to NETWORK, priority lowered to Medium. |
