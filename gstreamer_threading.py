@@ -97,15 +97,19 @@ class StreamCapture(threading.Thread):
             appsink.connect("new-sample", self.on_new_sample, {})
 
         pipeline_str_decode = ''
+        # Calculate max fps for detection: source framerate * detecting rate percent
+        self.detecting_max_fps = round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))
+        logger.info(f"{self.cam_ip} detecting_max_fps={self.detecting_max_fps} (framerate={self.framerate}, DETECTING_RATE_PERCENT={os.environ['DETECTING_RATE_PERCENT']})")
+
         if self.codec == 'h264':
             pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue name=queue_after_appsrc ! h264parse ! queue ! avdec_h264 name=m_avdec
-                ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
+                ! queue ! videorate max-rate={self.detecting_max_fps} drop-only=true ! videoconvert ! video/x-raw,format=BGR
                 ! queue ! appsink name=m_appsink"""
         elif self.codec == 'h265':
             pipeline_str_decode = f"""appsrc name=m_appsrc emit-signals=true is-live=true format=time
                 ! queue name=queue_after_appsrc ! h265parse ! queue ! avdec_h265 name=m_avdec max-threads=2 output-corrupt=false
-                ! queue ! videoconvert ! videorate drop-only=true ! video/x-raw,format=BGR,framerate={round(int(self.framerate) * float(os.environ['DETECTING_RATE_PERCENT']))}/1
+                ! queue ! videorate max-rate={self.detecting_max_fps} drop-only=true ! videoconvert ! video/x-raw,format=BGR
                 ! queue ! appsink name=m_appsink"""
 
         # Create the empty pipeline
