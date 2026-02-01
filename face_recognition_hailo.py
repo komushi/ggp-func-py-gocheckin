@@ -272,7 +272,7 @@ class HailoFaceApp:
         boxes, scores, landmarks = self._postprocess_detection(det_results, scale, pad_left, pad_top, img.shape)
         t3 = time.time()
 
-        logger.info(f"HailoFaceApp.get timing: preprocess={1000*(t1-t0):.1f}ms, inference={1000*(t2-t1):.1f}ms, postprocess={1000*(t3-t2):.1f}ms, boxes={len(boxes)}")
+        logger.debug(f"HailoFaceApp.get timing: preprocess={1000*(t1-t0):.1f}ms, inference={1000*(t2-t1):.1f}ms, postprocess={1000*(t3-t2):.1f}ms, boxes={len(boxes)}")
 
         if len(boxes) == 0:
             return []
@@ -616,16 +616,22 @@ class FaceRecognition(threading.Thread):
                         logger.debug(f"{cam_info['cam_ip']} fetched: {fetched} age: {age}")
                         continue
                     else:
-                        # Debug: log frame info before detection
-                        if raw_img is not None:
-                            img_shape = raw_img.shape
-                            img_dtype = raw_img.dtype
-                            img_min = raw_img.min()
-                            img_max = raw_img.max()
-                            img_mean = raw_img.mean()
-                            logger.info(f"{cam_info['cam_ip']} frame info: shape={img_shape}, dtype={img_dtype}, min={img_min}, max={img_max}, mean={img_mean:.1f}")
-                        else:
+                        # Validate frame before detection
+                        if raw_img is None:
                             logger.warning(f"{cam_info['cam_ip']} raw_img is None!")
+                            continue
+
+                        img_min = int(raw_img.min())
+                        img_max = int(raw_img.max())
+                        pixel_range = img_max - img_min
+
+                        # Skip corrupted/gray frames (H265 decoder produces flat gray frames when no valid data)
+                        # Valid video frames typically have pixel range > 100
+                        if pixel_range < 100:
+                            logger.debug(f"{cam_info['cam_ip']} skipping corrupted frame: min={img_min}, max={img_max}, range={pixel_range}")
+                            continue
+
+                        logger.debug(f"{cam_info['cam_ip']} valid frame: min={img_min}, max={img_max}, range={pixel_range}")
 
                         faces = self.face_app.get(raw_img)
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
