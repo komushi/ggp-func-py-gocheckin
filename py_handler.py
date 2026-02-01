@@ -974,27 +974,36 @@ def detect_face_backend():
     """
     global FACE_BACKEND, fdm
 
-    if not HAILO_IMPORT_AVAILABLE:
-        FACE_BACKEND = 'insightface'
-        fdm = fdm_insightface
-        logger.info("detect_face_backend: hailo_platform not installed, using insightface")
-        return FACE_BACKEND
-
-    try:
-        # Try to create a VDevice to probe for actual Hailo hardware
-        from hailo_platform import VDevice
-        vdevice = VDevice()
-        vdevice.release()
-
-        FACE_BACKEND = 'hailo'
-        fdm = fdm_hailo
-        logger.info("detect_face_backend: Hailo-8 detected, using hailo backend")
-    except Exception as e:
-        FACE_BACKEND = 'insightface'
-        fdm = fdm_insightface
-        logger.info(f"detect_face_backend: Hailo not available ({e}), using insightface backend")
-
+    # TODO: Hard-coded to insightface for comparison testing
+    # Hailo detection only works on I-frames in dual-pipeline architecture
+    # Re-enable auto-detection after fixing H265 P/B frame decoding issue
+    FACE_BACKEND = 'insightface'
+    fdm = fdm_insightface
+    logger.info("detect_face_backend: using insightface (hard-coded for comparison)")
     return FACE_BACKEND
+
+    # Original auto-detection logic (disabled):
+    # if not HAILO_IMPORT_AVAILABLE:
+    #     FACE_BACKEND = 'insightface'
+    #     fdm = fdm_insightface
+    #     logger.info("detect_face_backend: hailo_platform not installed, using insightface")
+    #     return FACE_BACKEND
+    #
+    # try:
+    #     # Try to create a VDevice to probe for actual Hailo hardware
+    #     from hailo_platform import VDevice
+    #     vdevice = VDevice()
+    #     vdevice.release()
+    #
+    #     FACE_BACKEND = 'hailo'
+    #     fdm = fdm_hailo
+    #     logger.info("detect_face_backend: Hailo-8 detected, using hailo backend")
+    # except Exception as e:
+    #     FACE_BACKEND = 'insightface'
+    #     fdm = fdm_insightface
+    #     logger.info(f"detect_face_backend: Hailo not available ({e}), using insightface backend")
+    #
+    # return FACE_BACKEND
 
 
 def claim_scanner():
