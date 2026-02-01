@@ -260,9 +260,19 @@ class HailoFaceApp:
             List of HailoFace objects with .bbox, .embedding, .kps, .det_score
         """
         # --- Detection ---
+        t0 = time.time()
+        # Ensure input is contiguous (Hailo may require this)
+        if not img.flags['C_CONTIGUOUS']:
+            img = np.ascontiguousarray(img)
+            logger.debug("HailoFaceApp.get: made input array contiguous")
         preprocessed, scale, (pad_left, pad_top) = self._preprocess_detection(img)
+        t1 = time.time()
         det_results = self._run_detection(preprocessed)
+        t2 = time.time()
         boxes, scores, landmarks = self._postprocess_detection(det_results, scale, pad_left, pad_top, img.shape)
+        t3 = time.time()
+
+        logger.info(f"HailoFaceApp.get timing: preprocess={1000*(t1-t0):.1f}ms, inference={1000*(t2-t1):.1f}ms, postprocess={1000*(t3-t2):.1f}ms, boxes={len(boxes)}")
 
         if len(boxes) == 0:
             return []
@@ -312,15 +322,24 @@ class HailoFaceApp:
 
     def _run_detection(self, preprocessed):
         """Run SCRFD inference on Hailo-8."""
-        output_buffers = {
-            info.name: np.empty(info.shape, dtype=np.uint8)
-            for info in self.det_infer_model.outputs
-        }
-        bindings = self.det_configured.create_bindings(output_buffers=output_buffers)
-        bindings.input().set_buffer(preprocessed)
-        job = self.det_configured.run_async([bindings], lambda *args, **kwargs: None)
-        job.wait(10000)
-        return output_buffers
+        try:
+            output_buffers = {
+                info.name: np.empty(info.shape, dtype=np.uint8)
+                for info in self.det_infer_model.outputs
+            }
+            bindings = self.det_configured.create_bindings(output_buffers=output_buffers)
+            bindings.input().set_buffer(preprocessed)
+            job = self.det_configured.run_async([bindings], lambda *args, **kwargs: None)
+            status = job.wait(10000)
+            logger.debug(f"Hailo detection job completed with status: {status}")
+            return output_buffers
+        except Exception as e:
+            logger.error(f"Hailo _run_detection error: {e}")
+            # Return empty buffers on error
+            return {
+                info.name: np.zeros(info.shape, dtype=np.uint8)
+                for info in self.det_infer_model.outputs
+            }
 
     def _postprocess_detection(self, outputs, scale, pad_left, pad_top, orig_shape):
         """Decode SCRFD outputs into boxes, scores, landmarks in original image coords."""
@@ -597,6 +616,17 @@ class FaceRecognition(threading.Thread):
                         logger.debug(f"{cam_info['cam_ip']} fetched: {fetched} age: {age}")
                         continue
                     else:
+                        # Debug: log frame info before detection
+                        if raw_img is not None:
+                            img_shape = raw_img.shape
+                            img_dtype = raw_img.dtype
+                            img_min = raw_img.min()
+                            img_max = raw_img.max()
+                            img_mean = raw_img.mean()
+                            logger.info(f"{cam_info['cam_ip']} frame info: shape={img_shape}, dtype={img_dtype}, min={img_min}, max={img_max}, mean={img_mean:.1f}")
+                        else:
+                            logger.warning(f"{cam_info['cam_ip']} raw_img is None!")
+
                         faces = self.face_app.get(raw_img)
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
                         detected = self.cam_detection_his[cam_info['cam_ip']]['detected']
