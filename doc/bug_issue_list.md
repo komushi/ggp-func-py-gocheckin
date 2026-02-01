@@ -11,6 +11,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | 3 | OOM / Memory Leak Issue | **OPEN** | High | `OOM_MEMORY_LEAK_ISSUE.md` |
 | 4 | ONVIF `isSubscription` Setting Not Checked | **FIXED** | Medium | `bug_onvif_isSubscription_not_checked.md` |
 | 5 | Occupancy Context Race Condition (Security) | **FIXED** | **Critical** | `bug_occupancy_context_race_condition.md` |
+| 6 | Dual-Pipeline H265 Frame Decode Failure | **OPEN** | High | `bug_dual_pipeline_h265_frame_decode.md` |
 
 ---
 
@@ -238,6 +239,55 @@ See `bug_occupancy_context_race_condition.md` for full details and fix options.
 
 ---
 
+## Bug #6: Dual-Pipeline H265 Frame Decode Failure
+
+**Status:** OPEN (Architecture Issue)
+**Discovered:** 2026-02-01
+
+### Summary
+In the dual-pipeline GStreamer architecture, only ~10% of H265 frames can be properly decoded for face detection. The `appsrc` element breaks the H265 reference frame chain, causing P-frames and B-frames to decode as corrupted/gray images.
+
+### Symptom
+- Face detection only works on ~1 in 10 frames
+- Both Hailo and InsightFace backends show same behavior
+- Standalone single-pipeline test (`face_detector_hailo_a.py`) works on 100% of frames
+- Frames with faces detected correlate with I-frame interval (every ~8 frames)
+
+### Architecture
+```
+Pipeline 1: rtspsrc → tee → [recording branch] + [appsink → NAL units]
+                                                        ↓
+Pipeline 2: appsrc → h265parse → avdec_h265 → detection
+```
+
+### Root Cause
+1. H265 P/B-frames reference previous frames for decoding
+2. Pipeline 1's decoder maintains reference frame state
+3. Pipeline 2's decoder starts with empty state
+4. When P-frame arrives at Pipeline 2, it cannot find reference frames
+5. Result: corrupted/gray output, face detection fails
+
+### Test Results
+| Backend | Detection Rate | Notes |
+|---------|---------------|-------|
+| Hailo | ~12% | Fast rejection (~10ms) on bad frames |
+| InsightFace | ~11% | Consistent timing on all frames |
+| Single Pipeline | ~100% | All frames work |
+
+### Potential Solutions
+1. **Single pipeline with shared decoded frames** - decode once, share for recording and detection
+2. **Pass decoded frames through appsrc** - decode in Pipeline 1, pass BGR frames
+3. **I-frame only stream** - configure camera for keyframe-only detection stream
+4. **Accept limitation** - keep ~10% rate, rely on multiple frames for detection
+
+### Current Workaround
+Hard-coded to InsightFace backend while investigating. Hailo auto-detection disabled.
+
+### Documentation
+See `bug_dual_pipeline_h265_frame_decode.md` for full details.
+
+---
+
 ## Related Issues
 
 ### Pipeline Crash → Stale Context Chain
@@ -255,6 +305,14 @@ Both bugs relate to `detection_contexts` timing:
 - **Bug #5 (Race Condition):** Context read TOO LATE (after `occupancy:false` clears it)
 
 Bug #1 was fixed by clearing stale contexts. Bug #5 requires capturing context earlier (at frame capture time, not at `member_detected` process time).
+
+### Dual-Pipeline Architecture Issues (Bug #2, Bug #3, Bug #6)
+Multiple bugs relate to the dual-pipeline GStreamer architecture:
+- **Bug #2 (not-negotiated):** Pipeline state issues after idle periods
+- **Bug #3 (OOM):** Dual-pipeline uses more memory than single pipeline
+- **Bug #6 (H265 decode):** appsrc breaks reference frame chain
+
+Bug #6 is the most fundamental - it affects the core functionality of face detection. Solving Bug #6 may require rethinking the dual-pipeline architecture, which could also address Bug #2 and Bug #3.
 
 ---
 
@@ -295,3 +353,6 @@ Bug #1 was fixed by clearing stale contexts. Bug #5 requires capturing context e
 | 2026-01-25 | - | Bug #5: **FIXED** - Context snapshots + removed "unlock all" fallback |
 | 2026-01-25 | - | Bug #5: **TEST 9 PASSED** - Both directions verified (DC001 first, DC006 first) |
 | 2026-01-25 | - | Bug #2: **ROOT CAUSE IDENTIFIED** - WiFi network instability. LAN cameras tested for hours with no errors. Status changed to NETWORK, priority lowered to Medium. |
+| 2026-02-01 | - | Bug #6: **NEW** - Dual-Pipeline H265 Frame Decode Failure discovered during Hailo integration |
+| 2026-02-01 | - | Bug #6: Root cause identified - appsrc breaks H265 reference frame chain, only I-frames (~10%) decode correctly |
+| 2026-02-01 | - | Bug #6: Confirmed with both Hailo and InsightFace backends - same ~10% detection rate |
