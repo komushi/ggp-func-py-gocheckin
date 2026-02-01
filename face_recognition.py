@@ -96,9 +96,8 @@ class FaceRecognition(threading.Thread):
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
                         detected = self.cam_detection_his[cam_info['cam_ip']]['detected']
                         duration = time.time() - current_time
-                        # Log first frame for near-real-time feedback
-                        if detected == 1:
-                            logger.info(f"{cam_info['cam_ip']} detection started - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
+                        # TODO: Temporarily log every frame for debugging, revert to "if detected == 1:" later
+                        logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
                     for face in faces:
                         for active_member in self.active_members:

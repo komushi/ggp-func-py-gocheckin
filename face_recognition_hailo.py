@@ -628,17 +628,17 @@ class FaceRecognition(threading.Thread):
                         # Skip corrupted/gray frames (H265 decoder produces flat gray frames when no valid data)
                         # Valid video frames typically have pixel range > 100
                         if pixel_range < 100:
-                            logger.debug(f"{cam_info['cam_ip']} skipping corrupted frame: min={img_min}, max={img_max}, range={pixel_range}")
+                            logger.info(f"{cam_info['cam_ip']} skipping corrupted frame: min={img_min}, max={img_max}, range={pixel_range}")
                             continue
 
-                        logger.debug(f"{cam_info['cam_ip']} valid frame: min={img_min}, max={img_max}, range={pixel_range}")
+                        logger.info(f"{cam_info['cam_ip']} valid frame: min={img_min}, max={img_max}, range={pixel_range}")
 
                         faces = self.face_app.get(raw_img)
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
                         detected = self.cam_detection_his[cam_info['cam_ip']]['detected']
                         duration = time.time() - current_time
-                        if detected == 1:
-                            logger.info(f"{cam_info['cam_ip']} detection started - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
+                        # TODO: Temporarily log every frame for debugging, revert to "if detected == 1:" later
+                        logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
                     for face in faces:
                         for active_member in self.active_members:
