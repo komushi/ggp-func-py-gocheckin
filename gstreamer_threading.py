@@ -24,7 +24,7 @@ from collections import deque
 
 import traceback
 
-from typing import Dict, Any
+from typing import Dict
 
 ext = ".mp4"
 
@@ -158,8 +158,8 @@ class StreamCapture(threading.Thread):
 
         self.feeding_timer = None
 
-        # Dictionary to store metadata for each buffer
-        self.metadata_store: Dict[int, Any] = {}
+        # Dictionary to store frame_time for each buffer (keyed by PTS)
+        self.metadata_store: Dict[int, float] = {}
         self.metadata_lock = threading.Lock()
 
         self.detecting_txn = None
@@ -219,28 +219,37 @@ class StreamCapture(threading.Thread):
     def edit_sample_caption(self, sample, current_time):
 
         sample_caps = sample.get_caps()
-        caps_string = sample_caps.to_string()
         structure = sample_caps.get_structure(0)
         sample_framerate = (structure.get_fraction("framerate"))[1]
-        sample_info = sample.get_info()
         sample_buffer = sample.get_buffer()
-        sample_segment = sample.get_segment()
-        
+
+        # Store metadata keyed by PTS for Pipeline 2 lookup
+        # NOTE: Do NOT modify caps for metadata - it breaks P-frame decoding!
+        # Use PTS-based lookup in on_new_sample_decode instead
+        pts = sample_buffer.pts
+        with self.metadata_lock:
+            self.metadata_store[pts] = current_time
+            # Clean up old metadata (keep last 200 entries)
+            if len(self.metadata_store) > 200:
+                oldest_pts = min(self.metadata_store.keys())
+                self.metadata_store.pop(oldest_pts, None)
+
+        # Only create new sample if framerate fix is needed
+        # Modifying caps breaks P-frame decoding, so avoid it when possible
         if sample_framerate == 0:
+            caps_string = sample_caps.to_string()
             caps_string = re.sub(
                 r'framerate=\(fraction\)\d+/\d+',
                 f'framerate=(fraction){self.framerate}/1',
                 caps_string
             )
+            new_caps = Gst.Caps.from_string(caps_string)
+            sample_info = sample.get_info()
+            sample_segment = sample.get_segment()
+            return Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
 
-        caps_string += ", x-current-time=(string)"
-        caps_string += str(current_time)
-
-        new_caps = Gst.Caps.from_string(caps_string)
-        
-        new_sample = Gst.Sample.new(sample_buffer, new_caps, sample_segment, sample_info)
-
-        return new_sample
+        # Return original sample - metadata is passed via PTS lookup
+        return sample
 
 
     def on_new_sample(self, sink, _):
@@ -248,7 +257,7 @@ class StreamCapture(threading.Thread):
 
         if not sample:
             return Gst.FlowReturn.ERROR
-        
+
         current_time = time.time()
 
         self.add_recording_frame(sample, current_time)
@@ -274,20 +283,9 @@ class StreamCapture(threading.Thread):
         return Gst.FlowReturn.OK
 
     def probe_callback(self, pad, info):
-        if info.type & Gst.PadProbeType.BUFFER:
-
-            buffer = info.get_buffer()
-            pts = buffer.pts  # Use PTS as unique identifier
-            
-            structure = pad.get_current_caps().get_structure(0)
-
-            with self.metadata_lock:
-                self.metadata_store[pts] = structure.get_value("x-current-time")
-                # Clean up old metadata (keep last 100 entries)
-                if len(self.metadata_store) > 100:
-                    oldest_pts = min(self.metadata_store.keys())
-                    self.metadata_store.pop(oldest_pts, None)
-            
+        # Note: Metadata is now stored in edit_sample_caption() using PTS as key
+        # This probe is kept for backward compatibility but metadata lookup
+        # in on_new_sample_decode now uses the metadata_store populated by edit_sample_caption
         return Gst.PadProbeReturn.OK
 
     def on_new_sample_decode(self, sink, _):
@@ -313,15 +311,18 @@ class StreamCapture(threading.Thread):
             if not buffer:
                 logger.error("on_new_sample_decode: Received sample with no buffer")
                 return Gst.FlowReturn.OK
-            
+
             pts = buffer.pts
-            
+
+            # Look up frame_time from Pipeline 1 using PTS
             frame_time = None
             with self.metadata_lock:
                 frame_time = self.metadata_store.get(pts)
-                logger.debug(f"{self.cam_ip} on_new_sample_decode frame_time: {frame_time}")
-                # Clean up used metadata
-                self.metadata_store.pop(pts, None)
+                if frame_time is not None:
+                    # Clean up used metadata
+                    self.metadata_store.pop(pts, None)
+
+            logger.debug(f"{self.cam_ip} on_new_sample_decode frame_time: {frame_time}")
 
             buffer_size = buffer.get_size()
             if buffer_size == 0:
@@ -333,7 +334,13 @@ class StreamCapture(threading.Thread):
             if not self.cam_queue.full():
                 if frame_time is not None:
                     self.decoding_count += 1
-                    self.cam_queue.put((StreamCommands.FRAME, arr, {"cam_ip": self.cam_ip, "cam_uuid": self.cam_uuid, "cam_name": self.cam_name, "frame_time": frame_time, "pts": pts, "detecting_txn": self.detecting_txn}), block=False)
+                    self.cam_queue.put((StreamCommands.FRAME, arr, {
+                        "cam_ip": self.cam_ip,
+                        "cam_uuid": self.cam_uuid,
+                        "cam_name": self.cam_name,
+                        "frame_time": frame_time,
+                        "detecting_txn": self.detecting_txn,
+                    }), block=False)
 
                 logger.debug(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")
 
