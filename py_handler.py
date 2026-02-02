@@ -32,10 +32,28 @@ from boto3.dynamodb.conditions import Attr, Key
 
 import s3_uploader as uploader
 
-from insightface.app import FaceAnalysis
-import face_recognition as fdm
-
 import gstreamer_threading as gst
+
+# Face recognition backend selection
+# FACE_BACKEND is set by detect_face_backend() called from claim_scanner()
+FACE_BACKEND = 'insightface'  # Default, will be updated by detect_face_backend()
+
+# Try importing Hailo backend (may not be available on all systems)
+try:
+    import face_recognition_hailo as fdm_hailo
+    from face_recognition_hailo import HailoFaceApp
+    HAILO_IMPORT_AVAILABLE = True
+except ImportError:
+    fdm_hailo = None
+    HailoFaceApp = None
+    HAILO_IMPORT_AVAILABLE = False
+
+# InsightFace backend (always available as fallback)
+import face_recognition as fdm_insightface
+from insightface.app import FaceAnalysis
+
+# Active face detection module - set by detect_face_backend()
+fdm = None
 
 # import onvif_process as onvif
 from onvif_process import OnvifConnector
@@ -265,13 +283,18 @@ def init_face_detector():
     for thread in threading.enumerate():
         logger.info(f"init_face_detector in thread.name {thread.name}")
 
-    if os.environ['USE_INSIGHTFACE'] == 'true':
+    logger.info(f"init_face_detector using FACE_BACKEND={FACE_BACKEND}")
+
+    # Initialize face_app based on backend
+    if FACE_BACKEND == 'hailo':
+        init_hailo_app()
+    else:
         init_insightface_app()
 
     if face_app is None:
         logger.info('init_face_detector out, face_app is None')
         return
-    
+
     fetch_members()
 
     thread_detector = fdm.FaceRecognition(face_app, active_members, scanner_output_queue, cam_queue)
@@ -329,9 +352,22 @@ def init_insightface_app(model='buffalo_sc'):
     global face_app
 
     if face_app is None:
-        logger.info(f"Initializing face_app with Model: {model}")
+        logger.info(f"Initializing InsightFace face_app with Model: {model}")
         face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
-        face_app.prepare(ctx_id=0, det_size=(640, 640))#ctx_id=0 CPU
+        face_app.prepare(ctx_id=0, det_size=(640, 640))
+
+
+def init_hailo_app():
+    """Initialize Hailo-8 accelerated face recognition backend."""
+    global face_app
+
+    if face_app is None:
+        # HEF model paths from environment or defaults
+        det_hef = os.environ.get('HAILO_DET_HEF')
+        rec_hef = os.environ.get('HAILO_REC_HEF')
+
+        logger.info(f"Initializing Hailo face_app with det={det_hef}, rec={rec_hef}")
+        face_app = HailoFaceApp(det_hef_path=det_hef, rec_hef_path=rec_hef)
 
 def init_cameras():
     logger.info(f"init_cameras in")
@@ -930,17 +966,54 @@ def claim_camera(cam_ip):
 
     logger.debug(f"{cam_ip} claim_cameras out published: {data}")
 
+def detect_face_backend():
+    """
+    Detect if Hailo-8 hardware is available, otherwise fallback to InsightFace.
+    Sets the global FACE_BACKEND and fdm variables.
+    Called from claim_scanner() at startup.
+    """
+    global FACE_BACKEND, fdm
+
+    if not HAILO_IMPORT_AVAILABLE:
+        FACE_BACKEND = 'insightface'
+        fdm = fdm_insightface
+        logger.info("detect_face_backend: hailo_platform not installed, using insightface")
+        return FACE_BACKEND
+
+    try:
+        # Try to create a VDevice to probe for actual Hailo hardware
+        from hailo_platform import VDevice
+        vdevice = VDevice()
+        vdevice.release()
+
+        FACE_BACKEND = 'hailo'
+        fdm = fdm_hailo
+        logger.info("detect_face_backend: Hailo-8 detected, using hailo backend")
+    except Exception as e:
+        FACE_BACKEND = 'insightface'
+        fdm = fdm_insightface
+        logger.info(f"detect_face_backend: Hailo not available ({e}), using insightface backend")
+
+    return FACE_BACKEND
+
+
 def claim_scanner():
+    # Detect face recognition backend (Hailo or InsightFace)
+    backend = detect_face_backend()
+
     data = {
         "assetId": os.environ['AWS_IOT_THING_NAME'],
         "assetName": os.environ['AWS_IOT_THING_NAME'],
-        "localIp": scanner_local_ip
+        "localIp": scanner_local_ip,
+        "inferenceBackend": backend
     }
-    
+
     iotClient.publish(
         topic="gocheckin/scanner_detected",
         payload=json.dumps(data)
     )
+
+    logger.info(f"claim_scanner: published with inferenceBackend={backend}")
 
 def fetch_scanner_output_queue():
     def upload_video_clip(message):
