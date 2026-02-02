@@ -1,12 +1,12 @@
 # Bug #6: Dual-Pipeline H265 Frame Decode Failure
 
-**Status:** OPEN (Architecture Issue)
+**Status:** FIXED (2026-02-02)
 **Discovered:** 2026-02-01
 **Priority:** High
 
 ## Summary
 
-In the dual-pipeline GStreamer architecture, only ~10% of H265 frames can be properly decoded for face detection. P-frames and B-frames fail to decode correctly because the `appsrc` element breaks the H265 reference frame chain between pipelines.
+In the dual-pipeline GStreamer architecture, only ~10% of H265 frames could be properly decoded for face detection. **Root cause:** Creating `Gst.Sample.new()` with modified caps broke P-frame decoding. **Fix:** Push original sample, use PTS-based metadata store for frame_time.
 
 ## Architecture Background
 
@@ -65,15 +65,29 @@ Duration: ~80-120ms per frame (consistent, no fast rejection)
 4. **Fast inference on bad frames (Hailo)** - Hailo quickly rejects invalid input (~10ms vs ~22ms)
 5. **Standalone test works** - `face_detector_hailo_a.py` with single pipeline detects faces on every frame
 
-## Root Cause
+## Root Cause (Initial Theory - INCORRECT)
 
-The `appsrc` element creates a boundary between the two pipelines. When NAL units are pushed from Pipeline 1 to Pipeline 2:
+Initial theory was that `appsrc` breaks the H265 reference frame chain. This was **incorrect**.
 
-1. Pipeline 1's `rtph265depay` maintains decoder state (reference frames)
-2. Pipeline 2's `avdec_h265` starts with empty decoder state
-3. When a P-frame arrives at Pipeline 2, it references frames that only exist in Pipeline 1
-4. `avdec_h265` cannot decode P-frame correctly → outputs gray/corrupted frame
-5. Face detection fails on corrupted frame
+## Actual Root Cause (CONFIRMED)
+
+The actual root cause was **modifying caps when creating new samples**:
+
+```python
+# BROKEN CODE - This breaks P-frame decoding!
+def edit_sample_caption(self, sample, current_time):
+    # Modify caps to embed frame_time metadata
+    caps_string = sample_caps.to_string()
+    caps_string += f',frame-time=(string){current_time}'
+    new_caps = Gst.Caps.from_string(caps_string)
+    return Gst.Sample.new(sample_buffer, new_caps, ...)  # <- BREAKS P-FRAMES
+```
+
+When `Gst.Sample.new()` is called with modified caps:
+1. GStreamer treats it as a caps change event
+2. The decoder resets its internal state
+3. P-frames lose their reference to previous I-frames
+4. Result: corrupted/gray output on P-frames
 
 ## Comparison: Single vs Dual Pipeline
 
@@ -147,17 +161,66 @@ Keep dual-pipeline, accept ~10% frame detection rate.
 - May miss faces if they appear only briefly
 - Wastes CPU processing frames that will fail
 
-## Current Workaround
+## Fix Applied (2026-02-02)
 
-Hard-coded to InsightFace backend while investigating:
+### Solution: Push Original Sample, Use PTS-based Metadata Store
+
+Instead of modifying caps to embed metadata, use PTS (Presentation Timestamp) as a key to pass metadata between pipelines:
 
 ```python
+# FIXED CODE - gstreamer_threading.py
+def edit_sample_caption(self, sample, current_time):
+    sample_buffer = sample.get_buffer()
+    pts = sample_buffer.pts
+
+    # Store metadata keyed by PTS (don't modify caps!)
+    with self.metadata_lock:
+        self.metadata_store[pts] = current_time
+
+    # Only create new sample if framerate fix is needed
+    if sample_framerate == 0:
+        # Fix framerate only, no custom metadata in caps
+        return Gst.Sample.new(sample_buffer, new_caps, ...)
+
+    # Return ORIGINAL sample - metadata passed via PTS lookup
+    return sample
+
+def on_new_sample_decode(self, sink, _):
+    buffer = sample.get_buffer()
+    pts = buffer.pts
+
+    # Look up frame_time using PTS
+    with self.metadata_lock:
+        frame_time = self.metadata_store.get(pts)
+```
+
+### Files Changed
+
+1. **gstreamer_threading.py** - PTS-based metadata store, push original sample
+2. **face_recognition.py** - Removed P-frame skip logic (no longer needed)
+3. **face_recognition_hailo.py** - Removed P-frame skip logic (no longer needed)
+4. **py_handler.py** - Re-enabled Hailo auto-detection
+
+### Test Results After Fix
+
+| Test | Before Fix | After Fix |
+|------|------------|-----------|
+| Modified caps | 15.9% good P-frames | N/A |
+| Original sample | N/A | 100% good P-frames |
+| Face detection | ~10% of frames | 100% of frames |
+
+### Backend Selection
+
+Auto-detection re-enabled:
+```python
 # py_handler.py - detect_face_backend()
-# TODO: Hard-coded to insightface for comparison testing
-# Hailo detection only works on I-frames in dual-pipeline architecture
-FACE_BACKEND = 'insightface'
-fdm = fdm_insightface
-logger.info("detect_face_backend: using insightface (hard-coded for comparison)")
+if not HAILO_IMPORT_AVAILABLE:
+    return 'insightface'
+try:
+    vdevice = VDevice()  # Probe for Hailo hardware
+    return 'hailo'
+except:
+    return 'insightface'
 ```
 
 ## Test Results Summary
@@ -186,5 +249,11 @@ logger.info("detect_face_backend: using insightface (hard-coded for comparison)"
 |------|---------|
 | 2026-02-01 | Issue discovered during Hailo integration testing |
 | 2026-02-01 | Confirmed with InsightFace - same ~10% detection rate |
-| 2026-02-01 | Root cause identified: appsrc breaks H265 reference frame chain |
+| 2026-02-01 | Initial theory: appsrc breaks H265 reference frame chain |
 | 2026-02-01 | Documented with test results from both backends |
+| 2026-02-02 | **ROOT CAUSE FOUND**: Modifying caps breaks P-frame decoding |
+| 2026-02-02 | **FIX APPLIED**: Push original sample, use PTS-based metadata store |
+| 2026-02-02 | Test confirmed: 100% P-frames decode correctly after fix |
+| 2026-02-02 | Removed P-frame skip logic from face_recognition.py and face_recognition_hailo.py |
+| 2026-02-02 | Re-enabled Hailo auto-detection in py_handler.py |
+| 2026-02-02 | **Status: FIXED** |
