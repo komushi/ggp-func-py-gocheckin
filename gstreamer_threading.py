@@ -198,13 +198,28 @@ class StreamCapture(threading.Thread):
         logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
 
         with self.detecting_lock:
+            keyframe_found = False
+            skipped = 0
+
             for single_buffer in self.detecting_buffer:
-                ret = self.decode_appsrc.emit('push-sample', single_buffer[1])
+                sample = single_buffer[1]
+                buf = sample.get_buffer()
+
+                if not keyframe_found:
+                    if buf.has_flags(Gst.BufferFlags.DELTA_UNIT):
+                        skipped += 1
+                        continue
+                    keyframe_found = True
+
+                ret = self.decode_appsrc.emit('push-sample', sample)
 
                 if ret != Gst.FlowReturn.OK:
                     logger.error(f"{self.cam_ip} push_detecting_buffer, Error pushing sample to decode_appsrc: {ret}")
 
                 self.feeding_count += 1
+
+            if skipped > 0:
+                logger.info(f"{self.cam_ip} push_detecting_buffer, skipped {skipped} P-frames before first keyframe")
 
             self.detecting_buffer.clear()
 
