@@ -638,7 +638,7 @@ class FaceRecognition(threading.Thread):
                         active_member, sim = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_sim: {sim:.4f} (no match)")
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_sim: {sim:.4f} (no match)")
                             continue
 
                         logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
