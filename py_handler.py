@@ -971,9 +971,25 @@ def detect_face_backend():
     Detect if Hailo-8 hardware is available, otherwise fallback to InsightFace.
     Sets the global FACE_BACKEND and fdm variables.
     Called from claim_scanner() at startup.
+
+    Respects INFERENCE_BACKEND env var:
+      - "auto" (default): try Hailo, fall back to insightface
+      - "hailo": force Hailo, warn and fall back to insightface on failure
+      - "insightface": skip Hailo probe entirely
     """
     global FACE_BACKEND, fdm
 
+    requested = os.environ.get('INFERENCE_BACKEND', 'auto').lower()
+    logger.info(f"detect_face_backend: INFERENCE_BACKEND={requested}")
+
+    # If explicitly insightface, skip Hailo entirely
+    if requested == 'insightface':
+        FACE_BACKEND = 'insightface'
+        fdm = fdm_insightface
+        logger.info("detect_face_backend: forced insightface by INFERENCE_BACKEND")
+        return FACE_BACKEND
+
+    # For "hailo" or "auto", try Hailo if import is available
     if not HAILO_IMPORT_AVAILABLE:
         FACE_BACKEND = 'insightface'
         fdm = fdm_insightface
@@ -992,7 +1008,10 @@ def detect_face_backend():
     except Exception as e:
         FACE_BACKEND = 'insightface'
         fdm = fdm_insightface
-        logger.info(f"detect_face_backend: Hailo not available ({e}), using insightface backend")
+        if requested == 'hailo':
+            logger.warning(f"detect_face_backend: INFERENCE_BACKEND=hailo but Hailo not available ({e}), falling back to insightface")
+        else:
+            logger.info(f"detect_face_backend: Hailo not available ({e}), using insightface backend")
 
     return FACE_BACKEND
 

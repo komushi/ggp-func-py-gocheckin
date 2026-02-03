@@ -108,7 +108,7 @@ class FaceRecognition(threading.Thread):
 
                     for face in faces:
                         # Vectorized comparison - find best match
-                        threshold = float(os.environ['FACE_THRESHOLD'])
+                        threshold = float(os.environ['FACE_THRESHOLD_INSIGHTFACE'])
                         active_member, sim = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
