@@ -13,7 +13,8 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | 5 | Occupancy Context Race Condition (Security) | **FIXED** | **Critical** | `bug_occupancy_context_race_condition.md` |
 | 6 | Dual-Pipeline H265 Frame Decode Failure | **FIXED** | High | `bug_dual_pipeline_h265_frame_decode.md` |
 | 7 | Stale Embeddings Matrix After Member Update | **TEMP FIX** | High | `bug_stale_embeddings_matrix.md` |
-| 8 | Multi-Face Per Frame Collision | **OPEN** | High | `bug_multi_face_per_frame.md` |
+| 8 | Multi-Face Per Frame Collision | **FIXED** | High | `bug_multi_face_per_frame.md` |
+| 9 | Multi-Member Multi-Lock Detection | **FUTURE** | Low | `future_multi_member_multi_lock.md` |
 
 ---
 
@@ -316,29 +317,60 @@ See `bug_stale_embeddings_matrix.md` for full details, performance analysis, and
 
 ## Bug #8: Multi-Face Per Frame Collision
 
-**Status:** OPEN
+**Status:** FIXED (2026-02-04)
 **Discovered:** 2026-02-04
 
 ### Summary
-When a single frame contains 2+ recognized faces, the `for face in faces` loop produces multiple `member_detected` queue entries from the same frame. The downstream processing assumes one match per detection session, causing three cascading failures:
+When a single frame contains 2+ recognized faces, the `for face in faces` loop produced multiple `member_detected` queue entries from the same frame. The downstream processing assumed one match per detection session, causing three cascading failures:
 
 1. **Snapshot collision**: Both faces write to the same `.jpg` (filename derived from `frame_time`, identical for all faces in a frame). Second face overwrites first.
 2. **Context loss**: `context_snapshots[snapshot_key]` deleted after first match. Second match falls back to wrong context (`onvifTriggered=False`).
 3. **Upload failure**: First match uploads and consumes the `.jpg` file. Second match gets `FileNotFoundError`.
 
-### Root Cause
-The system was designed with a one-match-per-session assumption. The `for face in faces` loop in `face_recognition.py:109-197` puts one queue entry per matched face, but `fetch_scanner_output_queue()` in `py_handler.py:1085-1140` deletes shared state (context snapshot, trigger context) after the first entry.
+### Fix Applied (Option A: Aggregate)
+Split the `for face in faces` loop into two phases:
+1. **Phase 1**: Match all faces, collect results into `matched_faces[]`
+2. **Phase 2**: Build one composite snapshot with all bounding boxes, one queue entry with `members[]` list
 
-### Proposed Fix
-Aggregate all matched faces from a single frame into one `member_detected` queue entry. One frame = one event with a list of matched members, one composite snapshot, one context lookup, one `stop_feeding` call.
+`py_handler.py:fetch_scanner_output_queue()` updated to process `members[]` list: context lookup once, `stop_feeding` once, snapshot upload once, per-member IoT messages.
 
-### Files Affected
-1. `face_recognition.py` - `for face in faces` loop (line 109-197)
-2. `face_recognition_hailo.py` - Same loop
-3. `py_handler.py` - `fetch_scanner_output_queue()` (line 1085-1140)
+### Remaining Issue: Duplicate Lock TOGGLE
+Multi-face detection sends one `member_detected` IoT message per member. TS handler sends `TOGGLE` to the same lock for each message. Currently harmless (TOGGLE only unlocks, lock auto-relocks), but would break with a true toggle lock. See `bug_multi_face_per_frame.md` for solution options.
+
+### Files Changed
+1. `face_recognition.py` - Two-phase match + aggregate
+2. `face_recognition_hailo.py` - Same change
+3. `py_handler.py` - `fetch_scanner_output_queue()` handles `members[]` list
+
+### Test Results (2026-02-04)
+- Single-face regression: PASS
+- Multi-face (2 members in same frame): PASS — one snapshot with 2 bboxes, 2 IoT messages, context correct, `stop_feeding` once
 
 ### Documentation
 See `bug_multi_face_per_frame.md` for full details, log evidence, and fix options.
+
+---
+
+## Issue #9: Multi-Member Multi-Lock Detection
+
+**Status:** FUTURE
+**Created:** 2026-02-04
+**Priority:** Low (current single-lock setup unaffected)
+
+### Summary
+The `identified = True` flag stops detection after the first matched frame. If different members appear in different frames within the same detection window, only the first member's lock is unlocked. This matters when different members are associated with different locks.
+
+### Current Impact
+None. All cameras currently map to a single lock. Detecting any member is sufficient to unlock.
+
+### When This Matters
+When the system supports cameras with multiple locks where different members map to different locks, and members may appear in different frames (not the same frame).
+
+### Proposed Approach
+Replace boolean `identified` with `identified_members` set. Continue processing frames until timer expires or no new members found for N consecutive frames.
+
+### Documentation
+See `future_multi_member_multi_lock.md` for full details.
 
 ---
 
@@ -417,3 +449,6 @@ Bug #6 was fixed by using PTS-based metadata store instead of modifying caps. Th
 | 2026-02-04 | - | Bug #7: **TEMP FIX** - Property setter rebuilds matrix on assignment, needs incremental update |
 | 2026-02-04 | - | Bug #8: **NEW** - Multi-Face Per Frame causes snapshot collision, context loss, and upload failure |
 | 2026-02-04 | - | Bug #7: **TS SIDE INVESTIGATED** - `refreshReservation()` does delete-all-then-rebuild from full shadow snapshot. Incremental update deferred as future improvement (max 12 members/reservation, full rebuild ~1s) |
+| 2026-02-04 | - | Bug #8: **FIXED** - Option A (Aggregate) applied. Two-phase match, composite snapshot, single queue entry with `members[]` list. Tested with 1-face and 2-face scenarios. |
+| 2026-02-04 | - | Bug #8: **NOTE** - Duplicate lock TOGGLE identified when multiple members match same frame. Currently harmless (TOGGLE only unlocks). Solution options documented. |
+| 2026-02-04 | - | Issue #9: **NEW** - Future request for multi-member multi-lock detection. `identified` flag stops after first matched frame, would miss members in later frames if they map to different locks. Low priority (single-lock setup today). |

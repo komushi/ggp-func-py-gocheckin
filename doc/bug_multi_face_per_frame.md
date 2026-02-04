@@ -164,3 +164,32 @@ Option A is cleaner and matches the real-world semantics — one frame produces 
 4. No `FileNotFoundError` in logs
 5. Trigger context (`onvifTriggered`, `occupancyTriggeredLocks`) correct for all members
 6. Single `stop_feeding` call per detection session
+
+## Fix Applied: Option A (2026-02-04)
+
+**Status:** FIXED — Sub-issues A through D resolved.
+
+### Remaining Issue: Duplicate Lock Unlock Commands
+
+After fix, multi-face detection correctly sends one IoT `member_detected` message per matched member. However, the TS handler (`ts_handler`) calls `unlockByMemberDetected` for **each** message independently, sending a `TOGGLE` command to the same lock for each member.
+
+**Log evidence (2 members matched in same frame):**
+
+```
+18:26:10.102  zigbee2mqtt/MAG002/set → {"state":"TOGGLE"}   ← for RULIN
+18:26:10.112  zigbee2mqtt/MAG002/set → {"state":"TOGGLE"}   ← for Xu
+```
+
+**Current impact:** Low. The lock's TOGGLE currently only unlocks (lock auto-relocks), so duplicate TOGGLEs are redundant but harmless.
+
+**Future risk:** If a true toggle lock is introduced (where TOGGLE alternates between lock/unlock), two TOGGLEs would cancel each other — first unlocks, second re-locks.
+
+**Possible solutions:**
+
+1. **Idempotent command (TS side):** Change from `TOGGLE` to `UNLOCK`/`ON` if the lock supports it. Makes duplicates harmless by design.
+
+2. **Deduplicate by recordTime (TS side):** In `unlockByMemberDetected`, track the last `(cameraIp, recordTime)` that triggered an unlock. Skip if the same pair arrives again within a short window. This handles multi-face without changing the lock command.
+
+3. **Deduplicate by lock per detection (Python side):** In `py_handler.py:fetch_scanner_output_queue`, collect the set of locks that need unlocking across all members, then send one unlock per unique lock instead of one per member. This keeps the TS handler unchanged.
+
+4. **Detection-level dedup field (Python side):** Add a `detectionId` (e.g., the `detecting_txn`) to each `member_detected` payload. The TS handler groups by `detectionId` and unlocks each lock only once per detection event.
