@@ -530,9 +530,11 @@ def start_http_server():
                     image_bgr, org_image = web_img.read_picture_from_url(event['faceImgUrl'])
 
                     # reference_faces = face_app.get(image_bgr)
+                    member_label = f"{event.get('fullName', '?')} ({event.get('reservationCode', '?')}-{event.get('memberNo', '?')})"
                     reference_faces = self.analyze_faces(image_bgr)
 
-                    if len(reference_faces) > 0:                    
+                    if len(reference_faces) > 0:
+                        logger.info(f'/recognise {member_label} face detected, embedding extracted')
                         event['faceEmbedding'] = reference_faces[0].embedding.tolist()
 
                         bbox = reference_faces[0].bbox.astype(int).flatten()
@@ -544,6 +546,9 @@ def start_http_server():
                         cropped_face_bytes = buffered.getvalue()
 
                         event['faceImgBase64'] = base64.b64encode(cropped_face_bytes).decode('utf-8')
+                    else:
+                        img_shape = image_bgr.shape if image_bgr is not None else 'None'
+                        logger.warning(f'/recognise {member_label} NO face detected, image shape: {img_shape}')
 
                     # Send the response
                     self.wfile.write(json.dumps(event).encode())
