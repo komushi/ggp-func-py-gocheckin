@@ -99,7 +99,7 @@ class HailoFaceApp:
         # Default HEF paths - use /etc/hailo/models/ on Linux, local ./models/ otherwise
         default_model_dir = '/etc/hailo/models' if sys.platform == 'linux' else os.path.join(os.path.dirname(__file__), 'models')
         self.det_hef_path = det_hef_path or os.environ.get(
-            'HAILO_DET_HEF') or os.path.join(default_model_dir, 'scrfd_10g.hef')
+            'HAILO_DET_HEF') or os.path.join(default_model_dir, 'scrfd_2.5g.hef')
         self.rec_hef_path = rec_hef_path or os.environ.get(
             'HAILO_REC_HEF') or os.path.join(default_model_dir, 'arcface_mobilefacenet.hef')
 
