@@ -133,12 +133,25 @@ def active_members(self, value):
 
 The Python GIL ensures each individual attribute assignment is atomic, but the three assignments are not collectively atomic. To be safe, build the new state into a single container object and swap that in one assignment.
 
-### Additional Optimization: DynamoDB Query
+### Startup Bottleneck: `get_active_members()` Does Not Scale
 
-`get_active_members()` currently issues one `table.query()` per reservation sequentially. For large numbers of reservations, consider:
-- `BatchGetItem` (up to 100 keys per call)
-- Parallel queries using `ThreadPoolExecutor`
-- Caching embeddings locally and only querying for changes
+Even with incremental matrix updates for runtime refreshes, the **first load at startup** must fetch all members from DynamoDB. The current implementation does not scale for 50,000 users:
+
+1. **Sequential queries per reservation** (`py_handler.py:831-841`): One `table.query()` call per reservation, executed in a `for` loop. If there are 10,000 reservations, that is 10,000 sequential HTTP round-trips to DynamoDB Local. At ~5-10ms each, this alone takes **50-100 seconds**.
+
+2. **No pagination** (`py_handler.py:835-841`): `table.query()` returns at most 1MB per call. If a single reservation has many members with 512-element embeddings, results may be truncated silently (only the first page is read, `LastEvaluatedKey` is not checked).
+
+3. **Pure Python float conversion** (`py_handler.py:853`): `np.array([float(value) for value in item['faceEmbedding']])` runs 512 `float()` calls per member in a Python loop. At 50K members that is 25.6 million `float()` calls, taking ~5-10 seconds on RPi.
+
+4. **No scan filter** (`py_handler.py:770-772`): `get_active_reservations()` does a `table.scan()` with the `FilterExpression` commented out, returning **all** reservations regardless of check-in/check-out date. This means every reservation ever created is queried for members.
+
+These issues exist independently of the matrix rebuild bug. At startup there is no prior state to diff against, so the full fetch + full matrix build is unavoidable. Optimizations needed:
+
+- **Re-enable `FilterExpression`** in `get_active_reservations()` to only return current reservations
+- **Parallel queries** using `ThreadPoolExecutor` to fetch members for multiple reservations concurrently
+- **Add pagination** handling for `table.query()` responses (`LastEvaluatedKey`)
+- **Use `np.fromiter` or `struct.unpack`** instead of Python-level `float()` loop for embedding conversion
+- **Local embedding cache** (file-based) so restarts don't require a full DynamoDB re-fetch
 
 ### Acceptance Criteria
 
