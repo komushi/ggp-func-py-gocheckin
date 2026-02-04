@@ -12,6 +12,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | 4 | ONVIF `isSubscription` Setting Not Checked | **FIXED** | Medium | `bug_onvif_isSubscription_not_checked.md` |
 | 5 | Occupancy Context Race Condition (Security) | **FIXED** | **Critical** | `bug_occupancy_context_race_condition.md` |
 | 6 | Dual-Pipeline H265 Frame Decode Failure | **FIXED** | High | `bug_dual_pipeline_h265_frame_decode.md` |
+| 7 | Stale Embeddings Matrix After Member Update | **TEMP FIX** | High | `bug_stale_embeddings_matrix.md` |
 
 ---
 
@@ -281,6 +282,33 @@ See `bug_dual_pipeline_h265_frame_decode.md` for full details.
 
 ---
 
+## Bug #7: Stale Embeddings Matrix After Member Update
+
+**Status:** TEMP FIX (2026-02-04)
+**Discovered:** 2026-02-04
+**Introduced in:** commit 627b22a (matrix comparison)
+
+### Summary
+`_build_member_embeddings()` was only called during `FaceRecognition.__init__()`. When `py_handler.py` updates `thread_detector.active_members` at runtime via `fetch_members()`, the numpy embeddings matrix is never rebuilt. The detector matches against the stale matrix from startup.
+
+### Root Cause
+Commit 627b22a replaced per-member loop comparison with vectorized matrix comparison but only pre-computed the matrix in `__init__`. The runtime assignment `thread_detector.active_members = active_members` in `py_handler.py:894` replaced the list but left `member_embeddings` and `member_norms` stale.
+
+### Temp Fix Applied
+Converted `active_members` to a `@property` with a setter that calls `_build_member_embeddings()` on every assignment. This is correct but does a full O(N) rebuild each time.
+
+### Remaining Work
+Implement incremental matrix update (diff old vs new by `reservationCode-memberNo` key, apply insert/delete/update to matrix rows). Also needs thread-safe atomic swap of matrix + member list.
+
+### Files Changed
+1. `face_recognition.py` - Property setter for `active_members`
+2. `face_recognition_hailo.py` - Property setter for `active_members`
+
+### Documentation
+See `bug_stale_embeddings_matrix.md` for full details, performance analysis, and incremental update design.
+
+---
+
 ## Related Issues
 
 ### Pipeline Crash → Stale Context Chain
@@ -352,3 +380,5 @@ Bug #6 was fixed by using PTS-based metadata store instead of modifying caps. Th
 | 2026-02-02 | - | Bug #6: **ROOT CAUSE FOUND** - Modifying caps breaks P-frame decoding, not appsrc itself |
 | 2026-02-02 | - | Bug #6: **FIXED** - Push original sample, use PTS-based metadata store for frame_time |
 | 2026-02-02 | - | Bug #6: Re-enabled Hailo auto-detection in py_handler.py |
+| 2026-02-04 | - | Bug #7: **NEW** - Stale Embeddings Matrix discovered (introduced in 627b22a) |
+| 2026-02-04 | - | Bug #7: **TEMP FIX** - Property setter rebuilds matrix on assignment, needs incremental update |

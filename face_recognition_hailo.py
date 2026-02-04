@@ -563,10 +563,11 @@ class FaceRecognition(threading.Thread):
         self.stop_event = threading.Event()
 
         self.face_app = face_app
-        self.active_members = active_members
+        self._active_members = None
 
         # Pre-compute embeddings matrix for vectorized comparison
-        self._build_member_embeddings()
+        # (triggered automatically by the property setter)
+        self.active_members = active_members
 
         self.captured_members = {}
         self.cam_detection_his = {}
@@ -738,6 +739,15 @@ class FaceRecognition(threading.Thread):
         self.stop_event.set()
         if self.face_app is not None:
             del self.face_app
+
+    @property
+    def active_members(self):
+        return self._active_members
+
+    @active_members.setter
+    def active_members(self, value):
+        self._active_members = value
+        self._build_member_embeddings()
 
     def _build_member_embeddings(self):
         """Pre-compute embeddings matrix and norms for vectorized comparison."""
