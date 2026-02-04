@@ -79,6 +79,73 @@ The setter runs in the `fetch_members()` caller thread (main/timer thread), whil
 
 ---
 
+## TypeScript Side: Delete-All-Then-Rebuild (Investigated 2026-02-04)
+
+### How Member Updates Flow from Cloud to Device
+
+The update chain is: **Cloud → AWS IoT Classic Shadow → TS handler → Named Shadow → Local DynamoDB → Python `/recognise` → Python `fetch_members()`**
+
+### What the TS Side Knows
+
+The classic shadow delta only tells the TS side *which reservation* changed, not *what* changed within it:
+
+```json
+{"deltaShadowReservations": {"STAFF": {"action": "UPDATE", "lastRequestOn": "2026-02-02T14:31:44.647Z"}}}
+```
+
+The TS side then fetches the **full named shadow** for that reservation via `iot.service.getShadow()`. This returns the complete `desired` state — a full snapshot of all members, not a diff.
+
+### Current TS Behavior: Delete-All-Then-Rebuild
+
+`reservations.service.refreshReservation()` does:
+
+```
+1. getMembers(reservationCode)         → fetch ALL existing members from local DynamoDB
+2. deleteMembers(memberItems)           → delete ALL of them
+3. updateMembers(delta.members)         → insert ALL members from shadow snapshot
+4. POST /recognise for EACH member      → re-extract embeddings (downloads image, runs SCRFD+ArcFace)
+5. updateMembers(enriched members)      → store embeddings back to DynamoDB
+6. POST /recognise (empty body)         → trigger fetch_members() on Python side
+```
+
+Every member's embedding is re-extracted on every reservation update, even if only one member's photo changed. Verified from `neoseed-ts_handler.log`:
+
+```
+reservations.service refreshReservation in: {...,"members":{"STAFF-1":{...},"STAFF-2":{...}}}
+reservations.service before recognise:{"reservationCode":"STAFF","memberNo":1}   ← re-extracted
+reservations.service before recognise:{"reservationCode":"STAFF","memberNo":2}   ← re-extracted (unchanged)
+reservations.service refreshReservation force scanner to call fetch_members
+reservations.service refreshReservation out
+```
+
+### Could the TS Side Compute the Diff?
+
+Yes — at the moment of `refreshReservation`, the TS side has both:
+- **Old state**: from `getMembers()` (step 1, before delete)
+- **New state**: from the named shadow snapshot
+
+It could diff `faceImgUrl` per member to determine insert/update/delete/unchanged. It just doesn't do this today — it throws away the old state.
+
+### Current Scale: Not a Problem
+
+Reservations currently have a maximum of **12 members** per group. At this scale, the delete-all-then-rebuild approach and full embedding re-extraction are negligible. The full rebuild takes ~1 second for 2 members (observed from logs: ~1.3s from `refreshReservation in` to `out`).
+
+The incremental approach becomes relevant when:
+- The system handles many concurrent reservations (hotel with hundreds of active bookings)
+- The total active member count across all reservations grows to thousands
+- The per-trigger `fetch_members()` full DynamoDB re-query + full matrix rebuild becomes a bottleneck
+
+### Future Optimization Path
+
+When scale requires it, the optimization has two layers:
+
+1. **TS side**: Diff old vs new members, only POST `/recognise` for members whose `faceImgUrl` changed. Pass insert/update/delete flags to Python side.
+2. **Python side**: Accept per-member delta from TS side (or diff against in-memory state) and apply incremental matrix updates instead of full rebuild.
+
+For now, the temp fix (property setter with full rebuild) is adequate.
+
+---
+
 ## Required Fix: Incremental Matrix Update
 
 ### Goal

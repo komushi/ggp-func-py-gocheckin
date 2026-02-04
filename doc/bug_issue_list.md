@@ -13,6 +13,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | 5 | Occupancy Context Race Condition (Security) | **FIXED** | **Critical** | `bug_occupancy_context_race_condition.md` |
 | 6 | Dual-Pipeline H265 Frame Decode Failure | **FIXED** | High | `bug_dual_pipeline_h265_frame_decode.md` |
 | 7 | Stale Embeddings Matrix After Member Update | **TEMP FIX** | High | `bug_stale_embeddings_matrix.md` |
+| 8 | Multi-Face Per Frame Collision | **OPEN** | High | `bug_multi_face_per_frame.md` |
 
 ---
 
@@ -297,8 +298,12 @@ Commit 627b22a replaced per-member loop comparison with vectorized matrix compar
 ### Temp Fix Applied
 Converted `active_members` to a `@property` with a setter that calls `_build_member_embeddings()` on every assignment. This is correct but does a full O(N) rebuild each time.
 
-### Remaining Work
-Implement incremental matrix update (diff old vs new by `reservationCode-memberNo` key, apply insert/delete/update to matrix rows). Also needs thread-safe atomic swap of matrix + member list.
+### Remaining Work (Future Improvement)
+Implement incremental matrix update. Currently adequate — max 12 members per reservation, full rebuild takes ~1s.
+
+**TS side investigation (2026-02-04):** `reservations.service.refreshReservation()` uses delete-all-then-rebuild. The AWS IoT classic shadow delta only signals *which* reservation changed (`action: UPDATE`), not what changed within it. The TS side fetches the full named shadow (complete snapshot), deletes all members from local DynamoDB, re-inserts all, re-runs `/recognise` embedding extraction on every member (even unchanged ones), then triggers `fetch_members()` on the Python side.
+
+The TS side *could* diff (it has old members from `getMembers()` and new from the shadow snapshot) but doesn't today. When scale requires it, the optimization is two layers: (1) TS side diffs and only re-extracts changed members' embeddings, (2) Python side applies incremental matrix insert/delete/update instead of full rebuild. Also needs thread-safe atomic swap of matrix + member list.
 
 ### Files Changed
 1. `face_recognition.py` - Property setter for `active_members`
@@ -306,6 +311,34 @@ Implement incremental matrix update (diff old vs new by `reservationCode-memberN
 
 ### Documentation
 See `bug_stale_embeddings_matrix.md` for full details, performance analysis, and incremental update design.
+
+---
+
+## Bug #8: Multi-Face Per Frame Collision
+
+**Status:** OPEN
+**Discovered:** 2026-02-04
+
+### Summary
+When a single frame contains 2+ recognized faces, the `for face in faces` loop produces multiple `member_detected` queue entries from the same frame. The downstream processing assumes one match per detection session, causing three cascading failures:
+
+1. **Snapshot collision**: Both faces write to the same `.jpg` (filename derived from `frame_time`, identical for all faces in a frame). Second face overwrites first.
+2. **Context loss**: `context_snapshots[snapshot_key]` deleted after first match. Second match falls back to wrong context (`onvifTriggered=False`).
+3. **Upload failure**: First match uploads and consumes the `.jpg` file. Second match gets `FileNotFoundError`.
+
+### Root Cause
+The system was designed with a one-match-per-session assumption. The `for face in faces` loop in `face_recognition.py:109-197` puts one queue entry per matched face, but `fetch_scanner_output_queue()` in `py_handler.py:1085-1140` deletes shared state (context snapshot, trigger context) after the first entry.
+
+### Proposed Fix
+Aggregate all matched faces from a single frame into one `member_detected` queue entry. One frame = one event with a list of matched members, one composite snapshot, one context lookup, one `stop_feeding` call.
+
+### Files Affected
+1. `face_recognition.py` - `for face in faces` loop (line 109-197)
+2. `face_recognition_hailo.py` - Same loop
+3. `py_handler.py` - `fetch_scanner_output_queue()` (line 1085-1140)
+
+### Documentation
+See `bug_multi_face_per_frame.md` for full details, log evidence, and fix options.
 
 ---
 
@@ -382,3 +415,5 @@ Bug #6 was fixed by using PTS-based metadata store instead of modifying caps. Th
 | 2026-02-02 | - | Bug #6: Re-enabled Hailo auto-detection in py_handler.py |
 | 2026-02-04 | - | Bug #7: **NEW** - Stale Embeddings Matrix discovered (introduced in 627b22a) |
 | 2026-02-04 | - | Bug #7: **TEMP FIX** - Property setter rebuilds matrix on assignment, needs incremental update |
+| 2026-02-04 | - | Bug #8: **NEW** - Multi-Face Per Frame causes snapshot collision, context loss, and upload failure |
+| 2026-02-04 | - | Bug #7: **TS SIDE INVESTIGATED** - `refreshReservation()` does delete-all-then-rebuild from full shadow snapshot. Incremental update deferred as future improvement (max 12 members/reservation, full rebuild ~1s) |
