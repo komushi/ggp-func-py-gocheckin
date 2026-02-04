@@ -1085,46 +1085,40 @@ def fetch_scanner_output_queue():
                 if message['type'] == 'member_detected':
                     cam_ip = message.get('cam_ip')
                     detecting_txn = message.get('detecting_txn')
+                    members = message.get('members', [])
 
-                    # Add trigger context to payload before publishing
-                    # Use context_snapshot (captured at detection start) to avoid race condition
-                    # where occupancy:false clears context before face match is processed
-                    if 'payload' in message and cam_ip:
+                    # Context lookup — once per queue entry
+                    onvif_triggered = False
+                    occupancy_triggered_locks = []
+                    if cam_ip:
                         snapshot_key = (cam_ip, detecting_txn) if detecting_txn else None
 
-                        # Try to get context from snapshot first (captured at frame time)
                         if snapshot_key and snapshot_key in context_snapshots:
                             context = context_snapshots[snapshot_key]
                             logger.info(f"fetch_scanner_output_queue, using context snapshot for detecting_txn={detecting_txn}")
                         else:
-                            # Fallback to current context (legacy behavior)
-                            context = trigger_lock_context.get(cam_ip, {
-                                'onvif_triggered': False,
-                                'specific_locks': set()
-                            })
+                            context = trigger_lock_context.get(cam_ip, {'onvif_triggered': False, 'specific_locks': set()})
                             logger.warning(f"fetch_scanner_output_queue, no context snapshot found for detecting_txn={detecting_txn}, using current context")
 
-                        message['payload']['onvifTriggered'] = context.get('onvif_triggered', False)
-                        message['payload']['occupancyTriggeredLocks'] = list(context.get('specific_locks', set()))
+                        onvif_triggered = context.get('onvif_triggered', False)
+                        occupancy_triggered_locks = list(context.get('specific_locks', set()))
 
-                        logger.info(f"fetch_scanner_output_queue, member_detected with trigger context: onvifTriggered={message['payload']['onvifTriggered']}, occupancyTriggeredLocks={message['payload']['occupancyTriggeredLocks']}")
-
-                        # Clear context snapshot after use
+                        # Clear context — once
                         if snapshot_key and snapshot_key in context_snapshots:
                             del context_snapshots[snapshot_key]
-
-                        # Clear current context after adding to payload
                         if cam_ip in trigger_lock_context:
                             del trigger_lock_context[cam_ip]
 
+                    # Stop feeding — once
                     if cam_ip:
                         logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
                         thread_gstreamers[cam_ip].stop_feeding()
 
-                    if ('payload' in message and 'local_file_path' in message and 'snapshot_payload' in message and uploader_app is not None):
+                    # Upload snapshot — once
+                    if 'local_file_path' in message and 'snapshot_payload' in message and uploader_app is not None:
                         local_file_path = message['local_file_path']
-                        property_object_key = message['payload']['propertyImgKey']
-                        snapshot_payload= message['snapshot_payload']
+                        property_object_key = message['property_object_key']
+                        snapshot_payload = message['snapshot_payload']
 
                         uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
 
@@ -1135,28 +1129,32 @@ def fetch_scanner_output_queue():
                             payload=json.dumps(snapshot_payload)
                         )
 
-                    if 'keyNotified' in message:
-                        keyNotified = message['keyNotified']
+                    # Process each member — per-member IoT messages
+                    for member_entry in members:
+                        member_payload = member_entry['payload']
+                        keyNotified = member_entry['keyNotified']
+
+                        # Add context to each member payload
+                        member_payload['onvifTriggered'] = onvif_triggered
+                        member_payload['occupancyTriggeredLocks'] = occupancy_triggered_locks
+
+                        logger.info(f"fetch_scanner_output_queue, member_detected: {member_payload['fullName']} onvifTriggered={onvif_triggered}, occupancyTriggeredLocks={occupancy_triggered_locks}")
 
                         if not keyNotified:
-                            update_member(message['payload']['reservationCode'], message['payload']['memberNo'])
+                            update_member(member_payload['reservationCode'], member_payload['memberNo'])
 
                             timer = threading.Timer(0.1, fetch_members, kwargs={'forced': True})
                             timer.name = "Thread-FetchMembers"
                             timer.start()
-                            # timer.join()
-
-                            logger.info(f"fetch_scanner_output_queue, member_detected with IoT Publish payload: {message['payload']}")
 
                             iotClient.publish(
                                 topic=f"gocheckin/{os.environ['AWS_IOT_THING_NAME']}/member_detected",
-                                payload=json.dumps(message['payload'])
+                                payload=json.dumps(member_payload)
                             )
 
-                    if 'payload' in message:
                         iotClient.publish(
                             topic=f"gocheckin/member_detected",
-                            payload=json.dumps(message['payload'])
+                            payload=json.dumps(member_payload)
                         )
 
 
