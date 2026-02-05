@@ -474,7 +474,7 @@ class HailoFaceApp:
     # ------------------------------------------------------------------
     # Recognition: align → preprocess → infer → dequantize → normalize
     # ------------------------------------------------------------------
-    def _extract_embedding(self, image, kps, debug_save=False):
+    def _extract_embedding(self, image, kps, debug_save=True):
         """Align face and extract 512-dim L2-normalized embedding."""
         # Debug: log landmarks
         if kps is not None:
