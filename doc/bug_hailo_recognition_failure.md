@@ -1,6 +1,6 @@
 # Bug #10: Hailo Recognition Failure After Lighting Change
 
-**Status:** FIX IMPLEMENTED (Testing Required)
+**Status:** RESOLVED
 **Discovered:** 2026-02-04
 **Priority:** High
 **Backend:** Hailo only (InsightFace unaffected)
@@ -163,28 +163,49 @@ rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
 - [hailo_model_zoo/cfg/alls/generic/arcface_mobilefacenet.alls](https://github.com/hailo-ai/hailo_model_zoo/blob/master/hailo_model_zoo/cfg/alls/generic/arcface_mobilefacenet.alls)
 - [Seeed Face Recognition API](https://github.com/Seeed-Solution/face-recognition-api)
 
-### Fix Implementation (2026-02-05)
+### Fix 1: BGR→RGB Conversion (2026-02-05)
 
-**Status: IMPLEMENTED**
-
-Added BGR→RGB conversion in `face_recognition_hailo.py:267`:
+Added BGR→RGB conversion in `face_recognition_hailo.py` `HailoFaceApp.get()`:
 
 ```python
-# In HailoFaceApp.get() method
-# Convert BGR to RGB — Hailo HEF models (SCRFD, ArcFace) expect RGB input
-# This matches InsightFace behavior which also converts BGR→RGB internally
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 ```
 
-This fix affects both:
-- **Detection (SCRFD)** — now receives RGB input as expected
-- **Recognition (ArcFace)** — now receives RGB input as expected
-- **`/recognise` endpoint** — uses same `face_app`, so reference embeddings will also be correct
+This fix affects Detection (SCRFD), Recognition (ArcFace), and `/recognise` endpoint.
 
-### Next Steps
+**Result:** Similarity improved slightly but still too low (0.15–0.27). Not sufficient alone.
 
-1. ~~Verify current code~~ — ✅ Confirmed BGR was fed directly without conversion
-2. ~~Add BGR→RGB conversion~~ — ✅ Implemented in `HailoFaceApp.get()`
-3. **Re-test** with same subject under same lighting conditions
-4. **Compare similarity scores** before/after fix
-5. **Re-register faces** — Existing Hailo-created embeddings may need to be re-created with the fix
+### Fix 2: FormatType.FLOAT32 Auto-Dequantization (2026-02-05)
+
+**Root cause:** Manual dequantization `(raw_uint8 - qp_zp) * qp_scale` using quant params from `get_output_vstream_infos()` does not match HailoRT's internal dequantization precision. This primarily affected SCRFD landmark accuracy, causing face alignment errors that degraded ArcFace embeddings.
+
+**Fix:** Use `FormatType.FLOAT32` on all model outputs before `configure()`, letting HailoRT auto-dequantize on the host:
+
+```python
+from hailo_platform import FormatType
+
+# Detection model
+for output_info in self.det_infer_model.hef.get_output_vstream_infos():
+    self.det_infer_model.output(output_info.name).set_format_type(FormatType.FLOAT32)
+self.det_configured = self.det_infer_model.configure()
+
+# Recognition model
+self.rec_infer_model.output().set_format_type(FormatType.FLOAT32)
+self.rec_configured = self.rec_infer_model.configure()
+```
+
+Output buffers changed from `np.uint8` to `np.float32`, manual dequantization removed.
+
+**Result:**
+- Close range: **101/101 frames MATCH**, sim 0.35–0.47 (avg ~0.44)
+- Medium range: sim 0.30–0.38, consistent matches
+- Far range: sim 0.20–0.29, borderline (expected for quantized model at low face resolution)
+- Comparable to InsightFace performance (0.38–0.60)
+
+### Resolution
+
+Both fixes combined resolved the bug:
+1. ~~BGR→RGB conversion~~ — ✅ Correct color input to HEF models
+2. ~~FormatType.FLOAT32~~ — ✅ Accurate dequantization via HailoRT
+3. ~~Re-test~~ — ✅ Verified with live detection at multiple distances
+4. ~~Re-register faces~~ — ✅ Embeddings re-created after fix

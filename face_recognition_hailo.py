@@ -628,9 +628,8 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] = 0
                             self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = 0
 
-                    # TODO: Temporarily disabled for testing — allow detection to continue after match
-                    # if self.cam_detection_his[cam_info['cam_ip']]['identified']:
-                    #     continue
+                    if self.cam_detection_his[cam_info['cam_ip']]['identified']:
+                        continue
 
                     current_time = time.time()
                     age = current_time - float(cam_info['frame_time'])
@@ -643,8 +642,8 @@ class FaceRecognition(threading.Thread):
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
                         detected = self.cam_detection_his[cam_info['cam_ip']]['detected']
                         duration = time.time() - current_time
-                        # TODO: Temporarily log every frame for debugging, revert to "if detected == 1:" later
-                        logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
+                        if detected == 1:
+                            logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
                         # Track frames where face is detected
                         if len(faces) > 0:
@@ -667,10 +666,6 @@ class FaceRecognition(threading.Thread):
 
                     if not matched_faces:
                         continue  # back to outer while loop — no matches this frame
-
-                    # TODO: Temporarily skip snapshot/upload for continuous testing
-                    self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = detected
-                    continue
 
                     # Phase 2: Build composite snapshot + single queue entry
                     self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
@@ -798,10 +793,9 @@ class FaceRecognition(threading.Thread):
 
         logger.info(f"Built embeddings matrix: {self.member_embeddings.shape[0]} members, {self.member_embeddings.shape[1]} dimensions")
 
-        # Debug: log stored embedding statistics for each member
         for i, member in enumerate(self.active_members):
             emb = self.member_embeddings[i]
-            logger.info(f"Stored embedding [{member.get('fullName', '?')}]: norm={self.member_norms[i]:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}, min={emb.min():.4f}, max={emb.max():.4f}")
+            logger.debug(f"Stored embedding [{member.get('fullName', '?')}]: norm={self.member_norms[i]:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}")
 
     def find_match(self, face_embedding, threshold):
         """
