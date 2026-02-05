@@ -252,7 +252,7 @@ class HailoFaceApp:
         Detect faces and extract embeddings.
 
         Args:
-            img: BGR numpy array (H, W, 3) uint8
+            img: BGR numpy array (H, W, 3) uint8 — OpenCV format, converted to RGB internally
             max_num: Maximum faces to return (0 = all)
             det_size: Detection input size (ignored, uses HEF model size)
 
@@ -261,6 +261,11 @@ class HailoFaceApp:
         """
         # --- Detection ---
         t0 = time.time()
+
+        # Convert BGR to RGB — Hailo HEF models (SCRFD, ArcFace) expect RGB input
+        # This matches InsightFace behavior which also converts BGR→RGB internally
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
         # Ensure input is contiguous (Hailo may require this)
         if not img.flags['C_CONTIGUOUS']:
             img = np.ascontiguousarray(img)
