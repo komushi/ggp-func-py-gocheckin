@@ -38,6 +38,7 @@ try:
     from hailo_platform import (
         VDevice,
         HailoSchedulingAlgorithm,
+        FormatType,
     )
     HAILO_AVAILABLE = True
 except ImportError:
@@ -117,12 +118,15 @@ class HailoFaceApp:
         params.scheduling_algorithm = HailoSchedulingAlgorithm.ROUND_ROBIN
         self.vdevice = VDevice(params)
 
-        # Detection model
+        # Detection model — request FLOAT32 output so HailoRT auto-dequantizes
         self.det_infer_model = self.vdevice.create_infer_model(self.det_hef_path)
+        for output_info in self.det_infer_model.hef.get_output_vstream_infos():
+            self.det_infer_model.output(output_info.name).set_format_type(FormatType.FLOAT32)
         self.det_configured = self.det_infer_model.configure()
 
-        # Recognition model
+        # Recognition model — request FLOAT32 output so HailoRT auto-dequantizes
         self.rec_infer_model = self.vdevice.create_infer_model(self.rec_hef_path)
+        self.rec_infer_model.output().set_format_type(FormatType.FLOAT32)
         self.rec_configured = self.rec_infer_model.configure()
 
         # Cache detection input shape
@@ -329,7 +333,7 @@ class HailoFaceApp:
         """Run SCRFD inference on Hailo-8."""
         try:
             output_buffers = {
-                info.name: np.empty(info.shape, dtype=np.uint8)
+                info.name: np.empty(info.shape, dtype=np.float32)
                 for info in self.det_infer_model.outputs
             }
             bindings = self.det_configured.create_bindings(output_buffers=output_buffers)
@@ -342,7 +346,7 @@ class HailoFaceApp:
             logger.error(f"Hailo _run_detection error: {e}")
             # Return empty buffers on error
             return {
-                info.name: np.zeros(info.shape, dtype=np.uint8)
+                info.name: np.zeros(info.shape, dtype=np.float32)
                 for info in self.det_infer_model.outputs
             }
 
@@ -359,14 +363,9 @@ class HailoFaceApp:
             layer_names = self.stride_outputs[stride]
             current_anchors = self.anchors[stride]
 
-            # Dequantize score output
+            # Scores — already dequantized by HailoRT (FormatType.FLOAT32)
             score_name = layer_names['score']
             raw_scores = outputs[score_name].flatten().astype(np.float32)
-            if score_name in self.det_quant_infos:
-                qp_scale, qp_zp = self.det_quant_infos[score_name]
-                raw_scores = (raw_scores - qp_zp) * qp_scale
-
-            # HEF outputs are already probabilities (no sigmoid needed)
 
             # Filter by threshold
             mask = raw_scores > self.score_threshold
@@ -376,12 +375,9 @@ class HailoFaceApp:
             filtered_scores = raw_scores[mask]
             filtered_anchors = current_anchors[mask]
 
-            # Dequantize bbox output
+            # Bbox — already dequantized by HailoRT
             bbox_name = layer_names['bbox']
             raw_bbox = outputs[bbox_name].reshape(-1, 4).astype(np.float32)
-            if bbox_name in self.det_quant_infos:
-                qp_scale, qp_zp = self.det_quant_infos[bbox_name]
-                raw_bbox = (raw_bbox - qp_zp) * qp_scale
             filtered_bbox = raw_bbox[mask]
 
             # Decode boxes
@@ -395,13 +391,10 @@ class HailoFaceApp:
             y2 = anchor_cy + filtered_bbox[:, 3] * s
             decoded_boxes = np.stack([x1, y1, x2, y2], axis=-1)
 
-            # Dequantize and decode landmarks
+            # Landmarks — already dequantized by HailoRT
             kps_name = layer_names.get('kps')
             if kps_name is not None:
                 raw_kps = outputs[kps_name].reshape(-1, 10).astype(np.float32)
-                if kps_name in self.det_quant_infos:
-                    qp_scale, qp_zp = self.det_quant_infos[kps_name]
-                    raw_kps = (raw_kps - qp_zp) * qp_scale
                 filtered_kps = raw_kps[mask]
 
                 decoded_kps = np.zeros_like(filtered_kps)
@@ -474,7 +467,7 @@ class HailoFaceApp:
     # ------------------------------------------------------------------
     # Recognition: align → preprocess → infer → dequantize → normalize
     # ------------------------------------------------------------------
-    def _extract_embedding(self, image, kps, debug_save=True):
+    def _extract_embedding(self, image, kps, debug_save=False):
         """Align face and extract 512-dim L2-normalized embedding."""
         # Debug: log landmarks
         if kps is not None:
@@ -504,9 +497,9 @@ class HailoFaceApp:
         # Preprocess for recognition model
         preprocessed = self._preprocess_recognition(aligned)
 
-        # Run ArcFace inference
+        # Run ArcFace inference — output is auto-dequantized FLOAT32 by HailoRT
         output_buffers = {
-            info.name: np.empty(info.shape, dtype=np.uint8)
+            info.name: np.empty(info.shape, dtype=np.float32)
             for info in self.rec_infer_model.outputs
         }
         bindings = self.rec_configured.create_bindings(output_buffers=output_buffers)
@@ -514,20 +507,18 @@ class HailoFaceApp:
         job = self.rec_configured.run_async([bindings], lambda *args, **kwargs: None)
         job.wait(10000)
 
-        # Dequantize and normalize embedding
+        # Output is already dequantized by HailoRT (FormatType.FLOAT32)
         output_name = list(output_buffers.keys())[0]
         raw = output_buffers[output_name]
 
-        if output_name in self.rec_quant_infos:
-            qp_scale, qp_zp = self.rec_quant_infos[output_name]
-            embedding = (raw.astype(np.float32) - qp_zp) * qp_scale
-        else:
-            embedding = raw.astype(np.float32)
+        # Debug: log output stats
+        logger.info(f"ArcFace output layer: {output_name}, shape: {raw.shape}, dtype: {raw.dtype}, stats: mean={raw.mean():.4f}, std={raw.std():.4f}, min={raw.min():.4f}, max={raw.max():.4f}")
 
-        embedding = embedding.flatten()
+        embedding = raw.astype(np.float32).flatten()
 
         # Pad or truncate to 512
         if len(embedding) != 512:
+            logger.warning(f"ArcFace embedding size {len(embedding)} != 512, adjusting")
             if len(embedding) > 512:
                 embedding = embedding[:512]
             else:
