@@ -22,7 +22,7 @@ Security use-cases prioritized over hospitality/analytics use-cases.
 
 **Status**: Implemented (current behavior)
 
-**Scenario**: A guest with a valid reservation approaches the door. The system recognizes their face and unlocks the door automatically.
+**Scenario**: A guest with a valid reservation approaches the door. The system recognizes their face and, when a clicked event is received for a specific lock, unlocks that lock.
 
 **Trigger**: Motion detected at camera → face detection starts
 
@@ -36,7 +36,7 @@ Security use-cases prioritized over hospitality/analytics use-cases.
 - If similarity > threshold → MATCH
 
 **Output**:
-- Unlock door (on cameras with locks — see Camera-Lock Patterns)
+- Unlock door (only when clicked event received for a specific lock — see Camera-Lock Patterns)
 - Publish `member_detected` to IoT
 - Save annotated snapshot to S3
 - Log check-in event
@@ -50,6 +50,8 @@ Security use-cases prioritized over hospitality/analytics use-cases.
 - All other UCs continue to fire on every subsequent frame after unlock
 - Only one member needs to match for unlock
 - On cameras without locks (Pattern P1), UC1 still runs but publishes `member_detected` without unlock action (log only)
+- On cameras with locks (Pattern P2), ONVIF starts the session in surveillance mode (no unlock possible). A clicked event upgrades the session to unlock mode for the specific lock
+- If `active_member_matched=true` already when clicked arrives, unlock immediately (no need to re-present face — Decision 30)
 
 ---
 
@@ -59,7 +61,7 @@ Security use-cases prioritized over hospitality/analytics use-cases.
 
 **Scenario**: After an authorized guest unlocks the door, an unauthorized person follows them through before the door closes.
 
-**Trigger**: Part of the continuous detection loop — fires when an unknown face appears in any frame after `unlocked=true` has been set in the current session
+**Trigger**: Part of the continuous detection loop — fires when an unknown face appears in any frame after `unlocked=true` has been set in the current session (only possible after a clicked event triggers unlock)
 
 **Input**:
 - Camera frames (continuous detection loop, same as all other UCs)
@@ -67,7 +69,7 @@ Security use-cases prioritized over hospitality/analytics use-cases.
 - Session state: `unlocked=true`
 
 **Logic**:
-- UC1 matched and set `unlocked=true` at some frame
+- UC1 matched and clicked event triggered unlock, setting `unlocked=true` at some frame
 - Subsequent frames detect a face that doesn't match ANY active member → TAILGATING
 - This is not a separate detection phase — it is the normal per-frame identification (UC3) combined with the knowledge that the door is already open
 
@@ -167,7 +169,7 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 **Session Duration** (from codebase — `TIMER_DETECT` in `function.conf`, `extend_timer()` in `gstreamer_threading.py`):
 - Base: `TIMER_DETECT` = 10 seconds (configurable)
 - At 10 fps → 100 frames per session baseline
-- Extended by occupancy triggers: each occupancy event adds up to `TIMER_DETECT` seconds (`elapsed + TIMER_DETECT`)
+- Extended by clicked triggers: each clicked event adds up to `TIMER_DETECT` seconds (`elapsed + TIMER_DETECT`)
 - Extended by ONVIF if session was started by ONVIF
 - With extensions, sessions can reach 20-30+ seconds (200-300 frames)
 - 10-20 seconds at a doorway is sufficient for all group members to show their faces at least once
@@ -177,10 +179,10 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 | Running session started by | New trigger | Extends? |
 |---|---|---|
 | ONVIF | ONVIF | Yes |
-| ONVIF | Occupancy | Yes |
-| Occupancy | Occupancy #2 | Yes |
-| Occupancy | ONVIF | No |
-| Any | **YOLOv8n person detected at timer expiry** | **Yes (up to BODY_EXTEND_MAX_SEC)** |
+| ONVIF | Clicked | Yes |
+| Clicked | Clicked #2 | Yes |
+| Clicked | ONVIF | No |
+| Any | **Dual-signal at timer expiry (recent motion + YOLOv8n person)** | **Yes (both signals required)** |
 
 **Purpose**:
 - Detect unauthorized additional guests (capacity enforcement)
@@ -237,6 +239,7 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 - INACTIVE sub-type does not unlock door
 - Alert includes original stay information (INACTIVE) or blocklist reason (BLOCKLIST)
 - Useful for property owners to know who is trying to access
+- `block_further_unlocks` prevents unlock of any lock in `clicked_locks` that hasn't been unlocked yet (already-unlocked locks are NOT re-locked)
 
 ---
 
@@ -299,7 +302,7 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 
 **Scenario**: YOLOv8n (COCO person class 0) provides **session lifecycle control** — deciding whether to start and whether to extend a detection session. UC8 is NOT an alerting mechanism. It is an operational control that filters false ONVIF triggers (wind, shadow, animal motion) before committing SCRFD+ArcFace resources.
 
-**Three roles:**
+**Two roles:**
 
 ### Role 1: Gate (session start + recording start)
 
@@ -319,99 +322,39 @@ Run YOLOv8n (person class 0) → person body detected?
 
 ### Role 2: Extend (session timer expiry)
 
-When the detection timer is about to expire, YOLOv8n runs on the current frame. If a person is still present, the timer is extended — recording continues alongside the session. This continues up to `BODY_EXTEND_MAX_SEC` total session duration (prevents infinite extension if someone stands at the camera indefinitely). When the session ends (person left or cap reached), recording ends with it.
+When the detection timer is about to expire, two signals are checked: (1) whether a motion event was received within the last `MOTION_RECENCY_SEC` seconds, and (2) whether YOLOv8n detects a person in the current frame. Both must be true to extend the session — either signal alone is insufficient. This dual-signal requirement reduces false extensions: person detection alone may trigger on static figures (poster, mannequin), while motion alone may be non-human (wind, animal). Together they confirm something is moving AND it's a person. No explicit cap is needed — the motion recency requirement is a natural session limiter. ONVIF is single-fire (one event per motion onset), so unless new motion events keep arriving, `MOTION_RECENCY_SEC` expires and the session ends. When the session ends (person left or no recent motion), recording ends with it.
+
+Motion detection is designed as an event-based abstraction: motion sources emit timestamped events per camera, and the extend check queries whether a motion event was received within the recency window. Currently ONVIF events serve as the motion source (single-fire — one event per motion onset, recency based on last event timestamp). Future H265 HW frame-level decoding will emit equivalent events via the same interface, making the motion source pluggable.
+
+**Session duration governance**: Two parameters interact to control how long sessions extend. The motion source's **notification gap** (camera-side, tunable per camera/location) controls how frequently motion events are emitted — busy locations set a 20-30s gap to naturally space out sessions, while quiet locations can set 0s for maximum responsiveness. **`MOTION_RECENCY_SEC`** (software-side, global default) defines how recent a motion event must be to count at timer expiry. Operators tune the notification gap per camera to match their location's activity level; `MOTION_RECENCY_SEC` remains a global default. This applies to both ONVIF and future H265 HW motion sources — the notification gap is a property of the motion source abstraction.
 
 ```
 Timer about to expire
        │
        ▼
-Run YOLOv8n on current frame → person body still present?
-  YES → extend timer (up to BODY_EXTEND_MAX_SEC total), recording continues
-  NO  → end session normally, recording ends
+Check dual signal:
+  1. Motion recent? (motion event within MOTION_RECENCY_SEC)
+  2. Run YOLOv8n on current frame → person body present?
+
+  BOTH YES → extend timer, recording continues
+  EITHER NO → end session normally, recording ends
 ```
-
-### Role 3: Watch (post-cap monitoring + recording)
-
-When a session ends because `BODY_EXTEND_MAX_SEC` is reached (person still present, session forced to end), the camera enters **watch mode** instead of returning to idle. Watch mode uses YOLOv8n only — no SCRFD+ArcFace — and only runs on ONVIF events (no polling, no timers).
-
-Watch mode prevents infinite back-to-back full sessions (SCRFD+ArcFace) when a person remains at the camera after the session cap. Without watch mode, ONVIF would re-trigger and chain new full sessions indefinitely.
-
-**Watch mode recording**: When YOLOv8n detects a person during watch mode (person still lingering after session cap), video recording starts using existing GStreamer recording parameters (`RECORD_AFTER_MOTION_SECOND`, pre-buffer). No SCRFD+ArcFace runs — recording only. This captures security-relevant footage of someone lingering at the camera after a full detection session.
-
-**State machine:**
-
-```
-Session hits BODY_EXTEND_MAX_SEC cap
-       │
-       ▼
-ENTER WATCH MODE (per-camera)
-  State: person_was_seen = true
-       │
-       ▼
-  ┌─── ONVIF fires during watch mode ───┐
-  │                                       │
-  │  Run YOLOv8n (person class 0)         │
-  │                                       │
-  │  Person detected?                     │
-  │    YES + person_was_seen=true          │
-  │      → same person still there         │
-  │      → start recording (no SCRFD)      │
-  │      → stay in watch mode              │
-  │                                       │
-  │    NO                                  │
-  │      → person left                     │
-  │      → set person_was_seen=false       │
-  │      → stay in watch mode (armed)      │
-  │                                       │
-  │    YES + person_was_seen=false          │
-  │      → person LEFT then RETURNED       │
-  │      → EXIT watch mode                 │
-  │      → start new full session          │
-  │        (Gate already passed — skip     │
-  │         redundant YOLOv8n gate)        │
-  │        (recording starts via new       │
-  │         session's Gate)                │
-  └───────────────────────────────────────┘
-
-  Occupancy trigger during watch mode:
-    → EXIT watch mode immediately
-    → start full session (occupancy = different signal)
-    → recording starts via new session's Gate
-```
-
-**What triggers watch mode vs normal session end:**
-
-| Session end reason | Next state |
-|---|---|
-| Timer expired + YOLOv8n extend says NO person | Normal end (no watch mode — person already left) |
-| Timer expired + BODY_EXTEND_MAX_SEC cap reached | **Watch mode** (person still there, session forced to end) |
-| Occupancy sensor goes inactive + no other triggers | Normal end |
-
-**Key properties:**
-- No SCRFD+ArcFace in watch mode — only YOLOv8n runs, on ONVIF events
-- Requires leave-then-return transition — prevents re-processing the same person who never left
-- Occupancy bypasses watch mode — occupancy is a lock-level signal, always starts a full session
-- Zero resource cost when idle — watch mode is just a per-camera flag, no polling, no timers
-- No additional config needed — watch mode is inherent behavior when BODY_EXTEND_MAX_SEC is reached
 
 **Model**: YOLOv8n (COCO 80-class, person = class 0) — pre-compiled HEF available for Hailo-8 and Hailo-8L in [Hailo Model Zoo](https://github.com/hailo-ai/hailo_model_zoo)
 
-**Output**: No IoT alert. UC8 is a control decision, not a notification. It produces no `human_body_alert` topic — it gates session start and video recording, extends session duration (recording continues), and monitors post-cap presence (recording without SCRFD+ArcFace). No person detected = no session = no recording.
+**Output**: No IoT alert. UC8 is a control decision, not a notification. It produces no `human_body_alert` topic — it gates session start and video recording, and extends session duration (recording continues). No person detected = no session = no recording.
 
 **Configuration**:
 - `YOLO_DETECT_THRESHOLD=0.5` — YOLOv8n confidence threshold for person class 0
-- `BODY_EXTEND_MAX_SEC=30` — Maximum total session duration with body-based extensions (prevents infinite loops)
+- `MOTION_RECENCY_SEC=5` — Time window (in seconds) to consider a motion event as "recent" at timer expiry for dual-signal extension check
 
-**NPU impact**: Negligible per session. YOLOv8n runs gate-only: 1 inference at session start + 1 at timer expiry check + 1 per ONVIF event during watch mode. NOT every frame.
+**NPU impact**: Negligible per session. YOLOv8n runs gate-only: 1 inference at session start + 1 at each timer expiry check. NOT every frame.
 
 **Key Behaviors**:
-- Applies to ALL 4 camera-lock patterns (P1-P4) as the first step before SCRFD+ArcFace
+- Applies to both camera-lock patterns (P1-P2) as the first step before SCRFD+ArcFace
 - Gates video recording alongside SCRFD+ArcFace — false ONVIF triggers (no person) produce neither face detection nor video recording, saving storage
-- Enables P3 cameras to run surveillance UCs on ONVIF events (previously skipped)
-- Session extension by body detection is capped at `BODY_EXTEND_MAX_SEC` to prevent infinite sessions
-- When session ends due to cap (person still present), camera enters watch mode (YOLOv8n only on ONVIF events, no SCRFD+ArcFace) until person leaves then returns
-- In watch mode, person detection triggers video recording without SCRFD+ArcFace (captures lingering presence using existing GStreamer recording parameters)
-- Does not replace existing extension rules (ONVIF/occupancy extensions still apply)
+- Session extension requires both recent motion (event within `MOTION_RECENCY_SEC`) AND body detection (YOLOv8n person present) — no explicit cap needed, motion recency is a natural session limiter
+- Does not replace existing extension rules (ONVIF/clicked extensions still apply)
 
 ---
 
@@ -419,16 +362,16 @@ ENTER WATCH MODE (per-camera)
 
 **Status**: Future implementation
 
-**Scenario**: A person holds up a printed photo or phone/tablet displaying someone's face to trick the face recognition system into unlocking the door. A dedicated close-range camera near the keypad lock verifies the person is real through multiple defense layers.
+**Scenario**: A person holds up a printed photo or phone/tablet displaying someone's face to trick the face recognition system into unlocking the door. A dedicated close-range camera near the lock verifies the person is real through multiple defense layers.
 
 **Camera Type**: This is NOT a general surveillance/recognition camera. It is a dedicated verification camera:
-- Mounted close to the keypad lock (arm's length)
+- Mounted close to the lock (arm's length)
 - Fixed close-range framing (face fills most of frame)
 - Controlled angle and lighting
 - Purpose: high-quality face capture for liveness verification only
 - Does not participate in UC2 (tailgating), UC3 (unknown logging), UC4 (group counting), etc.
 
-**Trigger**: Occupancy sensor on keypad lock → start detection on dedicated camera
+**Trigger**: Clicked event on lock → start detection on dedicated camera
 
 **Input**:
 - Camera frame from dedicated close-range camera
@@ -478,7 +421,7 @@ ENTER WATCH MODE (per-camera)
 
 **Pipeline**:
 ```
-Occupancy sensor triggers
+Clicked event triggers
        │
        ▼
 1. SCRFD       → face bbox                          (Hailo)
@@ -523,8 +466,8 @@ Occupancy sensor triggers
 - The only attack that passes all 4 layers: a live person who looks like the guest AND knows the blink code
 
 **Relationship to Camera-Lock Patterns**:
-- This camera is always associated with a keypad lock (P3 or P4)
-- It is triggered by occupancy sensor (person at the lock)
+- This camera is always associated with a lock (P2)
+- It is triggered by clicked event (person at the lock)
 - Other cameras on the same door still run normal UC1-UC5 pipeline
 - The dedicated camera runs its own UC9 pipeline (not the standard continuous detection loop)
 
@@ -532,16 +475,18 @@ Occupancy sensor triggers
 
 # Camera-Lock Patterns
 
-From codebase (`py_handler.py`): cameras store locks in `camera_item['locks']` with `withKeypad` flag.
+All locks require a "clicked" event to unlock. "Clicked" unifies two physical signals:
+1. **Occupancy sensor activation** (keypad locks like MTR001DC/MTR001AC — current `occupancy: true`)
+2. **LOCK_BUTTON press** (GreenPower_2 kinetic switch — `action: 'clicked'`)
+
+No lock unlocks from ONVIF alone. ONVIF starts sessions in surveillance mode; clicked events upgrade to unlock mode.
 
 ## Pattern Definitions
 
-| Pattern | Locks | Detection Trigger | Unlock Action |
-|---------|-------|-------------------|---------------|
-| P1: No lock | None | ONVIF motion | None (surveillance / visual verification) |
-| P2: Legacy lock | `withKeypad=false` | ONVIF motion | Unlock all legacy locks |
-| P3: Keypad lock | `withKeypad=true` | Occupancy sensor | Unlock specific keypad lock |
-| P4: Both locks | Legacy + Keypad | ONVIF or occupancy (merged) | Unlock appropriate locks |
+| Pattern | Locks | Session Start | Unlock Trigger | Unlock Action |
+|---------|-------|---------------|----------------|---------------|
+| P1: No lock | None | ONVIF motion | N/A | None (surveillance / visual verification) |
+| P2: Camera with lock(s) | Any lock type | ONVIF motion | Clicked event for specific lock | Unlock specific lock |
 
 ## Session State
 
@@ -551,10 +496,11 @@ Every detection session maintains these (reset per session):
 
 | Flag | Default | Set by | Effect |
 |------|---------|--------|--------|
-| `unlocked` | `false` | UC1 (active member match) | Prevents re-triggering unlock for the same lock set; enables UC2 tailgating checks |
+| `unlocked` | `false` | UC1 (active member match + clicked event) | Prevents re-triggering unlock for the same lock set; enables UC2 tailgating checks |
 | `block_further_unlocks` | `false` | UC5-blocklist (when `BLOCKLIST_PREVENTS_UNLOCK=true`) | Prevents any new unlock actions for remainder of session (already-unlocked locks are NOT re-locked) |
 | `active_member_matched` | `false` | UC1 | Enables UC4 group size comparison against `memberCount` |
-| `unlocked_locks` | `{}` (empty set) | UC1 unlock action | Tracks which specific locks have been unlocked (P3/P4: per-lock granularity) |
+| `unlocked_locks` | `{}` (empty set) | UC1 unlock action | Tracks which specific locks have been unlocked (per-lock granularity) |
+| `clicked_locks` | `{}` (empty set) | Clicked event (occupancy or LOCK_BUTTON) | Set of lock IDs that received a clicked signal during this session. Determines which locks are eligible for unlock |
 
 **Face accumulators** (for session-level distinct person counting):
 
@@ -573,7 +519,7 @@ Clustering logic for `unknown_face_clusters` (dual-signal, incremental):
 
 This handles masked faces: even when ArcFace embeddings are degraded, bbox IoU catches the same person standing at the door across consecutive frames.
 
-**P4 note**: In P4 (both lock types), `unlocked` is set to `true` when legacy locks are unlocked, but a newly-arriving keypad lock (via occupancy trigger) is tracked separately in `unlocked_locks`. This allows: legacy unlocked at T=0, keypad lock_456 still lockable/unlockable independently at T=M.
+**Clicked locks note**: Each clicked event adds a specific lock ID to `clicked_locks`. A lock can only be unlocked if its ID is in `clicked_locks`. Multiple clicked events during a session expand the set of eligible locks.
 
 ## Detection Timelines
 
@@ -636,39 +582,24 @@ T=0+   CONTINUOUS DETECTION LOOP (every frame, full timer)
        │  Loop continues until timer expires / motion stops
        │
 T=exp  Timer about to expire
-       │  [UC8 EXTEND] Run YOLOv8n on current frame
-       │    → Person still present AND total session < BODY_EXTEND_MAX_SEC?
-       │      YES → extend timer, recording continues
-       │      NO  → let session end normally, recording ends
+       │  [UC8 EXTEND] Dual-signal check:
+       │    1. Motion recent? (motion event within MOTION_RECENCY_SEC)
+       │    2. Run YOLOv8n on current frame → person body present?
+       │    → BOTH YES? → extend timer, recording continues
+       │    → EITHER NO? → let session end normally, recording ends
        │
-T=cap  BODY_EXTEND_MAX_SEC reached, person still present
-       │  [UC8 WATCH] ENTER WATCH MODE (YOLOv8n only, no SCRFD+ArcFace)
-       │  State: person_was_seen = true
-       │
-       │  ONVIF fires → run YOLOv8n (person class 0):
-       │    Person YES + person_was_seen=true  → start recording (no SCRFD+ArcFace)
-       │                                         stay in watch (same person)
-       │    Person NO                          → set person_was_seen=false (armed)
-       │    Person YES + person_was_seen=false  → EXIT watch → new full session
-       │                                         (recording starts via new session's Gate)
-       │  Occupancy trigger → EXIT watch mode → full session
-       │
-T=end  Session ends (normal end OR watch mode entered)
+T=end  Session ends
        │
        │  SESSION-LEVEL CHECKS:
-       │  [UC4] If active_member_matched=true:
-       │    distinct_faces = len(known_members) + len(unknown_face_clusters)
-       │    If distinct_faces > memberCount → Publish group_size_mismatch
-       │
        │  [UC6] Cross-session analysis (future):
        │  Same unknown face across sessions → loitering_alert
 ```
 
-**P1 notes**: No unlock/lock state. No UC2 tailgating (no door to tailgate through). UC4 evaluated at session end using accumulated face data. Watch mode applies when BODY_EXTEND_MAX_SEC forces session end while person is still present.
+**P1 notes**: No unlock/lock state. No UC2 tailgating (no door to tailgate through). No UC4 group size validation (no door/reservation context to compare against).
 
-### P2: Camera with legacy lock
+### P2: Camera with lock(s)
 
-Example: Front door with a legacy smart lock (no occupancy sensor).
+Example: Front door with any type of smart lock (occupancy sensor lock, kinetic switch lock, or both).
 
 ```
 Person approaches door
@@ -679,14 +610,15 @@ T=0    │  ONVIF camera detects motion
        │    → NO person detected? → SKIP (no session, no recording)
        │    → YES person detected? → start recording + continue ▼
        │
+       │  START DETECTION IN SURVEILLANCE MODE
        │  trigger_face_detection(cam_ip, lock_asset_id=None)
-       │  Camera HAS legacy locks → start detection
-       │  Context: started_by_onvif=True, onvif_triggered=True
+       │  Context: started_by_onvif=True, surveillance_mode=True
        │  Session state: unlocked=false, block_further_unlocks=false
+       │  Session state: clicked_locks={} (empty — no unlock possible yet)
        │  GStreamer starts feeding frames
        │
        ▼
-T=0+   CONTINUOUS DETECTION LOOP (every frame, full timer)
+T=0+   CONTINUOUS DETECTION LOOP (surveillance mode — no unlock possible)
        ┌─────────────────────────────────────────────────────────┐
        │ INFERENCE (every frame):                                 │
        │   SCRFD  → face bboxes + 5-point landmarks              │
@@ -707,53 +639,89 @@ T=0+   CONTINUOUS DETECTION LOOP (every frame, full timer)
        │    ├─ ACTIVE → [UC1]                                     │
        │    │   Add to known_members[id]={category:ACTIVE}        │
        │    │   Set active_member_matched=true                    │
-       │    │   If unlocked=false AND block_further_unlocks=false:│
-       │    │     → UNLOCK ALL LEGACY LOCKS                       │
-       │    │     → Set unlocked=true                             │
-       │    │     → Publish member_detected                       │
-       │    │     → Save snapshot to S3                           │
-       │    │   If unlocked=true:                                 │
-       │    │     → Skip (already unlocked this session)          │
-       │    │   If block_further_unlocks=true:                    │
-       │    │     → Publish member_detected (blocked=true)        │
-       │    │     → Do NOT unlock                                 │
+       │    │   No unlock yet (clicked_locks is empty)            │
+       │    │   Publish member_detected (LOG ONLY — surveillance) │
+       │    │   Save snapshot to S3                               │
        │    │                                                     │
        │    ├─ INACTIVE → [UC5-inactive]                          │
        │    │   Add to known_members[id]={category:INACTIVE}      │
        │    │   Publish non_active_member_alert                   │
-       │    │   Do NOT unlock                                     │
        │    │                                                     │
        │    └─ STAFF → Add to known_members, log only             │
        │                                                          │
-       │   NO (below threshold for all):                          │
-       │     [UC3] Cluster into unknown_face_clusters             │
+       │   NO (below threshold for all) → [UC3]                   │
+       │     Cluster into unknown_face_clusters                   │
        │       (by embedding similarity + bbox IoU)               │
        │     Publish unknown_face_detected                        │
        │     Save snapshot to S3                                  │
-       │     If unlocked=true → also [UC2] tailgating_alert       │
+       │                                                          │
+       │ No UC2 tailgating (no unlock has occurred)               │
        └─────────────────────────────────────────────────────────┘
        │
-       │  Loop continues until timer expires / motion stops
+       │  Loop continues...
+       │
+T=N    │  CLICKED EVENT arrives for lock "lock_123"
+       │  (occupancy sensor activation OR LOCK_BUTTON press)
+       │  trigger_face_detection(cam_ip, lock_asset_id="lock_123")
+       │  MERGE into running session — UPGRADE to unlock mode:
+       │    clicked_locks += {"lock_123"}
+       │    Extend detection timer
+       │
+       │  Now lock_123 is eligible for unlock
+       │
+       │  ┌─────────────────────────────────────────────────────┐
+       │  │ IMMEDIATE UNLOCK CHECK (Decision 30):                │
+       │  │   If active_member_matched=true                      │
+       │  │   AND block_further_unlocks=false                    │
+       │  │   AND "lock_123" not in unlocked_locks:              │
+       │  │     → UNLOCK lock_123 IMMEDIATELY                    │
+       │  │     → Add "lock_123" to unlocked_locks               │
+       │  │     → Set unlocked=true                              │
+       │  │     → Publish member_detected                        │
+       │  │       payload: clickedLocks=["lock_123"]             │
+       │  │     → Save snapshot to S3                            │
+       │  │   (No need to re-present face — already matched)     │
+       │  └─────────────────────────────────────────────────────┘
+       │
+       ▼
+T=N+   DETECTION LOOP CONTINUES (unlock mode active for lock_123)
+       ┌─────────────────────────────────────────────────────────┐
+       │ (Same inference + identification as above)               │
+       │                                                          │
+       │   ACTIVE → [UC1]                                         │
+       │     If lock_123 not in unlocked_locks                    │
+       │     AND block_further_unlocks=false:                     │
+       │       → UNLOCK lock_123                                  │
+       │       → Add to unlocked_locks                            │
+       │       → Set unlocked=true                                │
+       │       → payload: clickedLocks=["lock_123"]              │
+       │     If lock_123 already in unlocked_locks:               │
+       │       → Skip (already unlocked)                          │
+       │     If block_further_unlocks=true:                       │
+       │       → Publish member_detected (blocked=true)           │
+       │       → Do NOT unlock                                    │
+       │                                                          │
+       │   BLOCKLIST → [UC5-blocklist]                            │
+       │     Set block_further_unlocks=true                       │
+       │     (If lock_123 already unlocked: no re-lock.           │
+       │      If not yet unlocked: prevents future unlock.)       │
+       │                                                          │
+       │   Unknown face + unlocked=true → [UC2] tailgating_alert │
+       │                                                          │
+       │ (All other UCs — UC3, UC4, UC5-inactive — same as above) │
+       └─────────────────────────────────────────────────────────┘
+       │
+       │  If NO clicked event arrives, session runs in
+       │  surveillance mode for full timer (P1 behavior)
        │
 T=exp  Timer about to expire
-       │  [UC8 EXTEND] Run YOLOv8n on current frame
-       │    → Person still present AND total session < BODY_EXTEND_MAX_SEC?
-       │      YES → extend timer, recording continues
-       │      NO  → let session end normally, recording ends
+       │  [UC8 EXTEND] Dual-signal check:
+       │    1. Motion recent? (motion event within MOTION_RECENCY_SEC)
+       │    2. Run YOLOv8n on current frame → person body present?
+       │    → BOTH YES? → extend timer, recording continues
+       │    → EITHER NO? → let session end normally, recording ends
        │
-T=cap  BODY_EXTEND_MAX_SEC reached, person still present
-       │  [UC8 WATCH] ENTER WATCH MODE (YOLOv8n only, no SCRFD+ArcFace)
-       │  State: person_was_seen = true
-       │
-       │  ONVIF fires → run YOLOv8n (person class 0):
-       │    Person YES + person_was_seen=true  → start recording (no SCRFD+ArcFace)
-       │                                         stay in watch (same person)
-       │    Person NO                          → set person_was_seen=false (armed)
-       │    Person YES + person_was_seen=false  → EXIT watch → new full session
-       │                                         (recording starts via new session's Gate)
-       │  Occupancy trigger → EXIT watch mode → full session
-       │
-T=end  Session ends (normal end OR watch mode entered)
+T=end  Session ends
        │
        │  SESSION-LEVEL CHECKS:
        │  [UC4] If active_member_matched=true:
@@ -764,232 +732,46 @@ T=end  Session ends (normal end OR watch mode entered)
        │  Same unknown face across sessions → loitering_alert
 ```
 
-**P2 example scenario** — blocklist detected AFTER unlock:
-1. Frame 3: Active member detected → `unlocked=true`, door opens
-2. Frame 7: Blocklist person detected → `block_further_unlocks=true`, alert fires
-3. Door is already open (no re-lock). Flag prevents further unlock extensions.
-4. Frame 9: Another active member detected → `unlocked=true` already, skip. Even if it weren't, `block_further_unlocks` would prevent it.
-5. Remaining frames: all UCs keep firing (UC3, UC4, UC5...)
+**P2 example scenario 1** — blocklist detected BEFORE clicked:
+1. T=0: ONVIF triggers, detection starts in surveillance mode
+2. Frame 3: Active member detected → `active_member_matched=true`, but no clicked yet → log only
+3. Frame 7: Blocklist person detected → `block_further_unlocks=true`, alert fires
+4. T=N: Clicked event for lock_123 → `clicked_locks={"lock_123"}`
+5. Immediate unlock check: `active_member_matched=true` BUT `block_further_unlocks=true` → NO unlock
+6. Result: Blocklist prevented unlock despite active member being present
 
-### P3: Camera with keypad lock (occupancy sensor)
+**P2 example scenario 2** — clicked before face match:
+1. T=0: ONVIF triggers, detection starts in surveillance mode
+2. T=N: Clicked event for lock_123 → `clicked_locks={"lock_123"}`, no member matched yet
+3. Frame at T=N+: Active member detected → `active_member_matched=true`, lock_123 in clicked_locks, `block_further_unlocks=false` → UNLOCK lock_123
+4. Result: Normal unlock flow, clicked arrived before face match
 
-Example: Door with smart lock that has occupancy/proximity sensor.
-
-```
-Person approaches door
-       │
-T=0    │  ONVIF camera detects motion
-       │  GStreamer grabs frame
-       │  [UC8 GATE] Run YOLOv8n (person class 0)
-       │    → NO person detected? → SKIP (no session, no recording)
-       │    → YES person detected? → start recording + continue ▼
-       │
-       │  START DETECTION IN SURVEILLANCE MODE (P1 behavior)
-       │  trigger_face_detection(cam_ip, lock_asset_id=None)
-       │  Context: started_by_onvif=True, surveillance_mode=True
-       │  Session state: unlocked=N/A (no unlock in surveillance mode)
-       │  GStreamer starts feeding frames
-       │
-       ▼
-T=0+   CONTINUOUS DETECTION LOOP (surveillance mode — P1 behavior)
-       ┌─────────────────────────────────────────────────────────┐
-       │ (Same inference + identification as P1)                  │
-       │                                                          │
-       │   ACTIVE → [UC1] Log only (no unlock — surveillance)     │
-       │   BLOCKLIST → [UC5-blocklist] Alert only (no lock)       │
-       │   INACTIVE → [UC5-inactive] Alert                        │
-       │   Unknown → [UC3] Log + S3                               │
-       │                                                          │
-       │ No UC2 tailgating (no unlock has occurred)               │
-       └─────────────────────────────────────────────────────────┘
-       │
-       │  Loop continues...
-       │
-T=N    │  Occupancy sensor on keypad lock triggers
-       │  trigger_face_detection(cam_ip, lock_asset_id="lock_123")
-       │  MERGE into running session — UPGRADE to unlock mode:
-       │    specific_locks += {"lock_123"}
-       │    active_occupancy += {"lock_123"}
-       │    surveillance_mode=False
-       │    Session state: unlocked=false, block_further_unlocks=false
-       │    Extend detection timer
-       │
-       │  Now keypad lock_123 is eligible for unlock
-       │
-       ▼
-T=N+   DETECTION LOOP CONTINUES (upgraded to unlock mode)
-       ┌─────────────────────────────────────────────────────────┐
-       │ (Same inference + identification as P2)                  │
-       │                                                          │
-       │   ACTIVE → [UC1]                                         │
-       │     If unlocked=false AND block_further_unlocks=false:   │
-       │       → UNLOCK SPECIFIC KEYPAD LOCK (lock_123) ONLY     │
-       │       → payload: occupancyTriggeredLocks=["lock_123"]   │
-       │       → Set unlocked=true                                │
-       │     If block_further_unlocks=true:                       │
-       │       → Do NOT unlock lock_123                           │
-       │                                                          │
-       │   BLOCKLIST → [UC5-blocklist]                            │
-       │     Set block_further_unlocks=true                       │
-       │     (If lock_123 already unlocked: no re-lock.           │
-       │      If not yet unlocked: prevents future unlock.)       │
-       │                                                          │
-       │ (All other UCs — UC2, UC3, UC4, UC5-inactive             │
-       │  — same as P2)                                           │
-       └─────────────────────────────────────────────────────────┘
-       │
-       │  If NO occupancy trigger arrives, session runs in
-       │  surveillance mode for full timer (P1 behavior)
-       │
-T=exp  Timer about to expire
-       │  [UC8 EXTEND] Run YOLOv8n on current frame
-       │    → Person still present AND total session < BODY_EXTEND_MAX_SEC?
-       │      YES → extend timer, recording continues
-       │      NO  → let session end normally, recording ends
-       │
-T=cap  BODY_EXTEND_MAX_SEC reached, person still present
-       │  [UC8 WATCH] ENTER WATCH MODE (YOLOv8n only, no SCRFD+ArcFace)
-       │  State: person_was_seen = true
-       │
-       │  ONVIF fires → run YOLOv8n (person class 0):
-       │    Person YES + person_was_seen=true  → start recording (no SCRFD+ArcFace)
-       │                                         stay in watch (same person)
-       │    Person NO                          → set person_was_seen=false (armed)
-       │    Person YES + person_was_seen=false  → EXIT watch → new full session
-       │                                         (recording starts via new session's Gate)
-       │  Occupancy trigger → EXIT watch mode → full session
-       │
-       ▼
-T=occ_false  Occupancy sensor goes inactive (if it triggered)
-       │  handle_occupancy_false(cam_ip, "lock_123")
-       │  Remove lock_123 from active_occupancy
-       │  If no more active triggers → stop detection early
-```
-
-**P3 key change**: ONVIF no longer skips detection. YOLOv8n gate confirms a person is present, then detection starts in surveillance mode (P1 behavior — log only, no unlock). If an occupancy trigger arrives during the session, the session upgrades to unlock mode for the specific keypad lock (same merge logic as P4). If no occupancy trigger arrives, the session completes as surveillance-only.
-
-### P4: Camera with both lock types
-
-Example: Door with legacy lock AND keypad lock with occupancy sensor.
-
-```
-Person approaches door
-       │
-T=0    │  ONVIF camera detects motion
-       │  GStreamer grabs frame
-       │  [UC8 GATE] Run YOLOv8n (person class 0)
-       │    → NO person detected? → SKIP (no session, no recording)
-       │    → YES person detected? → start recording + continue ▼
-       │
-       │  trigger_face_detection(cam_ip, lock_asset_id=None)
-       │  Camera HAS legacy locks → start detection
-       │  Context: started_by_onvif=True, onvif_triggered=True
-       │  Session state: unlocked=false, block_further_unlocks=false
-       │  GStreamer starts feeding frames
-       │
-       ▼
-T=0+   CONTINUOUS DETECTION LOOP (same structure as P2)
-       ┌─────────────────────────────────────────────────────────┐
-       │ (Same inference + identification as P2)                  │
-       │                                                          │
-       │ At this point, only legacy locks are eligible for unlock │
-       │ (no occupancy trigger yet for keypad)                    │
-       │                                                          │
-       │   ACTIVE → [UC1]                                         │
-       │     If unlocked=false AND block_further_unlocks=false:   │
-       │       → UNLOCK LEGACY LOCKS ONLY                         │
-       │       → payload: onvifTriggered=true                     │
-       │       → Set unlocked=true                                │
-       │                                                          │
-       │ (All other UCs same as P2)                               │
-       └─────────────────────────────────────────────────────────┘
-       │
-       │  Loop continues...
-       │
-T=M    │  Occupancy sensor on keypad lock also triggers
-       │  trigger_face_detection(cam_ip, lock_asset_id="lock_456")
-       │  MERGE into running session:
-       │    specific_locks += {"lock_456"}
-       │    active_occupancy += {"lock_456"}
-       │    Extend detection timer
-       │
-       │  Now keypad lock_456 is also eligible for unlock
-       │
-       ▼
-T=M+   DETECTION LOOP CONTINUES (with expanded lock set)
-       ┌─────────────────────────────────────────────────────────┐
-       │ (Same inference + identification)                        │
-       │                                                          │
-       │   ACTIVE → [UC1]                                         │
-       │     Legacy already unlocked (unlocked=true) → skip       │
-       │     But lock_456 is NEW and not yet unlocked:            │
-       │     If block_further_unlocks=false:                      │
-       │       → UNLOCK KEYPAD LOCK lock_456                      │
-       │       → payload: occupancyTriggeredLocks=["lock_456"]   │
-       │     If block_further_unlocks=true:                       │
-       │       → Do NOT unlock lock_456                           │
-       │       → (Legacy already open — no re-lock)               │
-       │                                                          │
-       │   BLOCKLIST → [UC5-blocklist]                            │
-       │     Set block_further_unlocks=true                       │
-       │     (Prevents unlock of lock_456 if not yet unlocked.    │
-       │      Legacy locks already open — no re-lock.)            │
-       │                                                          │
-       │ (All other UCs same as P2)                               │
-       └─────────────────────────────────────────────────────────┘
-       │
-       │  Loop continues until all triggers expire
-       │
-T=exp  Timer about to expire
-       │  [UC8 EXTEND] Run YOLOv8n on current frame
-       │    → Person still present AND total session < BODY_EXTEND_MAX_SEC?
-       │      YES → extend timer, recording continues
-       │      NO  → let session end normally, recording ends
-       │
-T=cap  BODY_EXTEND_MAX_SEC reached, person still present
-       │  [UC8 WATCH] ENTER WATCH MODE (YOLOv8n only, no SCRFD+ArcFace)
-       │  State: person_was_seen = true
-       │
-       │  ONVIF fires → run YOLOv8n (person class 0):
-       │    Person YES + person_was_seen=true  → start recording (no SCRFD+ArcFace)
-       │                                         stay in watch (same person)
-       │    Person NO                          → set person_was_seen=false (armed)
-       │    Person YES + person_was_seen=false  → EXIT watch → new full session
-       │                                         (recording starts via new session's Gate)
-       │  Occupancy trigger → EXIT watch mode → full session
-       │
-       ▼
-T=occ_false  Occupancy sensor goes inactive
-       │  Remove lock_456 from active_occupancy
-       │  Detection continues if ONVIF timer still active
-```
-
-**P4 example scenario** — blocklist detected between ONVIF and occupancy triggers:
-1. T=0: ONVIF triggers, detection starts
-2. Frame 3: Active member detected → legacy locks unlock (`unlocked=true`)
-3. Frame 7: Blocklist person detected → `block_further_unlocks=true`, alert
-4. T=M: Occupancy triggers for lock_456, merges into session
-5. Frame at T=M+: Active member still in frame → but `block_further_unlocks=true`, lock_456 stays locked
-6. Result: Legacy door open (can't undo), keypad lock blocked (protected by flag)
+**P2 example scenario 3** — multiple locks:
+1. T=0: ONVIF triggers, surveillance mode
+2. T=N: Clicked event for lock_123 → `clicked_locks={"lock_123"}`
+3. Frame: Active member → unlock lock_123, `unlocked_locks={"lock_123"}`
+4. T=M: Clicked event for lock_456 → `clicked_locks={"lock_123", "lock_456"}`
+5. Immediate unlock check: `active_member_matched=true`, lock_456 not in unlocked_locks → UNLOCK lock_456 immediately
+6. Result: Each lock unlocked independently as its clicked event arrived
 
 ## UC Applicability Matrix
 
-| UC | P1 (no lock) | P2 (legacy) | P3 (keypad) | P4 (both) | Scope |
-|----|:---:|:---:|:---:|:---:|:---:|
-| UC1: Member ID | Log only | Unlock all legacy | Unlock specific keypad | Unlock all | Current |
-| UC2: Tailgating | N/A (no door) | Alert | Alert | Alert | New |
-| UC3: Unknown Face | Log + S3 | Log + S3 | Log + S3 | Log + S3 | New |
-| UC4: Group Size | Alert | Alert | Alert | Alert | New |
-| UC5: Non-Active Member | Alert only | Alert + Block? | Alert + Block? | Alert + Block? | New |
-| UC6: Loitering | Alert | Alert | Alert | Alert | Future |
-| UC7: After-Hours | Alert | Alert + Policy | Alert + Policy | Alert + Policy | Future |
-| UC8: Human Body Detection | Gate + Extend + Watch | Gate + Extend + Watch | Gate + Extend + Watch | Gate + Extend + Watch | New |
-| UC9: Anti-Spoofing | N/A | N/A | Gate unlock | Gate unlock | Future |
+| UC | P1 (no lock) | P2 (with lock) | Scope |
+|----|:---:|:---:|:---:|
+| UC1: Member ID | Log only | Unlock specific lock (via clicked) | Current |
+| UC2: Tailgating | N/A (no door) | Alert (after clicked-triggered unlock) | New |
+| UC3: Unknown Face | Log + S3 | Log + S3 | New |
+| UC4: Group Size | N/A (no door context) | Alert | New |
+| UC5: Non-Active Member | Alert only | Alert + Block? | New |
+| UC6: Loitering | Alert | Alert | Future |
+| UC7: After-Hours | Alert | Alert + Policy | Future |
+| UC8: Human Body Detection | Gate + Extend | Gate + Extend | New |
+| UC9: Anti-Spoofing | N/A | Gate unlock (dedicated camera) | Future |
 
 - "Block?" = BLOCKLIST sub-type only, configurable via `BLOCKLIST_PREVENTS_UNLOCK`
 - "Policy" = QUIET_HOURS_UNLOCK config decides whether to still unlock
-- "Gate unlock" = UC9 runs only on dedicated verification cameras (P3/P4 with keypad lock); blocks unlock if spoof detected
-- "Gate + Extend + Watch" = YOLOv8n gate runs as first step before SCRFD+ArcFace on all patterns; extend-check runs at timer expiry; watch mode activates when BODY_EXTEND_MAX_SEC cap is reached with person still present
+- "Gate unlock" = UC9 runs only on dedicated verification cameras (P2 with lock); blocks unlock if spoof detected
+- "Gate + Extend" = YOLOv8n gate runs as first step before SCRFD+ArcFace on all patterns; dual-signal extend-check (recent motion + person present) runs at timer expiry
 
 ---
 
@@ -1001,14 +783,16 @@ T=occ_false  Occupancy sensor goes inactive
 - UC3: Unknown Face Logging
 - UC4: Group Size Validation
 - UC5: Non-Active Member Alert
-- UC8: Human Body Detection (session lifecycle control + recording gate — gate + extend + watch)
+- UC8: Human Body Detection (session lifecycle control + recording gate — gate + extend)
 
-Three models: SCRFD (face detection) + ArcFace (face recognition) + YOLOv8n (human body detection). UC1-UC5 run within the continuous detection loop. UC8 operates at session lifecycle level: YOLOv8n gate runs before the detection loop starts (filters false ONVIF triggers and gates video recording — no person = no session = no recording), YOLOv8n extend-check runs when the timer is about to expire (recording continues with session), and YOLOv8n watch mode monitors post-cap presence (no SCRFD+ArcFace, but triggers recording to capture lingering presence) to prevent infinite back-to-back sessions.
+Three models: SCRFD (face detection) + ArcFace (face recognition) + YOLOv8n (human body detection). UC1-UC5 run within the continuous detection loop. UC8 operates at session lifecycle level: YOLOv8n gate runs before the detection loop starts (filters false ONVIF triggers and gates video recording — no person = no session = no recording), and dual-signal extend-check (recent motion + YOLOv8n person present) runs when the timer is about to expire (recording continues with session). Motion recency naturally limits session duration — no explicit cap needed.
+
+Two camera-lock patterns: P1 (no lock — surveillance only) and P2 (camera with lock(s) — clicked event required for unlock). All locks require a "clicked" event (occupancy sensor or LOCK_BUTTON press) to unlock.
 
 ## Future Version
 - UC6: Loitering Detection — requires cloud-side data aggregation to persist unknown face embeddings across sessions over days/weeks
 - UC7: After-Hours Access Attempt — trivial time check, deferred to reduce initial scope
-- UC9: Face Anti-Spoofing — dedicated close-range verification camera near keypad lock. Multi-layer defense: face size validation, device detection (YOLOv8n), blink pattern challenge (tddfa_mobilenet_v1). Blink pattern per-reservation, delivered via booking channel. All models have pre-compiled Hailo HEFs
+- UC9: Face Anti-Spoofing — dedicated close-range verification camera near lock. Multi-layer defense: face size validation, device detection (YOLOv8n), blink pattern challenge (tddfa_mobilenet_v1). Blink pattern per-reservation, delivered via booking channel. All models have pre-compiled Hailo HEFs
 
 ---
 
@@ -1037,7 +821,9 @@ Three models: SCRFD (face detection) + ArcFace (face recognition) + YOLOv8n (hum
 | `gocheckin/{thing}/after_hours_access` | UC7 | Normal | Future |
 | `gocheckin/{thing}/spoofing_alert` | UC9 | HIGH | Future |
 
-**Note:** UC8 (Human Body Detection) has no IoT topic. It is an operational control (session gate + extend + watch), not an alerting mechanism.
+**Note:** UC8 (Human Body Detection) has no IoT topic. It is an operational control (session gate + extend), not an alerting mechanism.
+
+**`member_detected` payload changes**: `onvifTriggered` field removed — ONVIF never triggers unlock directly. `occupancyTriggeredLocks` renamed to `clickedLocks` — reflects unified clicked signal (occupancy sensor + LOCK_BUTTON). When `clickedLocks` is present and non-empty, unlock was triggered by a clicked event for those specific locks.
 
 ---
 
@@ -1046,7 +832,7 @@ Three models: SCRFD (face detection) + ArcFace (face recognition) + YOLOv8n (hum
 | Priority | Handler | Action on Match | Scope |
 |----------|---------|-----------------|-------|
 | 5 | Non-Active Member (BLOCKLIST) | Alert (HIGH), set `block_further_unlocks` | New (UC5) |
-| 10 | Member Identification | Unlock (once), log, set `unlocked` | Current (UC1) |
+| 10 | Member Identification | Unlock (once, via clicked), log, set `unlocked` | Current (UC1) |
 | 20 | Non-Active Member (INACTIVE) | Alert | New (UC5) |
 | 30 | Tailgating | Alert (requires `unlocked=true`) | New (UC2) |
 | 38 | Group Size | Alert at session end (requires `active_member_matched`) | New (UC4) |
@@ -1058,8 +844,7 @@ All handlers run on every frame within the continuous detection loop. "Priority"
 
 **UC8 (Human Body Detection) is NOT in this table.** UC8 operates at session lifecycle level, not per-frame:
 - **Gate**: YOLOv8n runs once before the detection loop starts (after ONVIF, before SCRFD+ArcFace)
-- **Extend**: YOLOv8n runs once when the timer is about to expire (decides whether to extend)
-- **Watch**: YOLOv8n runs on ONVIF events after session cap (monitors leave-then-return transition, no SCRFD+ArcFace)
+- **Extend**: Dual-signal check (recent motion + YOLOv8n person present) runs when the timer is about to expire (decides whether to extend)
 
 ---
 
@@ -1084,7 +869,7 @@ BLOCKLIST_PREVENTS_UNLOCK=true        # Block unlock for entire session if block
 
 # UC8: Human Body Detection (session lifecycle control)
 YOLO_DETECT_THRESHOLD=0.5             # YOLOv8n confidence threshold for person class 0
-BODY_EXTEND_MAX_SEC=30                # Max total session duration with body-based extensions
+MOTION_RECENCY_SEC=5                  # Seconds to consider a motion event "recent" for dual-signal extension
 
 # Feature flags
 ENABLE_TAILGATING_DETECTION=true      # UC2
@@ -1092,6 +877,8 @@ ENABLE_UNKNOWN_FACE_LOGGING=true      # UC3
 ENABLE_GROUP_VALIDATION=true          # UC4
 ENABLE_NON_ACTIVE_MEMBER_ALERT=true   # UC5
 ```
+
+**Note:** `withKeypad` is no longer used for unlock decisions. All locks behave the same — a clicked event (from any source) is required to unlock. Lock type metadata may still exist in the data model for hardware configuration but does not affect unlock logic.
 
 ---
 
@@ -1191,17 +978,23 @@ Each `FaceResult` object must have at minimum:
 11. **Focus**: Security use-cases prioritized
 12. **Architecture**: Separate inference backends from business logic (NFR2)
 13. **UC1 always runs**: On all camera-lock patterns including no-lock cameras (P1). On P1, UC1 publishes `member_detected` without unlock action (log only)
-14. **Detection sequence is pattern-specific**: Four camera-lock patterns (P1-P4) define when detection starts, what triggers it, and what unlock actions result. Documented in Camera-Lock Patterns section with detailed timelines
+14. **Detection sequence is pattern-specific**: Two camera-lock patterns (P1-P2) define when detection starts, what triggers it, and what unlock actions result. Documented in Camera-Lock Patterns section with detailed timelines
 15. **Continuous detection loop**: Detection does NOT stop after UC1 match/unlock. The loop runs every frame for the full timer. Unlock is a one-time side effect; all UCs continue to fire on every subsequent frame. All handlers run on every frame (priority = evaluation order, not mutual exclusion)
-16. **Post-unlock blocklist policy**: If a blocklist person is detected AFTER the door has already been unlocked, the system does NOT re-lock (can't undo). Instead it sets `block_further_unlocks` to prevent any additional locks from being unlocked for the remainder of the session (e.g., a keypad lock that triggers later via occupancy sensor)
+16. **Post-unlock blocklist policy**: If a blocklist person is detected AFTER the door has already been unlocked, the system does NOT re-lock (can't undo). Instead it sets `block_further_unlocks` to prevent any additional locks from being unlocked for the remainder of the session (e.g., a lock whose clicked event arrives later)
 17. **Behavioral change from current code**: Current code stops detection immediately on UC1 match (`stop_feeding()`). New design continues the detection loop for the full `TIMER_DETECT` duration after match — unlock is a one-time side effect, not a session terminator. This is required for UC2-UC5 to function
 18. **Two-threshold approach for masked faces**: `FACE_DETECT_THRESHOLD` (SCRFD, lower, e.g. 0.3) and `FACE_RECOG_THRESHOLD` (ArcFace, higher, e.g. 0.45). Masked faces pass detection but fail recognition → classified as unknown → still counted in UC4 via embedding + bbox IoU clustering. Per-camera threshold tuning possible since each camera has fixed angle/lighting/distance
 19. **UC6 requires cloud**: Loitering detection needs unknown face embeddings persisted across sessions over days/weeks — cloud-side data aggregation
 20. **UC7 deferred**: Trivial time check but deferred to reduce initial scope
-21. **UC8 redefined and moved to initial scope**: UC8 changed from "Human Without Face Detection" (alerting) to "Human Body Detection" (session lifecycle control). Three roles: (1) Gate — YOLOv8n filters false ONVIF triggers (wind/shadow/animal) before starting SCRFD+ArcFace, (2) Extend — YOLOv8n checks if person still present at timer expiry, (3) Watch — YOLOv8n-only post-cap monitoring prevents infinite back-to-back sessions. Runs gate-only (1-2 inferences per session + 1 per ONVIF event in watch mode), not every frame — minimal NPU impact
-22. **YOLOv8n gate on all patterns**: All 4 camera-lock patterns (P1-P4) run YOLOv8n as first step after ONVIF motion, before SCRFD+ArcFace. Filters non-human ONVIF triggers
-23. **P3 no longer skips on ONVIF**: P3 cameras start detection in surveillance mode (P1 behavior) when ONVIF fires and YOLOv8n confirms person. Upgrades to unlock mode if occupancy triggers during session (same merge logic as P4)
-24. **Session extension by body detection**: YOLOv8n person detection at timer expiry extends the session, capped at `BODY_EXTEND_MAX_SEC` to prevent infinite loops
-25. **UC9 dedicated camera with multi-layer defense**: Face anti-spoofing runs only on dedicated close-range verification cameras near keypad locks. Four defense layers: (1) face recognition, (2) face size validation against expected range at known distance, (3) device detection via YOLOv8n COCO classes 62/63/67 — detects phone/tablet/screen containing the face, (4) blink pattern challenge via tddfa_mobilenet_v1 68-point landmarks + Eye Aspect Ratio. Blink pattern is per-reservation, delivered via booking app/SMS — no on-site instruction device needed. All four models (SCRFD, ArcFace, tddfa_mobilenet_v1, YOLOv8n) have pre-compiled Hailo HEFs. YOLOv8n shared with UC8
-26. **Watch mode after session cap**: When `BODY_EXTEND_MAX_SEC` forces session end while person is still present, camera enters YOLOv8n-only watch mode. Full session restarts only on leave-then-return transition (YOLOv8n no-detect → detect) or occupancy trigger. Prevents infinite back-to-back SCRFD+ArcFace sessions. No new config variable — watch mode is inherent behavior when the cap is reached
-27. **UC8 gates video recording**: YOLOv8n person detection gates the existing GStreamer RTSP recording pipeline alongside SCRFD+ArcFace. No person = no recording = storage savings on false ONVIF triggers. In watch mode, person detection triggers recording without SCRFD+ArcFace (capture lingering presence). No new config variables — uses existing GStreamer recording parameters (`RECORD_AFTER_MOTION_SECOND`, pre-buffer)
+21. **UC8 redefined and moved to initial scope**: UC8 changed from "Human Without Face Detection" (alerting) to "Human Body Detection" (session lifecycle control). Two roles: (1) Gate — YOLOv8n filters false ONVIF triggers (wind/shadow/animal) before starting SCRFD+ArcFace, (2) Extend — dual-signal check (recent motion + YOLOv8n person present) at timer expiry. Runs gate-only (1 inference at session start + 1 at each timer expiry check), not every frame — minimal NPU impact
+22. **YOLOv8n gate on both patterns**: Both camera-lock patterns (P1-P2) run YOLOv8n as first step after ONVIF motion, before SCRFD+ArcFace. Filters non-human ONVIF triggers
+23. *(Removed — surveillance mode is now the default P2 behavior, not a separate pattern)*
+24. **Session extension by dual-signal detection**: Session extension at timer expiry requires both recent motion (event within `MOTION_RECENCY_SEC`) AND YOLOv8n person detection — either signal alone is insufficient. No explicit cap needed — motion recency is a natural session limiter (ONVIF is single-fire, so motion signal goes stale unless new events arrive)
+25. **UC9 dedicated camera with multi-layer defense**: Face anti-spoofing runs only on dedicated close-range verification cameras near locks. Four defense layers: (1) face recognition, (2) face size validation against expected range at known distance, (3) device detection via YOLOv8n COCO classes 62/63/67 — detects phone/tablet/screen containing the face, (4) blink pattern challenge via tddfa_mobilenet_v1 68-point landmarks + Eye Aspect Ratio. Blink pattern is per-reservation, delivered via booking app/SMS — no on-site instruction device needed. All four models (SCRFD, ArcFace, tddfa_mobilenet_v1, YOLOv8n) have pre-compiled Hailo HEFs. YOLOv8n shared with UC8
+26. *(Removed — watch mode and `BODY_EXTEND_MAX_SEC` cap eliminated. Dual-signal extension (motion recency + person detection) naturally limits sessions without an explicit cap or post-cap state machine)*
+27. **UC8 gates video recording**: YOLOv8n person detection gates the existing GStreamer RTSP recording pipeline alongside SCRFD+ArcFace. No person = no recording = storage savings on false ONVIF triggers. No new config variables — uses existing GStreamer recording parameters (`RECORD_AFTER_MOTION_SECOND`, pre-buffer)
+28. **Lock simplification**: All locks require a "clicked" signal to unlock. The `withKeypad` flag is no longer used for unlock decisions. The `onvifTriggered` field is removed from `member_detected` payload — ONVIF never triggers unlock directly. Four camera-lock patterns (P1-P4) consolidated to two (P1-P2)
+29. **"Clicked" unifies occupancy and LOCK_BUTTON signals**: Occupancy sensor activation (keypad locks like MTR001DC/MTR001AC) and LOCK_BUTTON press (GreenPower_2 kinetic switch) are treated as the same trigger type — a "clicked" event that makes a specific lock eligible for unlock
+30. **Immediate unlock on clicked if member already matched**: When a clicked event arrives and `active_member_matched=true` already (face was recognized during surveillance mode), unlock happens immediately without requiring the person to re-present their face. This avoids poor UX where the system "forgets" a match
+31. **`member_detected` payload simplification**: `onvifTriggered` field removed (ONVIF never triggers unlock). `occupancyTriggeredLocks` renamed to `clickedLocks` (reflects unified clicked signal from occupancy sensor + LOCK_BUTTON). Payload now uses `clickedLocks` to indicate which locks were unlocked via clicked events
+32. **Session extension dual-signal**: Both recent motion event (within `MOTION_RECENCY_SEC`) AND YOLOv8n person detection required to extend session at timer expiry. Person detection alone may false-positive on static figures; motion alone may be non-human. Together they confirm something is moving AND it's a person. The dual-signal requirement also eliminates the need for `BODY_EXTEND_MAX_SEC` cap and watch mode — motion recency is a natural session limiter (ONVIF is single-fire, so without new motion events the signal goes stale and the session ends). Motion source is event-based and pluggable — currently ONVIF events (single-fire, recency based on last event timestamp), future H265 HW frame-level decoding will emit equivalent timestamped events per camera via the same interface. The motion source's **notification gap** (camera-side, tunable per camera/location) works together with `MOTION_RECENCY_SEC` to govern session duration: the notification gap controls how frequently motion events are emitted, while `MOTION_RECENCY_SEC` defines how recent an event must be. Both ONVIF and future H265 HW motion sources support configurable notification gaps. New config: `MOTION_RECENCY_SEC`
+33. **Risk assessment for unbounded session extension**: Six risks were evaluated after removing the explicit session cap (`BODY_EXTEND_MAX_SEC`) and watch mode. Resolutions: (1) **Unbounded sessions on RPi** — mitigated by the ONVIF notification gap, which is tunable per camera/location; busy locations set 20-30s gap to naturally space out sessions, quiet locations set 0s for maximum responsiveness. (2) **ONVIF not truly single-fire** — the ONVIF notification gap is camera-side and reliably throttles ALL motion events, confirming single-fire behavior. (3) **Future H265 HW motion defeats limiter** — H265 HW motion source will also have a notification gap setting, same as ONVIF; the notification gap is a property of the motion source abstraction. (4) **Recording gaps for lingering persons** — acceptable; a person standing still is not a threat, and recording resumes on the next motion event. (5) **Session state reset on re-trigger** — acceptable; each session is independent, and cloud-side can deduplicate across sessions. (6) **`MOTION_RECENCY_SEC` hard to tune** — `MOTION_RECENCY_SEC` is a global default; operators tune the ONVIF notification gap per camera to match their location's activity level. Conclusion: no explicit session cap needed — the combination of motion source notification gap (camera-side, per-location) and `MOTION_RECENCY_SEC` (software-side, global) provides sufficient session duration control
