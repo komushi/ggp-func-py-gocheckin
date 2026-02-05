@@ -794,6 +794,120 @@ Two camera-lock patterns: P1 (no lock — surveillance only) and P2 (camera with
 - UC7: After-Hours Access Attempt — trivial time check, deferred to reduce initial scope
 - UC9: Face Anti-Spoofing — dedicated close-range verification camera near lock. Multi-layer defense: face size validation, device detection (YOLOv8n), blink pattern challenge (tddfa_mobilenet_v1). Blink pattern per-reservation, delivered via booking channel. All models have pre-compiled Hailo HEFs
 
+## Simplified Pipelines (Initial Scope)
+
+The following diagrams show only the initial scope use cases (UC1-UC5, UC8). Future use cases (UC6, UC7, UC9) are omitted.
+
+### Simplified P1: Camera with No Lock (Surveillance Only)
+
+```
+ONVIF motion
+    │
+    ▼
+[UC8 GATE] YOLOv8n → person? ─NO─→ SKIP (no session, no recording)
+    │
+   YES
+    ▼
+Start recording + detection session
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│ CONTINUOUS DETECTION LOOP (every frame)             │
+│                                                     │
+│   SCRFD → face bbox                                 │
+│   ArcFace → 512-d embedding                         │
+│                                                     │
+│   Match against ALL categories:                     │
+│                                                     │
+│   BLOCKLIST → [UC5] Alert (HIGH), log              │
+│   ACTIVE    → [UC1] Log only (no unlock)           │
+│   INACTIVE  → [UC5] Alert, log                     │
+│   STAFF     → Log only                              │
+│   NO MATCH  → [UC3] Log unknown, save snapshot     │
+└─────────────────────────────────────────────────────┘
+    │
+    ▼
+Timer expiry → [UC8 EXTEND] motion recent + person present?
+    │
+  BOTH YES → extend timer
+  EITHER NO → end session
+    │
+    ▼
+Session ends (no UC4 — no door context)
+```
+
+### Simplified P2: Camera with Lock(s)
+
+```
+ONVIF motion
+    │
+    ▼
+[UC8 GATE] YOLOv8n → person? ─NO─→ SKIP (no session, no recording)
+    │
+   YES
+    ▼
+Start recording + detection session (SURVEILLANCE MODE)
+Session state: clicked_locks={}, unlocked_locks={}, unlocked=false
+    │
+    ▼
+┌─────────────────────────────────────────────────────┐
+│ CONTINUOUS DETECTION LOOP (every frame)             │
+│                                                     │
+│   SCRFD → face bbox                                 │
+│   ArcFace → 512-d embedding                         │
+│                                                     │
+│   BLOCKLIST → [UC5] Alert (HIGH)                   │
+│               Set block_further_unlocks=true        │
+│                                                     │
+│   ACTIVE → [UC1]                                    │
+│     Set active_member_matched=true                  │
+│     If lock in clicked_locks                        │
+│        AND not in unlocked_locks                    │
+│        AND block_further_unlocks=false:             │
+│          → UNLOCK, set unlocked=true                │
+│                                                     │
+│   INACTIVE → [UC5] Alert                           │
+│                                                     │
+│   NO MATCH → [UC3] Log unknown                      │
+│              If unlocked=true → [UC2] Tailgating   │
+│                                                     │
+│   Accumulate: known_members, unknown_face_clusters  │
+└─────────────────────────────────────────────────────┘
+    │
+    ├──── CLICKED EVENT for lock_X ────┐
+    │     clicked_locks += {lock_X}    │
+    │     If active_member_matched     │
+    │        AND !block_further_unlocks│
+    │        → UNLOCK IMMEDIATELY      │
+    │     (Decision 30)                │
+    │◄─────────────────────────────────┘
+    │
+    ▼
+Timer expiry → [UC8 EXTEND] motion recent + person present?
+    │
+  BOTH YES → extend timer
+  EITHER NO → end session
+    │
+    ▼
+Session ends
+    │
+    ▼
+[UC4] If active_member_matched:
+      distinct_faces = len(known_members) + len(unknown_face_clusters)
+      If distinct_faces > memberCount → group_size_mismatch alert
+```
+
+### UC Applicability (Initial Scope Only)
+
+| UC | P1 (no lock) | P2 (with lock) |
+|----|:---:|:---:|
+| UC1: Member ID | Log only | Unlock via clicked |
+| UC2: Tailgating | N/A | Alert (after unlock) |
+| UC3: Unknown Face | Log + S3 | Log + S3 |
+| UC4: Group Size | N/A | Alert at session end |
+| UC5: Non-Active | Alert | Alert + Block |
+| UC8: Body Detection | Gate + Extend | Gate + Extend |
+
 ---
 
 # Data Sources Summary

@@ -15,6 +15,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | 7 | Stale Embeddings Matrix After Member Update | **TEMP FIX** | High | `bug_stale_embeddings_matrix.md` |
 | 8 | Multi-Face Per Frame Collision | **FIXED** | High | `bug_multi_face_per_frame.md` |
 | 9 | Multi-Member Multi-Lock Detection | **FUTURE** | Low | `future_multi_member_multi_lock.md` |
+| 10 | Hailo Recognition Failure After Lighting Change | **OPEN** | High | `bug_hailo_recognition_failure.md` |
 
 ---
 
@@ -452,3 +453,4 @@ Bug #6 was fixed by using PTS-based metadata store instead of modifying caps. Th
 | 2026-02-04 | - | Bug #8: **FIXED** - Option A (Aggregate) applied. Two-phase match, composite snapshot, single queue entry with `members[]` list. Tested with 1-face and 2-face scenarios. |
 | 2026-02-04 | - | Bug #8: **NOTE** - Duplicate lock TOGGLE identified when multiple members match same frame. Currently harmless (TOGGLE only unlocks). Solution options documented. |
 | 2026-02-04 | - | Issue #9: **NEW** - Future request for multi-member multi-lock detection. `identified` flag stops after first matched frame, would miss members in later frames if they map to different locks. Low priority (single-lock setup today). |
+| 2026-02-04 | - | Bug #10: **NEW** - Hailo recognition fails after brief lighting change. Same person, 101 frames detected, zero matches. Similarity dropped from 0.31 to 0.10-0.27. Lighting was restored but recognition did not recover. Root cause unknown. |
