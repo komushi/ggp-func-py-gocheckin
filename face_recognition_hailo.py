@@ -516,6 +516,9 @@ class HailoFaceApp:
         if norm > 0:
             embedding = embedding / norm
 
+        # Debug: log embedding statistics to help diagnose matching issues
+        logger.info(f"Live embedding stats: pre_norm={norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}, min={embedding.min():.4f}, max={embedding.max():.4f}")
+
         return embedding.astype(np.float32)
 
     def _align_face(self, image, kps):
@@ -779,6 +782,11 @@ class FaceRecognition(threading.Thread):
         self.member_norms = np.linalg.norm(self.member_embeddings, axis=1)
 
         logger.info(f"Built embeddings matrix: {self.member_embeddings.shape[0]} members, {self.member_embeddings.shape[1]} dimensions")
+
+        # Debug: log stored embedding statistics for each member
+        for i, member in enumerate(self.active_members):
+            emb = self.member_embeddings[i]
+            logger.info(f"Stored embedding [{member.get('fullName', '?')}]: norm={self.member_norms[i]:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}, min={emb.min():.4f}, max={emb.max():.4f}")
 
     def find_match(self, face_embedding, threshold):
         """

@@ -534,8 +534,10 @@ def start_http_server():
                     reference_faces = self.analyze_faces(image_bgr)
 
                     if len(reference_faces) > 0:
-                        logger.info(f'/recognise {member_label} face detected, embedding extracted')
-                        event['faceEmbedding'] = reference_faces[0].embedding.tolist()
+                        emb = reference_faces[0].embedding
+                        emb_norm = np.linalg.norm(emb)
+                        logger.info(f'/recognise {member_label} face detected, embedding extracted - norm={emb_norm:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}, min={emb.min():.4f}, max={emb.max():.4f}')
+                        event['faceEmbedding'] = emb.tolist()
 
                         bbox = reference_faces[0].bbox.astype(int).flatten()
                         cropped_face = org_image.crop((bbox[0], bbox[1], bbox[2], bbox[3]))
