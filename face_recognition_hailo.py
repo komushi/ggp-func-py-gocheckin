@@ -474,10 +474,32 @@ class HailoFaceApp:
     # ------------------------------------------------------------------
     # Recognition: align → preprocess → infer → dequantize → normalize
     # ------------------------------------------------------------------
-    def _extract_embedding(self, image, kps):
+    def _extract_embedding(self, image, kps, debug_save=False):
         """Align face and extract 512-dim L2-normalized embedding."""
+        # Debug: log landmarks
+        if kps is not None:
+            logger.info(f"Landmarks for alignment: {kps.tolist()}")
+
         # Align face using 5-point landmarks
         aligned = self._align_face(image, kps)
+
+        # Debug: save aligned face and original with landmarks for inspection
+        if debug_save or os.environ.get('HAILO_DEBUG_SAVE_ALIGNED'):
+            ts = time.time()
+            # Save aligned face (convert RGB to BGR for cv2.imwrite)
+            debug_aligned_path = f"/tmp/hailo_aligned_{ts:.3f}.jpg"
+            cv2.imwrite(debug_aligned_path, cv2.cvtColor(aligned, cv2.COLOR_RGB2BGR))
+            logger.info(f"Debug: saved aligned face to {debug_aligned_path}")
+
+            # Save original with landmarks drawn
+            if kps is not None:
+                debug_orig_path = f"/tmp/hailo_landmarks_{ts:.3f}.jpg"
+                img_with_landmarks = cv2.cvtColor(image.copy(), cv2.COLOR_RGB2BGR)
+                for i, (x, y) in enumerate(kps):
+                    cv2.circle(img_with_landmarks, (int(x), int(y)), 3, (0, 255, 0), -1)
+                    cv2.putText(img_with_landmarks, str(i), (int(x)+5, int(y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                cv2.imwrite(debug_orig_path, img_with_landmarks)
+                logger.info(f"Debug: saved landmarks image to {debug_orig_path}")
 
         # Preprocess for recognition model
         preprocessed = self._preprocess_recognition(aligned)
