@@ -469,9 +469,8 @@ class HailoFaceApp:
     # ------------------------------------------------------------------
     def _extract_embedding(self, image, kps, debug_save=False):
         """Align face and extract 512-dim L2-normalized embedding."""
-        # Debug: log landmarks
         if kps is not None:
-            logger.info(f"Landmarks for alignment: {kps.tolist()}")
+            logger.debug(f"Landmarks for alignment: {kps.tolist()}")
 
         # Align face using 5-point landmarks
         aligned = self._align_face(image, kps)
@@ -511,8 +510,7 @@ class HailoFaceApp:
         output_name = list(output_buffers.keys())[0]
         raw = output_buffers[output_name]
 
-        # Debug: log output stats
-        logger.info(f"ArcFace output layer: {output_name}, shape: {raw.shape}, dtype: {raw.dtype}, stats: mean={raw.mean():.4f}, std={raw.std():.4f}, min={raw.min():.4f}, max={raw.max():.4f}")
+        logger.debug(f"ArcFace output: {output_name}, shape={raw.shape}, dtype={raw.dtype}, mean={raw.mean():.4f}, std={raw.std():.4f}")
 
         embedding = raw.astype(np.float32).flatten()
 
@@ -529,8 +527,7 @@ class HailoFaceApp:
         if norm > 0:
             embedding = embedding / norm
 
-        # Debug: log embedding statistics to help diagnose matching issues
-        logger.info(f"Live embedding stats: pre_norm={norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}, min={embedding.min():.4f}, max={embedding.max():.4f}")
+        logger.debug(f"Live embedding: pre_norm={norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
 
         return embedding.astype(np.float32)
 
