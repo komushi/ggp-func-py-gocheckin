@@ -510,7 +510,8 @@ class HailoFaceApp:
         output_name = list(output_buffers.keys())[0]
         raw = output_buffers[output_name]
 
-        logger.debug(f"ArcFace output: {output_name}, shape={raw.shape}, dtype={raw.dtype}, mean={raw.mean():.4f}, std={raw.std():.4f}")
+        # TODO: Temporarily INFO for debugging, revert to debug later
+        logger.info(f"ArcFace output: {output_name}, shape={raw.shape}, dtype={raw.dtype}, mean={raw.mean():.4f}, std={raw.std():.4f}")
 
         embedding = raw.astype(np.float32).flatten()
 
@@ -527,7 +528,8 @@ class HailoFaceApp:
         if norm > 0:
             embedding = embedding / norm
 
-        logger.debug(f"Live embedding: pre_norm={norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
+        # TODO: Temporarily INFO for debugging, revert to debug later
+        logger.info(f"Live embedding: pre_norm={norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
 
         return embedding.astype(np.float32)
 
@@ -655,10 +657,10 @@ class FaceRecognition(threading.Thread):
                     matched_faces = []
                     for face in faces:
                         threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
-                        active_member, sim = self.find_match(face.embedding, threshold)
+                        active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_sim: {sim:.4f} (no match)")
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                             continue
 
                         logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
@@ -806,17 +808,20 @@ class FaceRecognition(threading.Thread):
             threshold: Minimum similarity threshold
 
         Returns:
-            Tuple of (matched_member, similarity) or (None, 0.0) if no match
+            Tuple of (matched_member, similarity, best_member_name) where:
+            - matched_member: Member dict if above threshold, None otherwise
+            - similarity: Best similarity score
+            - best_member_name: Name of best matching member (for logging)
         """
         if self.member_embeddings.shape[0] == 0:
-            return None, 0.0
+            return None, 0.0, None
 
         # Normalize face embedding
         face_emb = np.array(face_embedding, dtype=np.float32).ravel()
         face_norm = np.linalg.norm(face_emb)
 
         if face_norm == 0:
-            return None, 0.0
+            return None, 0.0, None
 
         # Vectorized cosine similarity: dot(embeddings, face) / (norms * face_norm)
         similarities = np.dot(self.member_embeddings, face_emb) / (self.member_norms * face_norm)
@@ -824,11 +829,12 @@ class FaceRecognition(threading.Thread):
         # Find best match
         max_idx = np.argmax(similarities)
         max_sim = similarities[max_idx]
+        best_member_name = self.active_members[max_idx].get('fullName', '?')
 
         if max_sim >= threshold:
-            return self.active_members[max_idx], float(max_sim)
+            return self.active_members[max_idx], float(max_sim), best_member_name
 
-        return None, float(max_sim)
+        return None, float(max_sim), best_member_name
 
     def compute_sim(self, feat1, feat2):
         """Legacy method for single pairwise comparison (kept for compatibility)."""
