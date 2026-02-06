@@ -1,6 +1,6 @@
 # Bug #10: Hailo Recognition Failure After Lighting Change
 
-**Status:** RESOLVED
+**Status:** PENDING (regression 2026-02-06)
 **Discovered:** 2026-02-04
 **Priority:** High
 **Backend:** Hailo only (InsightFace unaffected)
@@ -202,10 +202,58 @@ Output buffers changed from `np.uint8` to `np.float32`, manual dequantization re
 - Far range: sim 0.20–0.29, borderline (expected for quantized model at low face resolution)
 - Comparable to InsightFace performance (0.38–0.60)
 
-### Resolution
+### Resolution (2026-02-05)
 
 Both fixes combined resolved the bug:
 1. ~~BGR→RGB conversion~~ — ✅ Correct color input to HEF models
 2. ~~FormatType.FLOAT32~~ — ✅ Accurate dequantization via HailoRT
 3. ~~Re-test~~ — ✅ Verified with live detection at multiple distances
 4. ~~Re-register faces~~ — ✅ Embeddings re-created after fix
+
+---
+
+## Regression: Similarity Dropped Overnight (2026-02-06)
+
+### Symptoms
+
+After ~19.5 hours of runtime, similarity scores dropped significantly:
+
+| Time | Person | Best sim | Result |
+|------|--------|----------|--------|
+| 2026-02-05 14:04 | CuteBaby | 0.33–0.45 | MATCH (working) |
+| 2026-02-06 09:07 | CuteBaby | 0.13–0.23 | No match (101 frames) |
+| 2026-02-06 09:25 | CuteBaby | 0.15–0.25 | No match (after restart) |
+
+### Investigation
+
+1. **Code unchanged** — Deployed code confirmed to have FormatType.FLOAT32 fix
+2. **Stored embeddings unchanged** — CuteBaby: mean=-0.0031, std=0.0441 (identical)
+3. **Greengrass restarted** — Did not fix the issue (09:15 restart, still failing at 09:25)
+4. **Root cause unknown** — Restart disproved "runtime drift" hypothesis
+
+### Hypothesis
+
+The issue is in **live embedding generation**, not stored embeddings. Need to compare:
+- `ArcFace output: mean, std` between working and failing states
+- `Live embedding: pre_norm` between working and failing states
+
+### Diagnostic Logging Added
+
+```python
+# face_recognition_hailo.py:514
+logger.info(f"ArcFace output: {output_name}, shape={raw.shape}, dtype={raw.dtype}, mean={raw.mean():.4f}, std={raw.std():.4f}")
+
+# face_recognition_hailo.py:532
+logger.info(f"Live embedding: pre_norm={norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
+
+# face_recognition_hailo.py:663
+logger.info(f"... best_match: {best_name} best_sim: {sim:.4f} (no match)")
+```
+
+### Next Steps
+
+1. Deploy code with new logging
+2. Test immediately — expect sim ~0.45-0.50, capture stats
+3. If/when degradation occurs — capture logs with sim ~0.20
+4. Compare ArcFace output and pre_norm between the two states
+5. If needed, re-register faces using same images
