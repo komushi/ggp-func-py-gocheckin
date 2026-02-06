@@ -531,7 +531,7 @@ def start_http_server():
 
                     # reference_faces = face_app.get(image_bgr)
                     member_label = f"{event.get('fullName', '?')} ({event.get('reservationCode', '?')}-{event.get('memberNo', '?')})"
-                    reference_faces = self.analyze_faces(image_bgr)
+                    reference_faces = self.analyze_faces(image_bgr, debug_save=True)
 
                     if len(reference_faces) > 0:
                         emb = reference_faces[0].embedding
@@ -635,7 +635,7 @@ def start_http_server():
             return host
 
 
-        def analyze_faces(self, img_data: np.ndarray, det_size=(640, 640)):
+        def analyze_faces(self, img_data: np.ndarray, det_size=(640, 640), debug_save=False):
 
             if face_app is None:
                 logger.info('analyze_faces out, face_app is None')
@@ -645,7 +645,7 @@ def start_http_server():
             detection_sizes = [None] + [(size, size) for size in range(640, 256, -64)] + [(256, 256)]
 
             for size in detection_sizes:
-                faces = face_app.get(img_data, det_size=size)
+                faces = face_app.get(img_data, det_size=size, debug_save=debug_save)
                 if len(faces) > 0:
                     logger.info(f'analyze_faces out with {len(faces)} faces')
                     return faces

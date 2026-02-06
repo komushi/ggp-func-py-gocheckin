@@ -251,7 +251,7 @@ class HailoFaceApp:
     # ------------------------------------------------------------------
     # Public interface: .get(img, max_num=0, det_size=(640,640))
     # ------------------------------------------------------------------
-    def get(self, img, max_num=0, det_size=(640, 640)):
+    def get(self, img, max_num=0, det_size=(640, 640), debug_save=False):
         """
         Detect faces and extract embeddings.
 
@@ -259,6 +259,7 @@ class HailoFaceApp:
             img: BGR numpy array (H, W, 3) uint8 — OpenCV format, converted to RGB internally
             max_num: Maximum faces to return (0 = all)
             det_size: Detection input size (ignored, uses HEF model size)
+            debug_save: If True, save aligned face images to /tmp for debugging
 
         Returns:
             List of HailoFace objects with .bbox, .embedding, .kps, .det_score
@@ -301,7 +302,7 @@ class HailoFaceApp:
         faces = []
         for i in range(len(boxes)):
             kps = landmarks[i].reshape(5, 2) if landmarks[i] is not None else None
-            embedding = self._extract_embedding(img, kps)
+            embedding = self._extract_embedding(img, kps, debug_save=debug_save)
             faces.append(HailoFace(
                 bbox=boxes[i],
                 embedding=embedding,
@@ -640,9 +641,11 @@ class FaceRecognition(threading.Thread):
                         logger.debug(f"{cam_info['cam_ip']} age: {age}")
                         continue
                     else:
-                        faces = self.face_app.get(raw_img)
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
                         detected = self.cam_detection_his[cam_info['cam_ip']]['detected']
+                        # Save debug images for first 3 frames of each session
+                        debug_save = detected <= 3
+                        faces = self.face_app.get(raw_img, debug_save=debug_save)
                         duration = time.time() - current_time
                         if detected == 1:
                             logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
