@@ -84,8 +84,9 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] = 0
                             self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = 0
 
-                    if self.cam_detection_his[cam_info['cam_ip']]['identified']:
-                        continue
+                    # TODO: Temporarily disabled to let detection flow for debugging
+                    # if self.cam_detection_his[cam_info['cam_ip']]['identified']:
+                    #     continue
 
                     current_time = time.time()
                     age = current_time - float(cam_info['frame_time'])
@@ -110,11 +111,16 @@ class FaceRecognition(threading.Thread):
                     # Phase 1: Match all faces, collect results
                     matched_faces = []
                     for face in faces:
+                        # Log embedding stats for comparison with Hailo
+                        emb = face.embedding
+                        emb_norm = np.linalg.norm(emb)
+                        logger.info(f"InsightFace embedding: pre_norm={emb_norm:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}")
+
                         threshold = float(os.environ['FACE_THRESHOLD_INSIGHTFACE'])
-                        active_member, sim = self.find_match(face.embedding, threshold)
+                        active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_sim: {sim:.4f} (no match)")
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                             continue
 
                         logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
@@ -122,6 +128,10 @@ class FaceRecognition(threading.Thread):
 
                     if not matched_faces:
                         continue  # back to outer while loop — no matches this frame
+
+                    # Check if already identified - skip Phase 2 but keep logging
+                    if self.cam_detection_his[cam_info['cam_ip']]['identified']:
+                        continue  # Already processed a match, skip Phase 2 but keep logging
 
                     # Phase 2: Build composite snapshot + single queue entry
                     self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
@@ -258,17 +268,17 @@ class FaceRecognition(threading.Thread):
             threshold: Minimum similarity threshold
 
         Returns:
-            Tuple of (matched_member, similarity) or (None, 0.0) if no match
+            Tuple of (matched_member, similarity, best_name) or (None, 0.0, None) if no match
         """
         if self.member_embeddings.shape[0] == 0:
-            return None, 0.0
+            return None, 0.0, None
 
         # Normalize face embedding
         face_emb = np.array(face_embedding, dtype=np.float32).ravel()
         face_norm = np.linalg.norm(face_emb)
 
         if face_norm == 0:
-            return None, 0.0
+            return None, 0.0, None
 
         # Vectorized cosine similarity: dot(embeddings, face) / (norms * face_norm)
         similarities = np.dot(self.member_embeddings, face_emb) / (self.member_norms * face_norm)
@@ -276,11 +286,12 @@ class FaceRecognition(threading.Thread):
         # Find best match
         max_idx = np.argmax(similarities)
         max_sim = similarities[max_idx]
+        best_name = self.active_members[max_idx]['fullName']
 
         if max_sim >= threshold:
-            return self.active_members[max_idx], float(max_sim)
+            return self.active_members[max_idx], float(max_sim), best_name
 
-        return None, float(max_sim)
+        return None, float(max_sim), best_name
 
     def compute_sim(self, feat1, feat2):
         """Legacy method for single pairwise comparison (kept for compatibility)."""
