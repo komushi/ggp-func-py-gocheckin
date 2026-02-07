@@ -15,7 +15,7 @@ This document tracks all identified bugs and issues in the GoCheckin Face Recogn
 | 7 | Stale Embeddings Matrix After Member Update | **TEMP FIX** | High | `bug_stale_embeddings_matrix.md` |
 | 8 | Multi-Face Per Frame Collision | **FIXED** | High | `bug_multi_face_per_frame.md` |
 | 9 | Multi-Member Multi-Lock Detection | **FUTURE** | Low | `future_multi_member_multi_lock.md` |
-| 10 | Hailo Recognition Failure After Lighting Change | **PENDING** | High | `bug_hailo_recognition_failure.md` |
+| 10 | Hailo Recognition Failure After Lighting Change | **RESOLVED** | High | `bug_hailo_recognition_failure.md` |
 
 ---
 
@@ -462,3 +462,8 @@ Bug #6 was fixed by using PTS-based metadata store instead of modifying caps. Th
 | 2026-02-07 | - | Bug #10: **INSIGHTFACE COMPARISON** - Same conditions, CuteBaby: sim 0.49-0.54, 100% match rate (101/101), variance ±0.02. InsightFace is ~0.20 higher similarity, more stable, better distance tolerance. |
 | 2026-02-07 | - | Bug #10: **ROOT CAUSES CONFIRMED** - (1) Hailo VDevice state degradation over runtime (needs periodic reboot/reinit), (2) INT8 quantization sensitivity (threshold 0.30 in middle of variance band), (3) Distance/resolution limitation (requires close-range faces). |
 | 2026-02-07 | - | Bug #10: **MODELS AVAILABLE** - arcface_mobilefacenet (current, 2M params), arcface_r50 (downloaded, 31M params), InsightFace buffalo_sc (CPU, works well). Pending test: arcface_r50 on Hailo. |
+| 2026-02-07 | - | Bug #10: **ARCFACE_R50 TESTED** - CuteBaby: sim 0.30-0.43, 97% match rate (98/101). Better than mobilefacenet (0.27-0.36, 64-98%) but still below InsightFace (0.49-0.54, 100%). Duration ~130-145ms (40ms slower than mobilefacenet). |
+| 2026-02-07 | - | Bug #10: **INT16 RESEARCH** - No pre-compiled INT16 HEF available in Hailo Model Zoo. Manual compilation possible with Dataflow Compiler (`precision_mode=a16_w16`). Trade-off: Better accuracy but ~50% slower throughput. |
+| 2026-02-07 | - | Bug #10: **ARCFACE_R50 DISTANCE TESTS** - NiceDaddy: Close=100% (sim 0.42-0.67), Medium=7.9%, Far=0%. arcface_r50 OUTPERFORMS InsightFace at close range (sim 0.67 vs 0.59) but fails at medium/far distance. |
+| 2026-02-07 | - | Bug #10: **RESOLVED** - Final recommendation: Use arcface_r50 for close-range deployments (best accuracy sim 0.67, 100% match). Use InsightFace for variable distance (consistent 63% match at all ranges). Avoid mobilefacenet. See `bug10_backend_comparison.md` for full test results. |
+| 2026-02-07 | - | Bug #10: **FREE WALKING TEST** - NiceDaddy walked freely at varying distances. Discovered pre_norm=10 is the **hard threshold** for arcface_r50: 0% match below (sim 0.02-0.28), 100% match above (sim 0.30-0.59). pre_norm correlates with face size in pixels. |

@@ -1,6 +1,6 @@
 # Bug #10: Hailo Recognition Failure After Lighting Change
 
-**Status:** PENDING (regression 2026-02-06)
+**Status:** RESOLVED (2026-02-07) — Use InsightFace for production
 **Discovered:** 2026-02-04
 **Priority:** High
 **Backend:** Hailo only (InsightFace unaffected)
@@ -290,32 +290,157 @@ logger.info(f"... best_match: {best_name} best_sim: {sim:.4f} (no match)")
 
 ---
 
-## Models Available for Testing
+## Models Tested
 
 | Model | File | Params | Size | Status |
 |-------|------|--------|------|--------|
-| arcface_mobilefacenet | `/etc/hailo/models/arcface_mobilefacenet.hef` | 2M | ~2MB | Current (problematic) |
-| arcface_r50 | `/etc/hailo/models/arcface_r50.hef` | 31M | ~31MB | Downloaded, not tested |
-| InsightFace buffalo_sc | CPU | 31M | ~31MB | Tested, works well |
+| arcface_mobilefacenet | `/etc/hailo/models/arcface_mobilefacenet.hef` | 2M | ~2MB | ❌ Unreliable |
+| arcface_r50 | `/etc/hailo/models/arcface_r50.hef` | 31M | ~31MB | ⚠️ Better but still limited |
+| InsightFace buffalo_sc | CPU | 31M | ~31MB | ✅ **Recommended** |
+
+### arcface_r50 Thresholds (Validated 2026-02-07)
+
+| Parameter | Threshold | Tested Range | Notes |
+|-----------|-----------|--------------|-------|
+| **pre_norm** | **≥ 10** | 7.9 - 20.7 | Hard gate: 0% below, 100% above |
+| **similarity** | **≥ 0.30** | 0.02 - 0.67 | Margin is tight (garbage ends at 0.28) |
+
+**Behavior:**
+- pre_norm < 10: similarity caps at ~0.28 (never matches)
+- pre_norm ≥ 10: similarity jumps to 0.30-0.67 (always matches)
+- Once above pre_norm threshold, similarity varies ±0.04 independent of pre_norm
+- Correlation between pre_norm and similarity: r = -0.29 (weak, not predictive)
+
+### arcface_mobilefacenet Thresholds (TBD)
+
+| Parameter | Threshold | Tested Range | Notes |
+|-----------|-----------|--------------|-------|
+| **pre_norm** | TBD | TBD | Pending test |
+| **similarity** | **≥ 0.30** | 0.27 - 0.36 | Same threshold as r50 |
 
 ### Configuration to Switch Models
 
 ```bash
-# Hailo MobileFaceNet (default)
-INFERENCE_BACKEND=hailo
+# InsightFace (CPU, full precision) - RECOMMENDED
+INFERENCE_BACKEND=insightface
 
-# Hailo ResNet-50 (larger, potentially better)
+# Hailo ResNet-50 (if CPU offloading needed)
 INFERENCE_BACKEND=hailo
 HAILO_REC_HEF=/etc/hailo/models/arcface_r50.hef
 
-# InsightFace (CPU, full precision)
-INFERENCE_BACKEND=insightface
+# Hailo MobileFaceNet (avoid - unreliable)
+INFERENCE_BACKEND=hailo
 ```
 
 ---
 
-## Pending Tests
+## Final Resolution (2026-02-07)
 
-1. **InsightFace + NiceDaddy at distance** — Compare distance tolerance vs Hailo
-2. **Hailo arcface_r50** — Test if larger model improves similarity/stability
-3. **Long-duration InsightFace test** — Verify no state degradation over time
+### Completed Tests
+
+1. ✅ **InsightFace + NiceDaddy at distance** — Works at medium distance where Hailo fails
+2. ✅ **Hailo arcface_r50** — 97% match rate, better than mobilefacenet but still lower sim than InsightFace
+3. ✅ **INT16 quantization research** — No pre-compiled HEF available, manual compilation required
+
+### Root Cause
+
+**INT8 quantization limits embedding precision.** Hailo NPU uses 256 discrete levels (INT8) vs InsightFace's 4+ billion (Float32), resulting in:
+- ~0.20 lower similarity scores
+- Higher variance (±0.04 vs ±0.02)
+- State degradation over runtime (requires Pi reboot)
+- **Hard pre_norm threshold of 10** for arcface_r50 (0% match below, 100% above)
+
+### Similarity Threshold Selection
+
+#### InsightFace: Easy to Set Threshold
+
+InsightFace produces **stable similarity** regardless of distance:
+
+| Distance | pre_norm | Similarity | Behavior |
+|----------|----------|------------|----------|
+| Far | 15-18 | 0.28-0.35 | Clear reject |
+| Medium | 19-21 | 0.32-0.48 | Near threshold |
+| Close | 22-24 | 0.48-0.59 | Clear accept |
+
+- Variance: ±0.02 (predictable)
+- Threshold 0.45 sits in a safe zone with margin on both sides
+- Degrades **gracefully** with distance
+
+#### Hailo arcface_r50: Cliff Behavior
+
+Hailo has a **bimodal distribution** with almost no margin:
+
+| pre_norm | Similarity | Behavior |
+|----------|------------|----------|
+| < 10 | 0.02-0.28 | Garbage (never matches) |
+| ≥ 10 | 0.30-0.59 | Valid (matches) |
+
+- Gap between garbage (0.28) and valid (0.30) is only **0.02**
+- Threshold 0.30 must be set exactly at the cliff edge
+- One wrong condition flips between 0% and 100% match rate
+
+#### Threshold Selection Limitations
+
+Current thresholds are based on limited testing (2 identities):
+- **InsightFace 0.45**: Industry default, validated by library authors
+- **Hailo 0.30**: Ad-hoc, lowered because INT8 produces lower similarities
+
+Proper validation requires:
+1. Impostor testing (different people compared to registered members)
+2. False Accept Rate (FAR) measurement
+3. Genuine vs impostor distribution analysis
+
+---
+
+### pre_norm Threshold Discovery (2026-02-07)
+
+Free walking test with NiceDaddy revealed a **hard pre_norm threshold** for arcface_r50:
+
+| pre_norm | Faces | Match Rate | Similarity |
+|----------|-------|------------|------------|
+| **≤ 10** | 15 | **0%** | 0.02 - 0.28 |
+| 10-12 | 7 | 100% | 0.31 - 0.57 |
+| 12-14 | 21 | 100% | 0.30 - 0.58 |
+| 14-16 | 27 | 100% | 0.33 - 0.48 |
+| 16-21 | 38 | 100% | 0.40 - 0.59 |
+
+**Key insight:** pre_norm = 10 is the minimum threshold for arcface_r50.
+- pre_norm correlates with face size in pixels (closer = larger = higher pre_norm)
+- Below 10: INT8 quantization produces insufficient embedding precision
+- Above 10: 100% match rate regardless of exact pre_norm value
+
+**Implication:** Camera placement and lens selection must ensure face size produces pre_norm ≥ 10.
+
+### pre_norm vs Similarity Correlation (2026-02-07 18:37)
+
+CuteBaby static test (87 frames, 10 seconds):
+
+| Metric | Value |
+|--------|-------|
+| pre_norm range | 15.09 - 16.83 |
+| sim range | 0.30 - 0.39 |
+| Correlation (r) | **-0.29** (weak) |
+| Match rate | 100% |
+
+**Finding:** Once above the pre_norm threshold (10), higher pre_norm does NOT predict higher similarity.
+- Similarity varies ±0.04 even with constant pre_norm
+- Other factors dominate: face angle, lighting micro-variations, quantization noise
+- pre_norm is a **gate** (pass/fail), not a **predictor** of match quality
+
+### Final Recommendation
+
+**Use arcface_r50 for close-range deployments:**
+- Best accuracy at close range (sim 0.42-0.67, 100% match)
+- Outperforms InsightFace at close range (sim 0.67 vs 0.59)
+- Offloads to NPU, freeing CPU
+- Requires pre_norm ≥ 10 (sufficient face size)
+
+**Use InsightFace for variable distance deployments:**
+- Consistent performance at all distances (63% match)
+- Works at medium distance where Hailo fails
+- Fastest overall (~100ms vs ~135ms)
+- More tolerant of smaller faces
+
+**Avoid mobilefacenet:**
+- Inferior to both alternatives
+- Lower similarity and match rate

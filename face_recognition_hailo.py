@@ -102,7 +102,7 @@ class HailoFaceApp:
         self.det_hef_path = det_hef_path or os.environ.get(
             'HAILO_DET_HEF') or os.path.join(default_model_dir, 'scrfd_10g.hef')
         self.rec_hef_path = rec_hef_path or os.environ.get(
-            'HAILO_REC_HEF') or os.path.join(default_model_dir, 'arcface_r50.hef')
+            'HAILO_REC_HEF') or os.path.join(default_model_dir, 'arcface_mobilefacenet.hef')
 
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
