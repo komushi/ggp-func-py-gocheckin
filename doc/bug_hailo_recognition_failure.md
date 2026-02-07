@@ -257,3 +257,65 @@ logger.info(f"... best_match: {best_name} best_sim: {sim:.4f} (no match)")
 3. If/when degradation occurs — capture logs with sim ~0.20
 4. Compare ArcFace output and pre_norm between the two states
 5. If needed, re-register faces using same images
+
+---
+
+## Comprehensive Testing (2026-02-06 to 2026-02-07)
+
+**See:** [`bug10_backend_comparison.md`](bug10_backend_comparison.md) for detailed test results.
+
+### Summary
+
+| Backend | Subject | Similarity | Match Rate |
+|---------|---------|------------|------------|
+| Hailo MobileFaceNet (degraded) | CuteBaby | 0.27-0.35 | 64% |
+| Hailo MobileFaceNet (fresh) | CuteBaby | 0.31-0.36 | 98% |
+| **InsightFace** | CuteBaby | **0.49-0.54** | **100%** |
+| Hailo MobileFaceNet | NiceDaddy (close) | 0.28-0.32 | MATCH |
+| Hailo MobileFaceNet | NiceDaddy (far) | 0.07-0.15 | FAIL |
+
+### Key Findings
+
+1. **Pi reboot restores Hailo** - Greengrass restart alone does NOT fix degradation
+2. **InsightFace is ~0.20 higher** - More stable, better distance tolerance
+3. **Hailo requires close range** - Far/medium distance fails
+
+---
+
+## Root Causes Identified
+
+1. **Hailo VDevice State Degradation** - Needs periodic reboot/reinit
+2. **INT8 Quantization Sensitivity** - Threshold 0.30 in middle of variance band (±0.04)
+3. **Distance/Resolution Limitation** - 112×112 input needs sufficient face resolution
+
+---
+
+## Models Available for Testing
+
+| Model | File | Params | Size | Status |
+|-------|------|--------|------|--------|
+| arcface_mobilefacenet | `/etc/hailo/models/arcface_mobilefacenet.hef` | 2M | ~2MB | Current (problematic) |
+| arcface_r50 | `/etc/hailo/models/arcface_r50.hef` | 31M | ~31MB | Downloaded, not tested |
+| InsightFace buffalo_sc | CPU | 31M | ~31MB | Tested, works well |
+
+### Configuration to Switch Models
+
+```bash
+# Hailo MobileFaceNet (default)
+INFERENCE_BACKEND=hailo
+
+# Hailo ResNet-50 (larger, potentially better)
+INFERENCE_BACKEND=hailo
+HAILO_REC_HEF=/etc/hailo/models/arcface_r50.hef
+
+# InsightFace (CPU, full precision)
+INFERENCE_BACKEND=insightface
+```
+
+---
+
+## Pending Tests
+
+1. **InsightFace + NiceDaddy at distance** — Compare distance tolerance vs Hailo
+2. **Hailo arcface_r50** — Test if larger model improves similarity/stability
+3. **Long-duration InsightFace test** — Verify no state degradation over time
