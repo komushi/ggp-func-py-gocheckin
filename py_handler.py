@@ -645,7 +645,11 @@ def start_http_server():
             detection_sizes = [None] + [(size, size) for size in range(640, 256, -64)] + [(256, 256)]
 
             for size in detection_sizes:
-                faces = face_app.get(img_data, det_size=size, debug_save=debug_save)
+                # debug_save only supported by Hailo backend
+                if FACE_BACKEND == 'hailo':
+                    faces = face_app.get(img_data, det_size=size, debug_save=debug_save)
+                else:
+                    faces = face_app.get(img_data, det_size=size)
                 if len(faces) > 0:
                     logger.info(f'analyze_faces out with {len(faces)} faces')
                     return faces
