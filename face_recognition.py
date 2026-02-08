@@ -75,6 +75,7 @@ class FaceRecognition(threading.Thread):
                         self.cam_detection_his[cam_info['cam_ip']]['face_detected_at'] = 0
                         self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] = 0
                         self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = 0
+                        self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = 0.0  # T1: timestamp of first frame processed
                     else:
                         if self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] != cam_info['detecting_txn']:
                             self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
@@ -83,6 +84,7 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['face_detected_at'] = 0
                             self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] = 0
                             self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = 0
+                            self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = 0.0  # T1: timestamp of first frame processed
 
                     if self.cam_detection_his[cam_info['cam_ip']]['identified']:
                         continue
@@ -94,9 +96,11 @@ class FaceRecognition(threading.Thread):
                         logger.debug(f"{cam_info['cam_ip']} age: {age}")
                         continue
                     else:
-                        faces = self.face_app.get(raw_img)
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
                         detected = self.cam_detection_his[cam_info['cam_ip']]['detected']
+                        if detected == 1:
+                            self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = current_time  # T1: first frame processed
+                        faces = self.face_app.get(raw_img)
                         duration = time.time() - current_time
                         # TODO: Temporarily log every frame for debugging, revert to "if detected == 1:" later
                         logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
@@ -206,6 +210,7 @@ class FaceRecognition(threading.Thread):
                             "local_file_path": local_file_path,
                             "property_object_key": members_data[0]['payload']['propertyImgKey'],
                             "snapshot_payload": snapshot_payload,
+                            "first_frame_at": self.cam_detection_his[cam_info['cam_ip']].get('first_frame_at', 0.0),  # T1: for timing measurement
                         }, block=False)
 
                 else:

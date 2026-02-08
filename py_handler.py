@@ -1097,11 +1097,13 @@ def fetch_scanner_output_queue():
                     # Context lookup — once per queue entry
                     onvif_triggered = False
                     occupancy_triggered_locks = []
+                    trigger_started_at = 0.0  # T0: when trigger_face_detection was called
                     if cam_ip:
                         snapshot_key = (cam_ip, detecting_txn) if detecting_txn else None
 
                         if snapshot_key and snapshot_key in context_snapshots:
                             context = context_snapshots[snapshot_key]
+                            trigger_started_at = context.get('trigger_started_at', 0.0)
                             logger.info(f"fetch_scanner_output_queue, using context snapshot for detecting_txn={detecting_txn}")
                         else:
                             context = trigger_lock_context.get(cam_ip, {'onvif_triggered': False, 'specific_locks': set()})
@@ -1116,9 +1118,24 @@ def fetch_scanner_output_queue():
                         if cam_ip in trigger_lock_context:
                             del trigger_lock_context[cam_ip]
 
-                    # Stop feeding — once
+                    # Stop feeding — once, with timing metrics
                     if cam_ip:
-                        logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
+                        # Timing measurement:
+                        # T0 = trigger_started_at (when trigger_face_detection was called)
+                        # T1 = first_frame_at (when first detection frame was processed)
+                        # T2 = now (when identification completed and stop_feeding is called)
+                        first_frame_at = message.get('first_frame_at', 0.0)  # T1
+                        identified_at = time.time()  # T2
+
+                        # Calculate timing deltas
+                        trigger_to_first_frame = (first_frame_at - trigger_started_at) * 1000 if trigger_started_at > 0 and first_frame_at > 0 else 0
+                        first_frame_to_identified = (identified_at - first_frame_at) * 1000 if first_frame_at > 0 else 0
+                        trigger_to_identified = (identified_at - trigger_started_at) * 1000 if trigger_started_at > 0 else 0
+
+                        logger.info(f"MEMBER DETECTED, WANT TO STOP FEEDING NOW - "
+                                    f"trigger_to_first_frame: {trigger_to_first_frame:.0f}ms, "
+                                    f"first_frame_to_identified: {first_frame_to_identified:.0f}ms, "
+                                    f"trigger_to_identified: {trigger_to_identified:.0f}ms")
                         thread_gstreamers[cam_ip].stop_feeding()
 
                     # Upload snapshot — once
@@ -1543,12 +1560,15 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
             logger.info('trigger_face_detection - occupancy trigger, timer extended for camera: %s', cam_ip)
 
             # Update context snapshot with new lock (Bug #5 fix)
+            # Preserve trigger_started_at from original snapshot
             detecting_txn = thread_gstreamer.detecting_txn
             if detecting_txn:
                 snapshot_key = (cam_ip, detecting_txn)
+                existing_trigger_started_at = context_snapshots.get(snapshot_key, {}).get('trigger_started_at', time.time())
                 context_snapshots[snapshot_key] = {
                     'onvif_triggered': context.get('onvif_triggered', False),
-                    'specific_locks': set(context.get('specific_locks', set()))
+                    'specific_locks': set(context.get('specific_locks', set())),
+                    'trigger_started_at': existing_trigger_started_at,
                 }
                 logger.debug(f'trigger_face_detection - updated context snapshot for {snapshot_key}')
         else:
@@ -1557,12 +1577,15 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
             logger.info('trigger_face_detection - ONVIF trigger, timer NOT extended (let expire naturally)')
 
             # Update context snapshot with onvif_triggered (Bug #5 fix)
+            # Preserve trigger_started_at from original snapshot
             detecting_txn = thread_gstreamer.detecting_txn
             if detecting_txn:
                 snapshot_key = (cam_ip, detecting_txn)
+                existing_trigger_started_at = context_snapshots.get(snapshot_key, {}).get('trigger_started_at', time.time())
                 context_snapshots[snapshot_key] = {
                     'onvif_triggered': context.get('onvif_triggered', False),
-                    'specific_locks': set(context.get('specific_locks', set()))
+                    'specific_locks': set(context.get('specific_locks', set())),
+                    'trigger_started_at': existing_trigger_started_at,
                 }
                 logger.debug(f'trigger_face_detection - updated context snapshot for {snapshot_key}')
 
@@ -1581,7 +1604,8 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
             snapshot_key = (cam_ip, detecting_txn)
             context_snapshots[snapshot_key] = {
                 'onvif_triggered': context.get('onvif_triggered', False),
-                'specific_locks': set(context.get('specific_locks', set()))
+                'specific_locks': set(context.get('specific_locks', set())),
+                'trigger_started_at': time.time(),  # T0: when detection was triggered
             }
             logger.debug(f'trigger_face_detection - stored context snapshot for {snapshot_key}')
 
@@ -1612,6 +1636,7 @@ def handle_occupancy_false(cam_ip, lock_asset_id):
 
     # Update context snapshot to reflect the removal
     # This ensures the snapshot stays in sync with the current context
+    # Preserve trigger_started_at from original snapshot
     if cam_ip in thread_gstreamers:
         thread_gstreamer = thread_gstreamers[cam_ip]
         if thread_gstreamer is not None:
@@ -1619,9 +1644,11 @@ def handle_occupancy_false(cam_ip, lock_asset_id):
             if detecting_txn:
                 snapshot_key = (cam_ip, detecting_txn)
                 if snapshot_key in context_snapshots:
+                    existing_trigger_started_at = context_snapshots[snapshot_key].get('trigger_started_at', time.time())
                     context_snapshots[snapshot_key] = {
                         'onvif_triggered': context.get('onvif_triggered', False),
-                        'specific_locks': set(context.get('specific_locks', set()))
+                        'specific_locks': set(context.get('specific_locks', set())),
+                        'trigger_started_at': existing_trigger_started_at,
                     }
                     logger.info('handle_occupancy_false - updated context snapshot: %s', context_snapshots[snapshot_key])
 
