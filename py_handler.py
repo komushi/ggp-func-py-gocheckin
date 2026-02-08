@@ -1057,7 +1057,7 @@ def fetch_scanner_output_queue():
             record_start = message['payload']['start_datetime']
             record_end = message['payload']['end_datetime']
 
-            logger.info(f"{message['payload']['cam_ip']} video_clipped with ms precision: record_start={record_start}, record_end={record_end}")
+            logger.debug(f"{message['payload']['cam_ip']} video_clipped with ms precision: record_start={record_start}, record_end={record_end}")
 
             payload = {
                 "hostId": os.environ['HOST_ID'],
@@ -1104,7 +1104,7 @@ def fetch_scanner_output_queue():
                         if snapshot_key and snapshot_key in context_snapshots:
                             context = context_snapshots[snapshot_key]
                             trigger_started_at = context.get('trigger_started_at', 0.0)
-                            logger.info(f"fetch_scanner_output_queue, using context snapshot for detecting_txn={detecting_txn}")
+                            logger.debug(f"fetch_scanner_output_queue, using context snapshot for detecting_txn={detecting_txn}")
                         else:
                             context = trigger_lock_context.get(cam_ip, {'onvif_triggered': False, 'specific_locks': set()})
                             logger.warning(f"fetch_scanner_output_queue, no context snapshot found for detecting_txn={detecting_txn}, using current context")
@@ -1428,7 +1428,7 @@ def set_recording_time(cam_ip, delay, utc_time):
     # recording_timers[cam_ip].join()
 
 def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z', is_motion_value=False):
-    logger.info(f"{cam_ip} handle_notification in is_motion_value: {is_motion_value}, utc_time: {utc_time}")
+    logger.debug(f"{cam_ip} handle_notification in is_motion_value: {is_motion_value}, utc_time: {utc_time}")
 
     global thread_detector
 
@@ -1472,7 +1472,7 @@ def handle_notification(cam_ip, utc_time=datetime.now(timezone.utc).strftime("%Y
     if camera_item['isDetecting']:
         trigger_face_detection(cam_ip, None)  # None = ONVIF trigger (unlock legacy locks only)
 
-    logger.info(f"{cam_ip} handle_notification out")
+    logger.debug(f"{cam_ip} handle_notification out")
 
 
 def trigger_face_detection(cam_ip, lock_asset_id=None):
@@ -1486,7 +1486,7 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
     """
     global camera_items, thread_gstreamers, thread_detector, trigger_lock_context, context_snapshots
 
-    logger.info('trigger_face_detection in cam_ip: %s, lock_asset_id: %s', cam_ip, lock_asset_id)
+    logger.debug('trigger_face_detection in cam_ip: %s, lock_asset_id: %s', cam_ip, lock_asset_id)
 
     # Validate camera exists
     if cam_ip not in camera_items:
@@ -1501,12 +1501,12 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
         # withKeypad=true means has occupancy sensor, withKeypad=false/missing means legacy
         has_legacy = any(not lock.get('withKeypad', False) for lock in camera_locks.values())
         if not has_legacy:
-            logger.info('trigger_face_detection - skipping ONVIF trigger, no legacy locks: %s', cam_ip)
+            logger.warning('trigger_face_detection - skipping ONVIF trigger, no legacy locks: %s', cam_ip)
             return
 
     # Check if detection is enabled for this camera
     if not camera_item.get('isDetecting', False):
-        logger.info('trigger_face_detection - detection not enabled for camera: %s', cam_ip)
+        logger.warning('trigger_face_detection - detection not enabled for camera: %s', cam_ip)
         return
 
     # Validate GStreamer thread exists and is ready
@@ -1527,7 +1527,7 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
     # Check if existing context is stale (detection not running)
     # This fixes the bug where context persists after detection ends without face match
     if cam_ip in trigger_lock_context and not thread_gstreamer.is_feeding:
-        logger.info('trigger_face_detection - clearing stale context for: %s', cam_ip)
+        logger.debug('trigger_face_detection - clearing stale context for: %s', cam_ip)
         del trigger_lock_context[cam_ip]
 
     # Check if this is a new detection or extending existing one
@@ -1557,7 +1557,7 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
             # Occupancy trigger (keypad sensor) - extend timer
             # Keypad is a deliberate action, worth extending detection
             thread_gstreamer.extend_timer(int(os.environ['TIMER_DETECT']))
-            logger.info('trigger_face_detection - occupancy trigger, timer extended for camera: %s', cam_ip)
+            logger.debug('trigger_face_detection - occupancy trigger, timer extended for camera: %s', cam_ip)
 
             # Update context snapshot with new lock (Bug #5 fix)
             # Preserve trigger_started_at from original snapshot
@@ -1574,7 +1574,7 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
         else:
             # ONVIF trigger - do NOT extend timer, let it expire naturally
             # ONVIF motion can trigger constantly in busy areas, avoid indefinite detection
-            logger.info('trigger_face_detection - ONVIF trigger, timer NOT extended (let expire naturally)')
+            logger.debug('trigger_face_detection - ONVIF trigger, timer NOT extended (let expire naturally)')
 
             # Update context snapshot with onvif_triggered (Bug #5 fix)
             # Preserve trigger_started_at from original snapshot
@@ -1589,7 +1589,7 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
                 }
                 logger.debug(f'trigger_face_detection - updated context snapshot for {snapshot_key}')
 
-        logger.info('trigger_face_detection out - context merged, detection continues')
+        logger.debug('trigger_face_detection out - context merged, detection continues')
         return
 
     # Start new face detection

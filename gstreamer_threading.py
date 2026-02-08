@@ -219,7 +219,7 @@ class StreamCapture(threading.Thread):
                 self.feeding_count += 1
 
             if skipped > 0:
-                logger.info(f"{self.cam_ip} push_detecting_buffer, skipped {skipped} P-frames before first keyframe")
+                logger.debug(f"{self.cam_ip} push_detecting_buffer, skipped {skipped} P-frames before first keyframe")
 
             self.detecting_buffer.clear()
 
@@ -436,7 +436,7 @@ class StreamCapture(threading.Thread):
 
                 object_key = f"""private/{os.environ['IDENTITY_ID']}/{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{self.cam_ip}/{date_folder}/{time_filename}{ext}"""
 
-                logger.info(f"New video file created at local_file_path {local_file_path} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
+                logger.debug(f"New video file created at local_file_path {local_file_path} and will be uploaded as remote file /{self.cam_ip}/{date_folder}/{time_filename}{ext}")
 
                 self.scanner_output_queue.put({
                     "type": "video_clipped",
@@ -647,7 +647,7 @@ class StreamCapture(threading.Thread):
             logger.error(f"{self.cam_ip} Error during pipeline stop: {e}")
 
     def feed_detecting(self, running_seconds):
-        logger.info(f"{self.cam_ip} feed_detecting in")
+        logger.debug(f"{self.cam_ip} feed_detecting in")
 
         if self.is_feeding:
             logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
@@ -671,7 +671,7 @@ class StreamCapture(threading.Thread):
         self.feeding_timer.start()
 
         logger.debug(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
-        logger.info(f"{self.cam_ip} feed_detecting out")
+        logger.debug(f"{self.cam_ip} feed_detecting out")
 
 
     def extend_timer(self, running_seconds):

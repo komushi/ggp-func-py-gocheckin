@@ -97,24 +97,24 @@ class FaceRecognition(threading.Thread):
                         # Log embedding stats for comparison with Hailo
                         emb = face.embedding
                         emb_norm = np.linalg.norm(emb)
-                        logger.info(f"InsightFace embedding: pre_norm={emb_norm:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}")
+                        logger.debug(f"InsightFace embedding: pre_norm={emb_norm:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}")
 
                         threshold = float(os.environ['FACE_THRESHOLD_INSIGHTFACE'])
                         active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
+                            logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                             continue
 
                         logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
                         matched_faces.append((face, active_member, sim))
 
                     if not matched_faces:
+                        logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
                         continue  # back to outer while loop — no matches this frame
 
                     # Phase 2: Build composite snapshot + single queue entry
                     self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
-                    logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
 
                     date_folder = datetime.fromtimestamp(float(cam_info['frame_time']), timezone.utc).strftime("%Y-%m-%d")
                     time_filename = datetime.fromtimestamp(float(cam_info['frame_time']), timezone.utc).strftime("%H:%M:%S")
@@ -130,7 +130,7 @@ class FaceRecognition(threading.Thread):
                         cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
                         cv2.putText(img, f"{active_member['fullName']}:{str(round(sim, 2))}", (bbox[0], bbox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
                     cv2.imwrite(local_file_path, img)
-                    logger.info(f"Snapshot taken at {local_file_path} with {len(matched_faces)} face(s)")
+                    logger.debug(f"Snapshot taken at {local_file_path} with {len(matched_faces)} face(s)")
 
                     # Build per-member payloads
                     members_data = []
