@@ -311,12 +311,22 @@ logger.info(f"... best_match: {best_name} best_sim: {sim:.4f} (no match)")
 - Once above pre_norm threshold, similarity varies ±0.04 independent of pre_norm
 - Correlation between pre_norm and similarity: r = -0.29 (weak, not predictive)
 
-### arcface_mobilefacenet Thresholds (TBD)
+### arcface_mobilefacenet Thresholds (Validated 2026-02-08)
 
 | Parameter | Threshold | Tested Range | Notes |
 |-----------|-----------|--------------|-------|
-| **pre_norm** | TBD | TBD | Pending test |
-| **similarity** | **≥ 0.30** | 0.27 - 0.36 | Same threshold as r50 |
+| **pre_norm** | **≥ 6.0** | 3.0 - 7.1 | Gradual transition (not cliff) |
+| **similarity** | **≥ 0.30** | 0.07 - 0.60 | Same threshold as r50 |
+
+**Behavior (gradual, not cliff):**
+- pre_norm < 5.0: 0-10% match rate (unreliable)
+- pre_norm 5.0-6.0: 3-39% match rate (transitional)
+- pre_norm ≥ 6.0: **73-84%** match rate (reliable)
+- pre_norm ≥ 7.0: 100% match rate (very reliable)
+
+**Practical threshold: pre_norm ≥ 6.0** for reliable operation.
+
+**Key difference from arcface_r50:** mobilefacenet degrades gradually instead of cliff behavior.
 
 ### Configuration to Switch Models
 

@@ -71,8 +71,9 @@
 | Metric | Hailo MobileFaceNet | Hailo arcface_r50 | InsightFace |
 |--------|---------------------|-------------------|-------------|
 | pre_norm (registration) | ~6.3 | ~13.5 | ~24 |
-| pre_norm (live) | 5.0-5.6 | 10-21 | 23.6-24.2 |
-| pre_norm threshold | N/A | **10** | N/A |
+| pre_norm (live) | 3.5-7.1 | 10-21 | 23.6-24.2 |
+| pre_norm threshold | **≥ 6.0** (gradual) | **≥ 10** (cliff) | N/A |
+| Threshold behavior | 0%→39%→73%→100% | 0%→100% | Graceful |
 | Quality gap | ~15% | ~5% | ~2% |
 | Embedding std | 0.044 | 0.50-0.60 | 1.05 |
 
@@ -89,6 +90,9 @@
 7. **arcface_r50 is better than mobilefacenet** - higher similarity and match rate at close range
 8. **Distance is critical for Hailo** - arcface_r50 goes from 100% (close) to 7.9% (medium)
 9. **pre_norm = 10 is the hard threshold for arcface_r50** - 0% match below, 100% match above
+10. **mobilefacenet has gradual degradation** - pre_norm 5.5 threshold with 0%→39%→73%→100% transition
+11. **mobilefacenet is more distance-tolerant than r50** - 73% match at mid-range vs 7.9% for r50
+12. **pre_norm scale is model-dependent** - mobilefacenet uses 3-7, r50 uses 10-21 (different architectures)
 
 ---
 
@@ -114,12 +118,25 @@
 - pre_norm is a **gate**, not a predictor (r = -0.29, weak correlation)
 - Similarity varies ±0.04 due to angle/lighting/quantization noise
 
-### arcface_mobilefacenet (TBD)
+### arcface_mobilefacenet (Validated 2026-02-08)
 
 | Parameter | Threshold | Valid Range | Behavior |
 |-----------|-----------|-------------|----------|
-| **pre_norm** | TBD | TBD | Pending test |
-| **similarity** | **≥ 0.30** | 0.27 - 0.36 | Lower ceiling than r50 |
+| **pre_norm** | **≥ 6.0** | 3.0 - 7.1 | Gradual transition |
+| **similarity** | **≥ 0.30** | 0.07 - 0.60 | Same threshold as r50 |
+
+**pre_norm vs Match Rate (combined NiceDaddy + CuteBaby tests):**
+| pre_norm | Match Rate | Reliability |
+|----------|------------|-------------|
+| < 5.0 | 0-10% | Unreliable |
+| 5.0-5.5 | 3-19% | Unreliable |
+| 5.5-6.0 | 29-39% | Transitional |
+| **≥ 6.0** | **73-84%** | **Reliable** |
+| ≥ 7.0 | 100% | Very reliable |
+
+**Practical threshold: pre_norm ≥ 6.0** for reliable matching (73%+ match rate).
+
+**Key difference:** Gradual degradation vs r50's cliff behavior.
 
 ### InsightFace buffalo_sc
 
@@ -171,6 +188,48 @@ Subject walked freely at varying distances from camera.
 - Below 10: similarity caps at ~0.28 (below 0.30 threshold)
 - Above 10: similarity jumps to 0.30+ (reliable match)
 
+### NiceDaddy Free Walking Test - arcface_mobilefacenet (2026-02-08 08:57)
+
+Subject walked freely at varying distances from camera.
+
+| pre_norm | Faces | Match Rate | Similarity Range |
+|----------|-------|------------|------------------|
+| 3.0-4.0 | 28 | **0%** | 0.07 - 0.24 |
+| 4.0-4.5 | 17 | **0%** | 0.11 - 0.23 |
+| 4.5-5.0 | 26 | **0%** | 0.09 - 0.30 |
+| 5.0-5.5 | 36 | 3% | 0.08 - 0.32 |
+| 5.5-6.0 | 67 | 39% | 0.07 - 0.54 |
+| 6.0-7.0 | 60 | 73% | 0.13 - 0.57 |
+| ≥ 7.0 | 2 | **100%** | 0.55 - 0.60 |
+
+**Total:** 236 NiceDaddy faces, 73 matched (31%)
+
+**Key Finding:** mobilefacenet has a **gradual transition** instead of a hard cliff:
+- Below 5.0: 0% match (garbage embeddings)
+- 5.0-6.0: gradual improvement (3% → 39%)
+- 6.0-7.0: good performance (73%)
+- Above 7.0: reliable (100%)
+
+---
+
+## Why pre_norm Scales Differ Between Models
+
+The pre_norm (embedding magnitude before L2 normalization) differs significantly between models:
+
+| Model | Typical pre_norm | Architecture |
+|-------|------------------|--------------|
+| mobilefacenet | 3 - 7 | MobileNet (2M params) |
+| arcface_r50 | 10 - 21 | ResNet-50 (31M params) |
+| InsightFace | 15 - 24 | ResNet (Float32) |
+
+**Why?** Different architectures produce different weight scales in their final FC layer:
+- Deeper networks (ResNet-50) accumulate larger activations
+- This is like Celsius vs Fahrenheit - same measurement, different scale
+
+**Does it matter?** No, for similarity. After L2 normalization, both become unit vectors. The scale cancels out in cosine similarity.
+
+**What matters:** Each model has its own **minimum viable pre_norm** where embeddings become too sparse for reliable matching.
+
 ---
 
 ## Conclusion
@@ -202,9 +261,22 @@ Subject walked freely at varying distances from camera.
 
 ### Recommendation
 
-- **Close-range deployment:** Use **arcface_r50** - best accuracy at close range
-- **Variable distance:** Use **InsightFace** - consistent performance at all distances
-- **Avoid:** mobilefacenet - inferior to both alternatives
+- **Close-range deployment (< 1m):** Use **arcface_r50** - best accuracy (sim 0.67, 100% match)
+- **Variable distance:** Use **InsightFace** - consistent performance at all distances (63% match)
+- **Mid-range with NPU preference:** Consider **mobilefacenet** - 73% match at mid-range vs 7.9% for r50
+- **Speed priority:** Use **mobilefacenet** - fastest at ~85ms vs ~130ms for r50
+
+### Updated Understanding (2026-02-08)
+
+mobilefacenet was previously labeled "inferior" but new testing reveals it is **more distance-tolerant** than arcface_r50:
+
+| Distance | mobilefacenet | arcface_r50 |
+|----------|---------------|-------------|
+| Close | ~100% | 100% |
+| Mid | **73%** | 7.9% |
+| Far | 39% | 0% |
+
+The smaller model (2M params) handles distance degradation **better** than the larger model (31M params), likely because its lower pre_norm scale (3-7) is less sensitive to face size reduction.
 
 ---
 
@@ -246,10 +318,23 @@ quantization_param(precision_mode=a16_w16)
 
 ### Conclusion
 
-Given that:
-1. InsightFace (CPU, Float32) is **already faster** than Hailo arcface_r50 (NPU, INT8)
-2. InsightFace provides **best accuracy** (~0.20 higher similarity)
-3. INT16 compilation requires significant effort with uncertain gains
-4. Hailo NPU has **state degradation issues** requiring periodic reboots
+**InsightFace advantages:**
+1. Best accuracy (~0.20 higher similarity)
+2. Faster single-model inference (~90ms vs ~130ms for r50)
+3. Graceful distance degradation
+4. No state degradation issues
 
-**Recommendation:** Use InsightFace for production unless CPU offloading is specifically needed for other workloads.
+**Hailo advantages:**
+1. **Memory efficient** - HEF models are small (~2-31MB), InsightFace loads large models into RAM
+2. **Mixed workloads** - Can load multiple HEF models (detection, recognition, object detection, etc.) on single NPU
+3. **CPU offloading** - Frees CPU for GStreamer, HTTP server, other processing
+4. **Scalability** - Better for multi-camera setups where CPU becomes bottleneck
+
+**Recommendation:**
+
+| Use Case | Recommendation |
+|----------|----------------|
+| Single camera, simple setup | InsightFace (best accuracy) |
+| Multi-camera, mixed AI workloads | **Hailo** (memory + CPU efficiency) |
+| Close-range deployment | Hailo arcface_r50 (best close-range accuracy) |
+| Variable distance, NPU preferred | Hailo mobilefacenet (73% mid-range vs 7.9% for r50) |

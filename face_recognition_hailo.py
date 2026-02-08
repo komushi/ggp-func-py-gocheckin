@@ -98,11 +98,13 @@ class HailoFaceApp:
             raise RuntimeError("hailo_platform not installed")
 
         # Default HEF paths - use /etc/hailo/models/ on Linux, local ./models/ otherwise
+        # Available detection models: scrfd_10g.hef, scrfd_2.5g.hef
+        # Available recognition models: arcface_r50.hef, arcface_mobilefacenet.hef
         default_model_dir = '/etc/hailo/models' if sys.platform == 'linux' else os.path.join(os.path.dirname(__file__), 'models')
         self.det_hef_path = det_hef_path or os.environ.get(
-            'HAILO_DET_HEF') or os.path.join(default_model_dir, 'scrfd_10g.hef')
+            'HAILO_DET_HEF') or os.path.join(default_model_dir, 'scrfd_2.5g.hef')
         self.rec_hef_path = rec_hef_path or os.environ.get(
-            'HAILO_REC_HEF') or os.path.join(default_model_dir, 'arcface_mobilefacenet.hef')
+            'HAILO_REC_HEF') or os.path.join(default_model_dir, 'arcface_r50.hef')
 
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
@@ -251,7 +253,7 @@ class HailoFaceApp:
     # ------------------------------------------------------------------
     # Public interface: .get(img, max_num=0, det_size=(640,640))
     # ------------------------------------------------------------------
-    def get(self, img, max_num=0, det_size=(640, 640), debug_save=False):
+    def get(self, img, max_num=0, det_size=(640, 640)):
         """
         Detect faces and extract embeddings.
 
@@ -259,7 +261,6 @@ class HailoFaceApp:
             img: BGR numpy array (H, W, 3) uint8 — OpenCV format, converted to RGB internally
             max_num: Maximum faces to return (0 = all)
             det_size: Detection input size (ignored, uses HEF model size)
-            debug_save: If True, save aligned face images to /tmp for debugging
 
         Returns:
             List of HailoFace objects with .bbox, .embedding, .kps, .det_score
@@ -302,7 +303,7 @@ class HailoFaceApp:
         faces = []
         for i in range(len(boxes)):
             kps = landmarks[i].reshape(5, 2) if landmarks[i] is not None else None
-            embedding = self._extract_embedding(img, kps, debug_save=debug_save)
+            embedding = self._extract_embedding(img, kps)
             faces.append(HailoFace(
                 bbox=boxes[i],
                 embedding=embedding,
@@ -468,31 +469,13 @@ class HailoFaceApp:
     # ------------------------------------------------------------------
     # Recognition: align → preprocess → infer → dequantize → normalize
     # ------------------------------------------------------------------
-    def _extract_embedding(self, image, kps, debug_save=False):
+    def _extract_embedding(self, image, kps):
         """Align face and extract 512-dim L2-normalized embedding."""
         if kps is not None:
             logger.debug(f"Landmarks for alignment: {kps.tolist()}")
 
         # Align face using 5-point landmarks
         aligned = self._align_face(image, kps)
-
-        # Debug: save aligned face and original with landmarks for inspection
-        if debug_save or os.environ.get('HAILO_DEBUG_SAVE_ALIGNED'):
-            ts = time.time()
-            # Save aligned face (convert RGB to BGR for cv2.imwrite)
-            debug_aligned_path = f"/tmp/hailo_aligned_{ts:.3f}.jpg"
-            cv2.imwrite(debug_aligned_path, cv2.cvtColor(aligned, cv2.COLOR_RGB2BGR))
-            logger.info(f"Debug: saved aligned face to {debug_aligned_path}")
-
-            # Save original with landmarks drawn
-            if kps is not None:
-                debug_orig_path = f"/tmp/hailo_landmarks_{ts:.3f}.jpg"
-                img_with_landmarks = cv2.cvtColor(image.copy(), cv2.COLOR_RGB2BGR)
-                for i, (x, y) in enumerate(kps):
-                    cv2.circle(img_with_landmarks, (int(x), int(y)), 3, (0, 255, 0), -1)
-                    cv2.putText(img_with_landmarks, str(i), (int(x)+5, int(y)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                cv2.imwrite(debug_orig_path, img_with_landmarks)
-                logger.info(f"Debug: saved landmarks image to {debug_orig_path}")
 
         # Preprocess for recognition model
         preprocessed = self._preprocess_recognition(aligned)
@@ -644,9 +627,7 @@ class FaceRecognition(threading.Thread):
                     else:
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] += 1
                         detected = self.cam_detection_his[cam_info['cam_ip']]['detected']
-                        # Save debug images for first 3 frames of each session
-                        debug_save = detected <= 3
-                        faces = self.face_app.get(raw_img, debug_save=debug_save)
+                        faces = self.face_app.get(raw_img)
                         duration = time.time() - current_time
                         if detected == 1:
                             logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
