@@ -1117,10 +1117,9 @@ def fetch_scanner_output_queue():
                             del trigger_lock_context[cam_ip]
 
                     # Stop feeding — once
-                    # TODO: Temporarily disabled to let detection flow for debugging
-                    # if cam_ip:
-                    #     logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
-                    #     thread_gstreamers[cam_ip].stop_feeding()
+                    if cam_ip:
+                        logger.info(f"fetch_scanner_output_queue, member_detected WANT TO stop_feeding NOW")
+                        thread_gstreamers[cam_ip].stop_feeding()
 
                     # Upload snapshot — once
                     if 'local_file_path' in message and 'snapshot_payload' in message and uploader_app is not None:

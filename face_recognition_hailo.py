@@ -52,11 +52,12 @@ except ImportError:
 class HailoFace:
     """Minimal face object compatible with InsightFace Face attributes."""
     def __init__(self, bbox: np.ndarray, embedding: np.ndarray,
-                 kps: np.ndarray = None, det_score: float = 0.0):
+                 kps: np.ndarray = None, det_score: float = 0.0, pre_norm: float = 0.0):
         self.bbox = bbox            # np.ndarray shape (4,) — x1,y1,x2,y2
         self.embedding = embedding  # np.ndarray shape (512,) — L2-normalized
         self.kps = kps              # np.ndarray shape (5,2) or None
         self.det_score = det_score
+        self.pre_norm = pre_norm    # Embedding magnitude before L2 norm (proxy for face quality/distance)
 
 
 # ---------------------------------------------------------------------------
@@ -303,12 +304,13 @@ class HailoFaceApp:
         faces = []
         for i in range(len(boxes)):
             kps = landmarks[i].reshape(5, 2) if landmarks[i] is not None else None
-            embedding = self._extract_embedding(img, kps)
+            embedding, pre_norm = self._extract_embedding(img, kps)
             faces.append(HailoFace(
                 bbox=boxes[i],
                 embedding=embedding,
                 kps=kps,
                 det_score=float(scores[i]),
+                pre_norm=pre_norm,
             ))
 
         return faces
@@ -508,14 +510,14 @@ class HailoFaceApp:
                 embedding = np.concatenate([embedding, np.zeros(512 - len(embedding))])
 
         # L2 normalize
-        norm = np.linalg.norm(embedding)
-        if norm > 0:
-            embedding = embedding / norm
+        pre_norm = np.linalg.norm(embedding)
+        if pre_norm > 0:
+            embedding = embedding / pre_norm
 
         # TODO: Temporarily INFO for debugging, revert to debug later
-        logger.info(f"Live embedding: pre_norm={norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
+        logger.info(f"Live embedding: pre_norm={pre_norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
 
-        return embedding.astype(np.float32)
+        return embedding.astype(np.float32), pre_norm
 
     def _align_face(self, image, kps):
         """Align face using 5-point landmarks with SimilarityTransform."""
@@ -614,9 +616,8 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] = 0
                             self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = 0
 
-                    # TODO: Temporarily disabled to let detection flow for debugging
-                    # if self.cam_detection_his[cam_info['cam_ip']]['identified']:
-                    #     continue
+                    if self.cam_detection_his[cam_info['cam_ip']]['identified']:
+                        continue
 
                     current_time = time.time()
                     age = current_time - float(cam_info['frame_time'])
@@ -640,23 +641,33 @@ class FaceRecognition(threading.Thread):
 
                     # Phase 1: Match all faces, collect results
                     matched_faces = []
+                    # Pre-norm threshold: skip low-quality embeddings (face too far/small)
+                    # Auto-select based on model: 10.0 for arcface_r50, 6.0 for arcface_mobilefacenet
+                    rec_hef = os.environ.get('HAILO_REC_HEF', '')
+                    if 'mobilefacenet' in rec_hef:
+                        pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_MOBILEFACENET', '6.0'))
+                    else:
+                        pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_R50', '10.0'))
                     for face in faces:
+                        # Skip faces with low pre_norm (too far from camera)
+                        if pre_norm_threshold > 0 and face.pre_norm < pre_norm_threshold:
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} < {pre_norm_threshold:.1f} (skipped - too far)")
+                            continue
+
                         threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
                         active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                             continue
 
-                        logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
+                        logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
                         matched_faces.append((face, active_member, sim))
 
                     if not matched_faces:
                         continue  # back to outer while loop — no matches this frame
 
-                    # Phase 2: Build composite snapshot + single queue entry (only once per session)
-                    if self.cam_detection_his[cam_info['cam_ip']]['identified']:
-                        continue  # Already processed a match, skip Phase 2 but keep logging
+                    # Phase 2: Build composite snapshot + single queue entry
                     self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
                     self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = detected
                     logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
