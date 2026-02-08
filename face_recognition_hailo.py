@@ -496,8 +496,7 @@ class HailoFaceApp:
         output_name = list(output_buffers.keys())[0]
         raw = output_buffers[output_name]
 
-        # TODO: Temporarily INFO for debugging, revert to debug later
-        logger.info(f"ArcFace output: {output_name}, shape={raw.shape}, dtype={raw.dtype}, mean={raw.mean():.4f}, std={raw.std():.4f}")
+        logger.debug(f"ArcFace output: {output_name}, shape={raw.shape}, dtype={raw.dtype}, mean={raw.mean():.4f}, std={raw.std():.4f}")
 
         embedding = raw.astype(np.float32).flatten()
 
@@ -514,8 +513,7 @@ class HailoFaceApp:
         if pre_norm > 0:
             embedding = embedding / pre_norm
 
-        # TODO: Temporarily INFO for debugging, revert to debug later
-        logger.info(f"Live embedding: pre_norm={pre_norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
+        logger.debug(f"Live embedding: pre_norm={pre_norm:.4f}, mean={embedding.mean():.4f}, std={embedding.std():.4f}")
 
         return embedding.astype(np.float32), pre_norm
 
@@ -589,14 +587,6 @@ class FaceRecognition(threading.Thread):
 
                     # Handle session end signal
                     if cmd == gst.StreamCommands.SESSION_END:
-                        if cam_info['cam_ip'] in self.cam_detection_his:
-                            prev = self.cam_detection_his[cam_info['cam_ip']]
-                            if prev['detecting_txn'] == cam_info['detecting_txn']:
-                                detected = prev.get('detected', 0)
-                                face_detected_at = prev.get('face_detected_at', 0)
-                                face_detected_frames = prev.get('face_detected_frames', 0)
-                                identified_at = prev.get('identified_at', 0)
-                                logger.info(f"{cam_info['cam_ip']} session ended - detected: {detected}, face_detected_at: {face_detected_at}, face_detected_frames: {face_detected_frames}, identified_at: {identified_at}")
                         continue
 
                     if cam_info['cam_ip'] not in self.cam_detection_his:
@@ -604,18 +594,12 @@ class FaceRecognition(threading.Thread):
                         self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
                         self.cam_detection_his[cam_info['cam_ip']]['identified'] = False
                         self.cam_detection_his[cam_info['cam_ip']]['detected'] = 0
-                        self.cam_detection_his[cam_info['cam_ip']]['face_detected_at'] = 0
-                        self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] = 0
-                        self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = 0
                         self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = 0.0  # T1: timestamp of first frame processed
                     else:
                         if self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] != cam_info['detecting_txn']:
                             self.cam_detection_his[cam_info['cam_ip']]['detecting_txn'] = cam_info['detecting_txn']
                             self.cam_detection_his[cam_info['cam_ip']]['identified'] = False
                             self.cam_detection_his[cam_info['cam_ip']]['detected'] = 0
-                            self.cam_detection_his[cam_info['cam_ip']]['face_detected_at'] = 0
-                            self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] = 0
-                            self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = 0
                             self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = 0.0  # T1: timestamp of first frame processed
 
                     if self.cam_detection_his[cam_info['cam_ip']]['identified']:
@@ -637,12 +621,6 @@ class FaceRecognition(threading.Thread):
                         if detected == 1:
                             logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
-                        # Track frames where face is detected
-                        if len(faces) > 0:
-                            self.cam_detection_his[cam_info['cam_ip']]['face_detected_frames'] += 1
-                            if self.cam_detection_his[cam_info['cam_ip']]['face_detected_at'] == 0:
-                                self.cam_detection_his[cam_info['cam_ip']]['face_detected_at'] = detected
-
                     # Phase 1: Match all faces, collect results
                     matched_faces = []
                     # Pre-norm threshold: skip low-quality embeddings (face too far/small)
@@ -662,7 +640,7 @@ class FaceRecognition(threading.Thread):
                         active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
+                            logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                             continue
 
                         logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
@@ -673,7 +651,6 @@ class FaceRecognition(threading.Thread):
 
                     # Phase 2: Build composite snapshot + single queue entry
                     self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
-                    self.cam_detection_his[cam_info['cam_ip']]['identified_at'] = detected
                     logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
 
                     date_folder = datetime.fromtimestamp(float(cam_info['frame_time']), timezone.utc).strftime("%Y-%m-%d")
