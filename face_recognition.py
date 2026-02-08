@@ -89,7 +89,7 @@ class FaceRecognition(threading.Thread):
                         faces = self.face_app.get(raw_img)
                         duration = time.time() - current_time
                         # TODO: Temporarily log every frame for debugging, revert to "if detected == 1:" later
-                        logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
+                        logger.debug(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
                     # Phase 1: Match all faces, collect results
                     matched_faces = []
@@ -103,14 +103,14 @@ class FaceRecognition(threading.Thread):
                         active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                             continue
 
                         logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
                         matched_faces.append((face, active_member, sim))
 
                     if not matched_faces:
-                        logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
+                        logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
                         continue  # back to outer while loop — no matches this frame
 
                     # Phase 2: Build composite snapshot + single queue entry
