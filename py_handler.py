@@ -1162,7 +1162,7 @@ def fetch_scanner_output_queue():
                         member_payload['onvifTriggered'] = onvif_triggered
                         member_payload['occupancyTriggeredLocks'] = occupancy_triggered_locks
 
-                        logger.info(f"fetch_scanner_output_queue, member_detected: {member_payload['fullName']} onvifTriggered={onvif_triggered}, occupancyTriggeredLocks={occupancy_triggered_locks}")
+                        logger.debug(f"fetch_scanner_output_queue, member_detected: {member_payload['fullName']} onvifTriggered={onvif_triggered}, occupancyTriggeredLocks={occupancy_triggered_locks}")
 
                         if not keyNotified:
                             update_member(member_payload['reservationCode'], member_payload['memberNo'])
