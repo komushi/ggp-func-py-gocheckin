@@ -633,14 +633,14 @@ class FaceRecognition(threading.Thread):
                     for face in faces:
                         # Skip faces with low pre_norm (too far from camera)
                         if pre_norm_threshold > 0 and face.pre_norm < pre_norm_threshold:
-                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} < {pre_norm_threshold:.1f} (skipped - too far)")
+                            logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} < {pre_norm_threshold:.1f} (skipped - too far)")
                             continue
 
                         threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
                         active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
                         if active_member is None:
-                            logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                             continue
 
                         logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
