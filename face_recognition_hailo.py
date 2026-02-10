@@ -121,15 +121,15 @@ class HailoFaceApp:
         params.scheduling_algorithm = HailoSchedulingAlgorithm.ROUND_ROBIN
         self.vdevice = VDevice(params)
 
-        # Detection model — request FLOAT32 output so HailoRT auto-dequantizes
+        # Detection model — FLOAT32 output so HailoRT auto-dequantizes (scrfd HEF uses UINT8 input)
         self.det_infer_model = self.vdevice.create_infer_model(self.det_hef_path)
         for output_info in self.det_infer_model.hef.get_output_vstream_infos():
             self.det_infer_model.output(output_info.name).set_format_type(FormatType.FLOAT32)
         self.det_configured = self.det_infer_model.configure()
 
-        # Recognition model — request UINT8 input and FLOAT32 output so HailoRT handles conversion
+        # Recognition model — UINT16 input (matches HEF compiled type), FLOAT32 output (auto-dequantize)
         self.rec_infer_model = self.vdevice.create_infer_model(self.rec_hef_path)
-        self.rec_infer_model.input().set_format_type(FormatType.UINT8)
+        self.rec_infer_model.input().set_format_type(FormatType.UINT16)
         self.rec_infer_model.output().set_format_type(FormatType.FLOAT32)
         self.rec_configured = self.rec_infer_model.configure()
 
@@ -489,7 +489,7 @@ class HailoFaceApp:
             for info in self.rec_infer_model.outputs
         }
         bindings = self.rec_configured.create_bindings(output_buffers=output_buffers)
-        bindings.input().set_buffer(preprocessed)
+        bindings.input().set_buffer(np.ascontiguousarray(preprocessed.astype(np.uint16)))
         job = self.rec_configured.run_async([bindings], lambda *args, **kwargs: None)
         job.wait(10000)
 
@@ -634,7 +634,7 @@ class FaceRecognition(threading.Thread):
                     for face in faces:
                         # Skip faces with low pre_norm (too far from camera)
                         if pre_norm_threshold > 0 and face.pre_norm < pre_norm_threshold:
-                            logger.debug(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} < {pre_norm_threshold:.1f} (skipped - too far)")
+                            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} < {pre_norm_threshold:.1f} (skipped - too far)")
                             continue
 
                         threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
