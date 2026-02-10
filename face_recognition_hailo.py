@@ -619,7 +619,8 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = current_time  # T1: first frame processed
                         faces = self.face_app.get(raw_img)
                         duration = time.time() - current_time
-                        if detected == 1:
+                        # if detected == 1:
+                        if True:
                             logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
                     # Phase 1: Match all faces, collect results
@@ -765,7 +766,7 @@ class FaceRecognition(threading.Thread):
                 key = (m.get('memberNo'), m.get('reservationCode'))
                 # Include first few embedding values as a quick change detector
                 emb = m.get('faceEmbedding', [])
-                emb_sig = tuple(emb[:4]) if emb else ()
+                emb_sig = tuple(emb[:4]) if len(emb) > 0 else ()
                 result.add((key, emb_sig))
             return result
 
