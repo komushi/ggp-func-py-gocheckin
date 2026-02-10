@@ -127,8 +127,9 @@ class HailoFaceApp:
             self.det_infer_model.output(output_info.name).set_format_type(FormatType.FLOAT32)
         self.det_configured = self.det_infer_model.configure()
 
-        # Recognition model — request FLOAT32 output so HailoRT auto-dequantizes
+        # Recognition model — request UINT8 input and FLOAT32 output so HailoRT handles conversion
         self.rec_infer_model = self.vdevice.create_infer_model(self.rec_hef_path)
+        self.rec_infer_model.input().set_format_type(FormatType.UINT8)
         self.rec_infer_model.output().set_format_type(FormatType.FLOAT32)
         self.rec_configured = self.rec_infer_model.configure()
 
@@ -754,8 +755,30 @@ class FaceRecognition(threading.Thread):
 
     @active_members.setter
     def active_members(self, value):
+        # Only rebuild embeddings if members or their embeddings actually changed
+        def get_member_hash(members):
+            """Create a hash of member IDs and their embedding checksums."""
+            if not members:
+                return set()
+            result = set()
+            for m in members:
+                key = (m.get('memberNo'), m.get('reservationCode'))
+                # Include first few embedding values as a quick change detector
+                emb = m.get('faceEmbedding', [])
+                emb_sig = tuple(emb[:4]) if emb else ()
+                result.add((key, emb_sig))
+            return result
+
+        old_hash = get_member_hash(self._active_members)
+        new_hash = get_member_hash(value)
+
         self._active_members = value
-        self._build_member_embeddings()
+
+        if old_hash != new_hash:
+            logger.info(f"active_members changed: {len(old_hash)} -> {len(new_hash)} members, rebuilding embeddings")
+            self._build_member_embeddings()
+        else:
+            logger.debug(f"active_members unchanged ({len(new_hash)} members), skipping embedding rebuild")
 
     def _build_member_embeddings(self):
         """Pre-compute embeddings matrix and norms for vectorized comparison."""
