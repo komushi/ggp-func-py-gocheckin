@@ -127,9 +127,9 @@ class HailoFaceApp:
             self.det_infer_model.output(output_info.name).set_format_type(FormatType.FLOAT32)
         self.det_configured = self.det_infer_model.configure()
 
-        # Recognition model — UINT16 input (matches HEF compiled type), FLOAT32 output (auto-dequantize)
+        # Recognition model — UINT8 input (matches HEF compiled type), FLOAT32 output (auto-dequantize)
         self.rec_infer_model = self.vdevice.create_infer_model(self.rec_hef_path)
-        self.rec_infer_model.input().set_format_type(FormatType.UINT16)
+        self.rec_infer_model.input().set_format_type(FormatType.UINT8)
         self.rec_infer_model.output().set_format_type(FormatType.FLOAT32)
         self.rec_configured = self.rec_infer_model.configure()
 
@@ -489,7 +489,7 @@ class HailoFaceApp:
             for info in self.rec_infer_model.outputs
         }
         bindings = self.rec_configured.create_bindings(output_buffers=output_buffers)
-        bindings.input().set_buffer(np.ascontiguousarray(preprocessed.astype(np.uint16)))
+        bindings.input().set_buffer(np.ascontiguousarray(preprocessed.astype(np.uint8)))
         job = self.rec_configured.run_async([bindings], lambda *args, **kwargs: None)
         job.wait(10000)
 
