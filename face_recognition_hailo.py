@@ -653,6 +653,10 @@ class FaceRecognition(threading.Thread):
                         # logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
                         continue  # back to outer while loop — no matches this frame
 
+                    # TEMP: Skip Phase 2 if already identified (but keep detecting)
+                    if self.cam_detection_his[cam_info['cam_ip']]['identified']:
+                        continue
+
                     # Phase 2: Build composite snapshot + single queue entry
                     self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
                     # logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)} matched: {len(matched_faces)}")
