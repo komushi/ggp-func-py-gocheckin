@@ -72,8 +72,9 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['detected'] = 0
                             self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = 0.0  # T1: timestamp of first frame processed
 
-                    if self.cam_detection_his[cam_info['cam_ip']]['identified']:
-                        continue
+                    # TEMP: Disabled for testing - continue detecting after recognition
+                    # if self.cam_detection_his[cam_info['cam_ip']]['identified']:
+                    #     continue
 
                     current_time = time.time()
                     age = current_time - float(cam_info['frame_time'])
