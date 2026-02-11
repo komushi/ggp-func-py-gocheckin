@@ -619,8 +619,8 @@ class FaceRecognition(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = current_time  # T1: first frame processed
                         faces = self.face_app.get(raw_img)
                         duration = time.time() - current_time
-                        # if detected == 1:
-                        if True:
+                        if detected == 1:
+                        # if True:
                             logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
                     # Phase 1: Match all faces, collect results
