@@ -5,6 +5,19 @@
 
 ---
 
+## Combinations Tested
+
+| Detection | Recognition | Hardware | Quantization | Tested? |
+|-----------|-------------|----------|--------------|---------|
+| SCRFD_10G | arcface_mobilefacenet | Hailo NPU | INT8 | ✅ Yes |
+| SCRFD_10G | arcface_r50 | Hailo NPU | INT8 | ✅ Yes |
+| RetinaFace-500M (det_10g) | MobileFaceNet (buffalo_sc) | CPU | Float32 | ✅ Yes |
+| SCRFD_2.5G | arcface_r50 | Hailo NPU | INT8 | ❌ Not tested |
+
+**Note:** InsightFace buffalo_sc uses RetinaFace-500M (not SCRFD) + MobileFaceNet, both Float32.
+
+---
+
 ## Test Conditions
 
 - **Subject:** CuteBaby (printed photo), NiceDaddy (live person)
@@ -16,13 +29,13 @@
 
 ## Performance Comparison
 
-| Backend | Model | Hardware | Duration/Frame | Notes |
-|---------|-------|----------|----------------|-------|
-| Hailo | mobilefacenet | NPU | ~85-103ms | Fastest |
-| Hailo | arcface_r50 | NPU | ~130-145ms | +40ms vs mobilefacenet |
-| InsightFace | buffalo_sc | CPU | ~87-110ms | Comparable to Hailo |
+| Detection | Recognition | Hardware | Duration/Frame | Notes |
+|-----------|-------------|----------|----------------|-------|
+| SCRFD_10G | mobilefacenet | NPU (INT8) | ~85-103ms | Fastest |
+| SCRFD_10G | arcface_r50 | NPU (INT8) | ~130-145ms | +40ms vs mobilefacenet |
+| RetinaFace-500M | MobileFaceNet | CPU (Float32) | ~87-110ms | InsightFace buffalo_sc |
 
-**Note:** Duration includes detection (SCRFD) + recognition (ArcFace). InsightFace on CPU is surprisingly competitive with Hailo NPU.
+**Note:** Duration includes detection + recognition. InsightFace on CPU is surprisingly competitive with Hailo NPU despite using smaller models.
 
 ---
 
@@ -98,11 +111,27 @@
 
 ## Models Tested
 
+### Recognition Models
+
 | Model | Backend | Params | Quantization | Status |
 |-------|---------|--------|--------------|--------|
-| arcface_mobilefacenet | Hailo | 2M | INT8 | Tested (problematic) |
-| arcface_r50 | Hailo | 31M | INT8 | **Tested (good)** |
-| buffalo_sc | InsightFace | 31M | Float32 | Tested (works well) |
+| arcface_mobilefacenet | Hailo NPU | 2M | INT8 | Tested (problematic) |
+| arcface_r50 | Hailo NPU | 31M | INT8 | **Tested (good at close range)** |
+| MobileFaceNet (buffalo_sc) | CPU | 2M | Float32 | **Tested (best overall)** |
+
+### Detection Models
+
+| Model | Backend | FLOPs | Quantization | Status |
+|-------|---------|-------|--------------|--------|
+| SCRFD_10G | Hailo NPU | 10G | INT8 | Tested (with both arcface models) |
+| RetinaFace-500M | CPU | 500M | Float32 | Tested (InsightFace buffalo_sc) |
+| SCRFD_2.5G | Hailo NPU | 2.5G | INT8 | ❌ Not tested |
+
+### The Paradox
+
+InsightFace buffalo_sc uses **weaker models** (RetinaFace-500M + MobileFaceNet 2M) but outperforms Hailo's **stronger models** (SCRFD_10G + arcface_r50 31M) at medium/far distance.
+
+**Reason:** Float32 precision (4 billion levels) overwhelms INT8 (256 levels), negating the 20× detection and 15× recognition model advantages. See `bug_hailo_recognition_failure.md` for detailed analysis.
 
 ---
 
@@ -237,34 +266,39 @@ The pre_norm (embedding magnitude before L2 normalization) differs significantly
 ### Rankings by Use Case
 
 **Close-range (< 1m):**
-1. **arcface_r50** - Best (sim 0.67, 100% match)
-2. **InsightFace** - Good (sim 0.59, 63% match)
-3. **mobilefacenet** - Fair (sim 0.32, ~30% match)
+1. **Hailo SCRFD_10G + arcface_r50** - Best (sim 0.67, 100% match)
+2. **InsightFace buffalo_sc** - Good (sim 0.59, 63% match)
+3. **Hailo SCRFD_10G + mobilefacenet** - Fair (sim 0.32, ~30% match)
 
 **Medium/Far distance:**
-1. **InsightFace** - Best (sim 0.32-0.48, 63% match)
-2. **mobilefacenet** - Poor (sim 0.15-0.28, ~30% match)
-3. **arcface_r50** - Poor (sim 0.05-0.29, 7.9% match)
+1. **InsightFace buffalo_sc** - Best (sim 0.32-0.48, 63% match)
+2. **Hailo SCRFD_10G + mobilefacenet** - Poor (sim 0.15-0.28, ~30% match)
+3. **Hailo SCRFD_10G + arcface_r50** - Poor (sim 0.05-0.29, 7.9% match)
 
-### Trade-offs
+### Trade-offs (All Tested Combinations)
 
-| Backend | Close Sim | Close Match | Medium Match | Duration | Hardware |
-|---------|-----------|-------------|--------------|----------|----------|
-| arcface_r50 | **0.42-0.67** | **100%** | 7.9% | ~130-145ms | NPU |
-| InsightFace | 0.48-0.59 | 63% | **63%** | ~90-110ms | CPU |
-| mobilefacenet | 0.28-0.32 | ~30% | ~30% | ~85-103ms | NPU |
+| Detection | Recognition | Hardware | Close Sim | Close Match | Medium Match | Duration |
+|-----------|-------------|----------|-----------|-------------|--------------|----------|
+| SCRFD_10G | arcface_r50 | NPU INT8 | **0.42-0.67** | **100%** | 7.9% | ~130-145ms |
+| RetinaFace-500M | MobileFaceNet | CPU Float32 | 0.48-0.59 | 63% | **63%** | ~90-110ms |
+| SCRFD_10G | mobilefacenet | NPU INT8 | 0.28-0.32 | ~30% | ~30% | ~85-103ms |
 
 **Surprises:**
-1. arcface_r50 OUTPERFORMS InsightFace at close range (sim 0.67 vs 0.59)
-2. InsightFace (CPU) is faster than arcface_r50 (NPU)
+1. Hailo arcface_r50 OUTPERFORMS InsightFace at close range (sim 0.67 vs 0.59)
+2. InsightFace (CPU, weaker models) is faster than Hailo arcface_r50 (NPU, stronger models)
 3. arcface_r50 is extremely distance-sensitive (100% → 7.9%)
+4. **Weaker Float32 models beat stronger INT8 models** at medium/far distance
 
 ### Recommendation
 
-- **Close-range deployment (< 1m):** Use **arcface_r50** - best accuracy (sim 0.67, 100% match)
-- **Variable distance:** Use **InsightFace** - consistent performance at all distances (63% match)
-- **Mid-range with NPU preference:** Consider **mobilefacenet** - 73% match at mid-range vs 7.9% for r50
-- **Speed priority:** Use **mobilefacenet** - fastest at ~85ms vs ~130ms for r50
+- **Close-range deployment (< 1m):** Use **Hailo SCRFD_10G + arcface_r50** - best accuracy (sim 0.67, 100% match)
+- **Variable distance:** Use **InsightFace buffalo_sc** - consistent performance at all distances (63% match)
+- **Mid-range with NPU preference:** Consider **Hailo SCRFD_10G + mobilefacenet** - 73% match at mid-range vs 7.9% for r50
+- **Speed priority:** Use **Hailo SCRFD_10G + mobilefacenet** - fastest at ~85ms vs ~130ms for r50
+
+### Not Tested
+
+- **SCRFD_2.5G + arcface_r50** - Would be faster detection but likely won't improve recognition (INT8 is the bottleneck)
 
 ### Updated Understanding (2026-02-08)
 
@@ -332,9 +366,19 @@ quantization_param(precision_mode=a16_w16)
 
 **Recommendation:**
 
-| Use Case | Recommendation |
-|----------|----------------|
-| Single camera, simple setup | InsightFace (best accuracy) |
-| Multi-camera, mixed AI workloads | **Hailo** (memory + CPU efficiency) |
-| Close-range deployment | Hailo arcface_r50 (best close-range accuracy) |
-| Variable distance, NPU preferred | Hailo mobilefacenet (73% mid-range vs 7.9% for r50) |
+| Use Case | Recommendation | Tested? |
+|----------|----------------|---------|
+| Single camera, simple setup | InsightFace buffalo_sc (best accuracy) | ✅ Yes |
+| Multi-camera, mixed AI workloads | **Hailo** (memory + CPU efficiency) | ✅ Yes |
+| Close-range deployment | Hailo SCRFD_10G + arcface_r50 (best close-range accuracy) | ✅ Yes |
+| Variable distance, NPU preferred | Hailo SCRFD_10G + mobilefacenet (73% mid-range vs 7.9% for r50) | ✅ Yes |
+
+### Future Testing
+
+| Combination | Expected Benefit | Status |
+|-------------|------------------|--------|
+| SCRFD_2.5G + arcface_r50 | Faster detection | ❌ Not tested (INT8 is the bottleneck, not detection) |
+| SCRFD_10G + arcface_r50 + **INT16** | Better distance tolerance | ❌ Not tested (requires custom HEF compilation) |
+| w600k_r50 (from InsightFace) | Better training data | ❌ Not tested (requires HEF compilation) |
+
+See `int8_quantization_tradeoffs.md` for INT16 compilation steps and available ONNX models.

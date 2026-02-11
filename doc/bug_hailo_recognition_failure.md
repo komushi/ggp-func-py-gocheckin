@@ -454,3 +454,80 @@ CuteBaby static test (87 frames, 10 seconds):
 **Avoid mobilefacenet:**
 - Inferior to both alternatives
 - Lower similarity and match rate
+
+---
+
+## The Quantization Paradox (2026-02-09)
+
+### "Weaker" Models Beat "Stronger" Models
+
+A counterintuitive finding: InsightFace with objectively weaker models outperforms Hailo with stronger models at medium/far distance.
+
+#### Model Specifications (On Paper)
+
+| Component | InsightFace buffalo_sc | Hailo |
+|-----------|----------------------|-------|
+| Detection | RetinaFace-**500M** | SCRFD_**10G** (20× more compute) |
+| Recognition | MobileFaceNet (**2M** params) | arcface_r50 (**31M** params, 15× larger) |
+| Recognition accuracy | 71.87% MR-ALL | ~90% MR-ALL |
+| **Expected winner** | - | **Hailo by far** |
+
+#### Actual Test Results
+
+| Metric | InsightFace buffalo_sc | Hailo SCRFD_10G + r50 | Winner |
+|--------|----------------------|-----------------|--------|
+| Medium distance match | **63%** | 7.9% | **InsightFace** |
+| Similarity consistency | **±0.02** | ±0.04 | **InsightFace** |
+| Distance tolerance | **Graceful** | Hard cliff | **InsightFace** |
+| Close-range match | 63% | **100%** | Hailo |
+| Close-range similarity | 0.48-0.59 | **0.42-0.67** | Hailo |
+
+#### Why This Happens
+
+| Factor | InsightFace | Hailo | Ratio |
+|--------|-------------|-------|-------|
+| Model capacity | 2M params | 31M params | **15× advantage Hailo** |
+| Numerical precision | Float32 (4B levels) | INT8 (256 levels) | **16M× advantage InsightFace** |
+| **Net effect** | Precision wins | Model capacity irrelevant | - |
+
+The **16 million times** more precision levels completely overwhelms the **15×** model capacity advantage.
+
+#### Signal vs Noise at Different Distances
+
+```
+Close (strong signal):
+  Both backends: Signal >> Quantization noise → Good embeddings
+  Winner: Hailo (model capacity matters when signal is strong)
+
+Medium (moderate signal):
+  InsightFace: Signal preserved by Float32 → Good embeddings
+  Hailo: Signal ≈ INT8 noise → Degraded embeddings
+  Winner: InsightFace (precision matters)
+
+Far (weak signal):
+  InsightFace: Signal partially preserved → Usable embeddings
+  Hailo: Signal < INT8 noise → Garbage embeddings
+  Winner: InsightFace
+```
+
+#### Implications for Upgrades
+
+| Upgrade Path | Expected Impact |
+|--------------|-----------------|
+| Better ONNX model (w600k_r50) | ❌ Won't help much - still INT8 quantized |
+| Larger detection (SCRFD_10G→34G) | ❌ Won't help - detection not the bottleneck |
+| **INT16 quantization** | ✅ **Should help significantly** (256× more levels) |
+| **Stay with InsightFace** | ✅ Already proven to work |
+
+#### Conclusion
+
+**INT8 quantization is so destructive that it negates:**
+- 20× more detection compute (SCRFD_10G vs RetinaFace_500M)
+- 15× more recognition parameters (31M vs 2M)
+- +18% higher model accuracy (90% vs 72% MR-ALL)
+
+Model upgrades alone will not fix the distance tolerance problem. The solution is either:
+1. **INT16 quantization** - reduce quantization noise
+2. **InsightFace (Float32)** - eliminate quantization entirely
+
+See `int8_quantization_tradeoffs.md` for detailed analysis and INT16 compilation steps.
