@@ -341,7 +341,7 @@ def monitor_detector():
             thread_monitor_detector.start()
 
 
-def init_insightface_app(model='buffalo_sc'):
+def init_insightface_app(model=None):
     class FaceAnalysisChild(FaceAnalysis):
         def get(self, img, max_num=0, det_size=(640, 640)):
             if det_size is not None:
@@ -352,6 +352,8 @@ def init_insightface_app(model='buffalo_sc'):
     global face_app
 
     if face_app is None:
+        if model is None:
+            model = os.environ.get('INSIGHTFACE_MODEL', 'buffalo_sc')
         logger.info(f"Initializing InsightFace face_app with Model: {model}")
         face_app = FaceAnalysisChild(name=model, allowed_modules=['detection', 'recognition'], providers=['CPUExecutionProvider'], root=os.environ['INSIGHTFACE_LOCATION'])
         face_app.prepare(ctx_id=0, det_size=(640, 640))
