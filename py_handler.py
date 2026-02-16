@@ -1138,7 +1138,8 @@ def fetch_scanner_output_queue():
                                     f"trigger_to_first_frame: {trigger_to_first_frame:.0f}ms, "
                                     f"first_frame_to_identified: {first_frame_to_identified:.0f}ms, "
                                     f"trigger_to_identified: {trigger_to_identified:.0f}ms")
-                        thread_gstreamers[cam_ip].stop_feeding()
+                        # TEMP: Disabled stop_feeding to allow continued detection after match (for testing)
+                        # thread_gstreamers[cam_ip].stop_feeding()
 
                     # Upload snapshot — once
                     if 'local_file_path' in message and 'snapshot_payload' in message and uploader_app is not None:
