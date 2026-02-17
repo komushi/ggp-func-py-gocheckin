@@ -638,7 +638,7 @@ class FaceRecognition(threading.Thread):
                     # Pre-norm threshold: skip low-quality embeddings (face too far/small)
                     # Auto-select based on model: 10.0 for arcface_r50, 6.0 for arcface_mobilefacenet
                     rec_hef = os.environ.get('HAILO_REC_HEF', '')
-                    if 'mobilefacenet' in rec_hef:
+                    if 'mobilefacenet' in rec_hef or 'mbf' in rec_hef:
                         pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_MOBILEFACENET', '6.0'))
                     else:
                         pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_R50', '10.0'))
