@@ -17,7 +17,7 @@
 | arcface_mobilefacenet_int16_v2 | INT16 selective | 7643 | Yes | No | Pending | |
 | arcface_r50_int16_v2 | INT16 selective | 1023 | Yes | No | Pending | |
 | arcface_r50_int16_v2 | INT16 selective | 2048 | Yes | No | Pending | |
-| arcface_r50_int16_v2 | INT16 selective | 7643 | Yes | No | Pending | |
+| arcface_r50_int16_v2 | INT16 selective | 7643 | Yes | pi_neoseed | Yes | **Best result** — 67% success rate, sim up to 0.54 | |
 | w600k_mbf_int16_v2 | INT16 selective | 1023 | Yes | No | Pending | |
 | w600k_mbf_int16_v2 | INT16 selective | 2048 | Yes | No | Pending | |
 | w600k_mbf_int16_v2 | INT16 selective | 7643 | Yes | No | Pending | |
@@ -161,6 +161,40 @@ If Phase 1 passes:
 4. **Two faces per frame** — SCRFD consistently detects 2 faces (face 1: pre_norm ~6.0-7.0, face 2: ~4.8-5.5). Only face 1 ever matches. Face 2 may be a reflection or background object.
 
 **Verdict:** INT16 v2 calib1023 is **not viable** for production. Does not improve over INT8 baseline.
+
+### 2026-02-17: arcface_r50_int16_v2_calib_all — Best Result So Far
+
+**Model:** arcface_r50_int16_v2_calib_all.hef (INT16 selective: fc1, dw1, conv53)
+**Detection:** scrfd_10g (INT8)
+**Device:** pi_neoseed (Hailo-8)
+**Camera:** 192.168.11.62
+**Subject:** Xu, normal distance
+**Threshold:** sim >= 0.30, pre_norm >= 9.0
+**Reference embeddings:** Re-registered with this model
+
+| Session | Time | Frames | Identified | Matches | Xu best_sim | Pattern |
+|---------|------|--------|------------|---------|-------------|---------|
+| S1 | 14:04:04 | 100 | **Yes** | 19 | **0.54** | Matches from frame 4, spread throughout |
+| S2 | 14:04:34 | 100 | **Yes** | 8 | 0.46 | Matches from frame 3 |
+| S3 | 14:06:24 | 100 | **Yes** | 3 | 0.32 | Late only (frames 94-100) |
+| S4 | 14:06:48 | 100 | **No** | 0 | — | Total failure |
+| S5 | 14:07:23 | 100 | **Yes** | **39** | **0.53** | Dense matches from frame 7 |
+| S6 | 14:07:44 | 98 | **No** | 0 | — | Total failure |
+| S7 | 14:07:51 | 100 | **Yes** | 15 | 0.47 | Matches from frame 3 |
+| S8 | 14:08:23 | 100 | **No** | 0 | — | Total failure |
+| S9 | 14:27:34 | 99 | **Yes** | **43** | **0.48** | Dense matches from frame 1 |
+
+**Success rate:** 6/9 sessions (67%) at normal distance
+
+**Key findings:**
+1. **Significantly better than mobilefacenet INT16** — 67% success rate vs 25-33%, sim up to 0.54 vs 0.35 cap.
+2. **Matches from early frames** — no warmup needed, matches as early as frame 1.
+3. **Higher similarity scores** — 0.30-0.54 range, well above threshold (vs mobilefacenet's borderline 0.30-0.35).
+4. **pre_norm 13-21** — well above 9.0 threshold, no filtering issues.
+5. **Slower inference** — ~100ms/frame (age ~0.2) vs mobilefacenet's ~40ms. Acceptable on Hailo-8.
+6. **Non-deterministic instability persists** — still 3/9 total failures despite identical conditions.
+
+**Verdict:** Best Hailo model tested. Viable for production with the caveat of ~33% session failure rate. The r50 backbone produces more discriminative INT16 embeddings than mobilefacenet.
 
 ---
 
