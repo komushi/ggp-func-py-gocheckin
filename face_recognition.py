@@ -57,6 +57,15 @@ class FaceRecognition(threading.Thread):
 
                     # Handle session end signal
                     if cmd == gst.StreamCommands.SESSION_END:
+                        session_cam_ip = cam_info.get('cam_ip')
+                        if session_cam_ip and session_cam_ip in self.cam_detection_his:
+                            his = self.cam_detection_his[session_cam_ip]
+                            detected = his.get('detected', 0)
+                            identified = his.get('identified', False)
+                            first_frame_at = his.get('first_frame_at', 0.0)
+                            session_duration = (time.time() - first_frame_at) * 1000 if first_frame_at > 0 else 0
+                            logger.info(f"{session_cam_ip} SESSION END - frames: {detected}, identified: {identified}, duration: {session_duration:.0f}ms")
+                            del self.cam_detection_his[session_cam_ip]
                         continue
 
                     if cam_info['cam_ip'] not in self.cam_detection_his:
