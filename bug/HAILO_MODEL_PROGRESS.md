@@ -11,7 +11,7 @@
 | Model | Quantization | Calibration | Compiled | Deployed | Tested | Result |
 |-------|--------------|-------------|----------|----------|--------|--------|
 | arcface_mobilefacenet | INT8 | Hailo default | - | pi_neoseed | Yes | Baseline, pre_norm>=6 works |
-| arcface_r50 | INT8 | Hailo default | - | pi_neoseed | Yes | Baseline, pre_norm>=10 cliff |
+| arcface_r50 | INT8 | Hailo default | - | pi_neoseed | Yes | **Best overall** — 83% success, sim up to 0.55 |
 | arcface_mobilefacenet_int16_v2 | INT16 selective | 1023 | Yes | pi_neoseed | Yes | **Not viable** — worse than INT8, 25% success rate, sim capped at 0.35 |
 | arcface_mobilefacenet_int16_v2 | INT16 selective | 2048 | Yes | No | Pending | |
 | arcface_mobilefacenet_int16_v2 | INT16 selective | 7643 | Yes | No | Pending | |
@@ -194,7 +194,47 @@ If Phase 1 passes:
 5. **Slower inference** — ~100ms/frame (age ~0.2) vs mobilefacenet's ~40ms. Acceptable on Hailo-8.
 6. **Non-deterministic instability persists** — still 3/9 total failures despite identical conditions.
 
-**Verdict:** Best Hailo model tested. Viable for production with the caveat of ~33% session failure rate. The r50 backbone produces more discriminative INT16 embeddings than mobilefacenet.
+**Verdict:** ~~Best Hailo model tested.~~ Superseded by INT8 r50 — see below.
+
+### 2026-02-17: arcface_r50 INT8 — Best Overall Model
+
+**Model:** arcface_r50.hef (INT8, Hailo Model Zoo default)
+**Detection:** scrfd_10g (INT8)
+**Device:** pi_neoseed (Hailo-8)
+**Camera:** 192.168.11.62
+**Subject:** Xu, normal distance
+**Threshold:** sim >= 0.30, pre_norm >= 9.0
+**Reference embeddings:** Re-registered with this model
+
+| Session | Time | Frames | Identified | Matches | Xu best_sim | Pattern |
+|---------|------|--------|------------|---------|-------------|---------|
+| S1 | 14:52:55 | 100 | **Yes** | 26 | **0.49** | Matches from frame 3, spread throughout |
+| S2 | 14:53:57 | 100 | **Yes** | 21 | 0.43 | Matches from frame 6, spread throughout |
+| S3 | 14:54:08 | 97 | **Yes** | 10 | 0.44 | Matches at frames 8-15, 62-65 |
+| S4 | 14:54:45 | 100 | **Yes** | 17 | 0.44 | Matches from frame 3, spread throughout |
+| S5 | 14:55:05 | 100 | **Yes** | 18 | **0.55** | Dense cluster from frame 51 |
+| S6 | 14:55:29 | 100 | **No** | 0 | — | Total failure |
+
+**Success rate:** 5/6 sessions (83%) at normal distance
+
+**Key findings:**
+1. **Best success rate** — 83% vs INT16 r50's 67% and mobilefacenet's 25-33%.
+2. **Highest similarity** — best sim 0.55, typical range 0.30-0.49.
+3. **Faster inference** — ~90ms/frame vs INT16 r50's ~100ms.
+4. **INT16 quantization provides no benefit for r50** — INT8 is both more reliable and slightly faster.
+5. **Non-deterministic instability still present** — 1/6 total failure, but lowest failure rate of all models tested.
+
+**Verdict:** Best Hailo model tested. Recommended for production.
+
+### Model Comparison Summary
+
+| Model | Quantization | Success Rate | Best Sim | Sim Range | Inference | Verdict |
+|-------|-------------|-------------|----------|-----------|-----------|---------|
+| arcface_mobilefacenet | INT8 | Variable | 0.53 | 0.09-0.53 | ~40ms | Unstable across sessions |
+| arcface_mobilefacenet_int16_v2 calib1023 | INT16 | 25% (2/8) | 0.35 | 0.10-0.35 | ~40ms | Not viable |
+| arcface_mobilefacenet_int16_v2 calib_all | INT16 | 33% (2/6) | 0.33 | 0.10-0.33 | ~40ms | Not viable |
+| arcface_r50_int16_v2 calib_all | INT16 | 67% (6/9) | 0.54 | 0.30-0.54 | ~100ms | Decent but superseded |
+| **arcface_r50** | **INT8** | **83% (5/6)** | **0.55** | **0.30-0.55** | **~90ms** | **Best — recommended** |
 
 ---
 
