@@ -158,10 +158,11 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 - `distinct_face_count` = `len(known_members)` + `len(unknown_face_clusters)`
 - Compare `distinct_face_count` vs `memberCount`
 - If `distinct_face_count > memberCount` → group size mismatch
+- **UC8 cross-check**: At session end, compare `max_simultaneous_persons` (from UC8 continuous YOLOv8n) with `distinct_face_count`. If `max_simultaneous_persons > distinct_face_count`, some people's faces were never captured (back turned, masked, outside camera angle). This is logged as supplementary evidence in the alert — it does not independently trigger a group size mismatch, but strengthens the alert when faces alone already exceed `memberCount`
 
 **Output**:
 - Publish `group_size_mismatch` alert to IoT
-- Include: distinct_face_count, known_count, unknown_count, memberCount, matched_members, snapshot
+- Include: distinct_face_count, known_count, unknown_count, memberCount, matched_members, max_simultaneous_persons (from UC8), snapshot
 
 **Models**:
 - SCRFD + ArcFace only — already running for UC1/UC3. Face embeddings reused for clustering. Bbox positions reused for IoU. No extra model needed.
@@ -300,29 +301,54 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 
 **Status**: To be implemented (initial scope)
 
-**Scenario**: YOLOv8n (COCO person class 0) provides **session lifecycle control** — deciding whether to start and whether to extend a detection session. UC8 is NOT an alerting mechanism. It is an operational control that filters false ONVIF triggers (wind, shadow, animal motion) before committing SCRFD+ArcFace resources.
+**Scenario**: YOLOv8n (COCO person class 0) provides **session lifecycle control and continuous person presence monitoring**. UC8 is NOT an alerting mechanism. It is an operational control that (1) filters false ONVIF triggers (wind, shadow, animal motion) before committing SCRFD+ArcFace resources, and (2) provides real-time person count throughout the detection session.
 
-**Two roles:**
+**Three roles:**
 
 ### Role 1: Gate (session start + recording start)
 
-After ONVIF fires, YOLOv8n runs on the grabbed frame. If a person (class 0) is detected with confidence ≥ `YOLO_DETECT_THRESHOLD`, the detection session starts (SCRFD+ArcFace loop) AND video recording starts (GStreamer RTSP pipeline). If no person is detected, the trigger is discarded as a false alarm — no session, no recording.
+After ONVIF fires, YOLOv8n runs on `YOLO_GATE_FRAMES` consecutive frames (default: 10 frames = 1 second at 10fps). If a person (class 0) is detected with confidence ≥ `YOLO_DETECT_THRESHOLD` in at least `YOLO_GATE_MIN_DETECTIONS` of those frames (default: 3), the detection session starts (SCRFD+ArcFace loop) AND video recording starts (GStreamer RTSP pipeline). If the minimum detection count is not reached, the trigger is discarded as a false alarm — no session, no recording.
+
+**Why multi-frame gate (not single frame):** A single frame is too fragile for the gate decision. The gate is a high-stakes check — a false negative skips the entire SCRFD+ArcFace session and no face recognition happens at all. A person may be missed in any single frame due to motion blur, partial occlusion, or awkward body angle. Running YOLOv8n over 10 frames (1 second) provides robust detection while adding acceptable latency — the person is still approaching the door after ONVIF fired.
+
+**"Any K of N" threshold:** Requiring at least `YOLO_GATE_MIN_DETECTIONS` (default: 3) out of `YOLO_GATE_FRAMES` (default: 10) balances false positives and false negatives. A single-frame shadow/reflection won't trigger a session (requires 3+ frames), while a real person only needs to be visible in 3 of 10 frames to pass — tolerating occlusion, blur, and turning in the remaining frames.
+
+**NPU impact:** 10 YOLOv8n inferences at gate (vs 1 previously). At ~6-10ms per inference = ~60-100ms of NPU time. Still negligible vs the subsequent SCRFD+ArcFace loop running 100+ inferences per session. Adds ~1-2% NPU utilization during the 1-second gate window.
 
 ```
 ONVIF camera detects motion
        │
        ▼
-GStreamer grabs frame
+GStreamer grabs 10 frames (1 second at 10fps)
        │
        ▼
-Run YOLOv8n (person class 0) → person body detected?
+Run YOLOv8n on each frame (person class 0)
+       │
+       ▼
+Person detected in ≥ 3 of 10 frames?
   NO  → skip (false alarm: wind/shadow/animal — no session, no recording)
   YES → start recording + start detection session (SCRFD + ArcFace loop)
 ```
 
-### Role 2: Extend (session timer expiry)
+### Role 2: Continuous person detection (during session)
 
-When the detection timer is about to expire, two signals are checked: (1) whether a motion event was received within the last `MOTION_RECENCY_SEC` seconds, and (2) whether YOLOv8n detects a person in the current frame. Both must be true to extend the session — either signal alone is insufficient. This dual-signal requirement reduces false extensions: person detection alone may trigger on static figures (poster, mannequin), while motion alone may be non-human (wind, animal). Together they confirm something is moving AND it's a person. No explicit cap is needed — the motion recency requirement is a natural session limiter. ONVIF is single-fire (one event per motion onset), so unless new motion events keep arriving, `MOTION_RECENCY_SEC` expires and the session ends. When the session ends (person left or no recent motion), recording ends with it.
+Once the gate passes and the detection session starts, YOLOv8n runs on **every frame** alongside SCRFD+ArcFace for the entire session duration. This provides real-time person count data at no additional implementation complexity — the same inference pipeline processes every frame.
+
+**Why continuous (not burst-only):** Feasibility testing on Hailo-8 measured YOLOv8n at only **6.4% NPU utilization** at 10fps continuous. This is low enough to run alongside SCRFD+ArcFace (~35%) with comfortable headroom (~41.4% total per camera, ~82.8% for 2 cameras). At this cost, the complexity of burst-only gate/extend windows is not justified. Continuous detection provides richer data for extend decisions and enables UC4 enhancement (max simultaneous person count).
+
+**What continuous detection provides:**
+- **Per-frame person count** — how many people are visible in each frame
+- **Max simultaneous persons** — the peak person count observed in any single frame during the session (lower bound on total individuals present)
+- **Person presence history** — a continuous buffer of detection results, available for extend checks without any additional NPU cost
+- **Session state**: `max_simultaneous_persons` tracked as session-level accumulator (updated each frame)
+
+**NPU impact:** 6.4% continuous during session (measured on Hailo-8 at 10fps). Combined with SCRFD+ArcFace (~35%): **~41.4% per camera**. Two cameras: ~82.8%. This is higher than the previous burst-only design (~36.3%) but still well within Hailo-8 capacity for 2 cameras.
+
+### Role 3: Extend (session timer expiry)
+
+When the detection timer is about to expire, two signals are checked: (1) whether a motion event was received within the last `MOTION_RECENCY_SEC` seconds, and (2) whether a person was detected in at least `YOLO_EXTEND_MIN_DETECTIONS` of the last `YOLO_EXTEND_LOOKBACK` frames from the continuous detection buffer. Both signals must be true to extend the session — either signal alone is insufficient. This dual-signal requirement reduces false extensions: person detection alone may trigger on static figures (poster, mannequin), while motion alone may be non-human (wind, animal). Together they confirm something is moving AND it's a person. No explicit cap is needed — the motion recency requirement is a natural session limiter. ONVIF is single-fire (one event per motion onset), so unless new motion events keep arriving, `MOTION_RECENCY_SEC` expires and the session ends. When the session ends (person left or no recent motion), recording ends with it.
+
+**Simplified extend (no burst needed):** Because YOLOv8n runs continuously during the session (Role 2), the person detection data is already available at timer expiry. The extend check simply queries the last N frames from the continuous buffer — no separate YOLOv8n burst is needed. This adds **zero additional NPU cost** at extend time.
 
 Motion detection is designed as an event-based abstraction: motion sources emit timestamped events per camera, and the extend check queries whether a motion event was received within the recency window. Currently ONVIF events serve as the motion source (single-fire — one event per motion onset, recency based on last event timestamp). Future H265 HW frame-level decoding will emit equivalent events via the same interface, making the motion source pluggable.
 
@@ -334,7 +360,7 @@ Timer about to expire
        ▼
 Check dual signal:
   1. Motion recent? (motion event within MOTION_RECENCY_SEC)
-  2. Run YOLOv8n on current frame → person body present?
+  2. Person in ≥ 3 of last 10 frames? (from continuous detection buffer — no extra inference)
 
   BOTH YES → extend timer, recording continues
   EITHER NO → end session normally, recording ends
@@ -342,19 +368,25 @@ Check dual signal:
 
 **Model**: YOLOv8n (COCO 80-class, person = class 0) — pre-compiled HEF available for Hailo-8 and Hailo-8L in [Hailo Model Zoo](https://github.com/hailo-ai/hailo_model_zoo)
 
-**Output**: No IoT alert. UC8 is a control decision, not a notification. It produces no `human_body_alert` topic — it gates session start and video recording, and extends session duration (recording continues). No person detected = no session = no recording.
+**Output**: No IoT alert. UC8 is a control decision, not a notification. It produces no `human_body_alert` topic — it gates session start and video recording, extends session duration (recording continues), and provides `max_simultaneous_persons` as a session-level accumulator for UC4 enhancement. No person detected at gate = no session = no recording.
 
 **Configuration**:
 - `YOLO_DETECT_THRESHOLD=0.5` — YOLOv8n confidence threshold for person class 0
+- `YOLO_GATE_FRAMES=10` — Number of consecutive frames to run YOLOv8n at gate check (at 10fps = 1 second)
+- `YOLO_GATE_MIN_DETECTIONS=3` — Minimum number of frames with person detected to pass gate (any 3 of 10)
+- `YOLO_EXTEND_LOOKBACK=10` — Number of recent frames to check from continuous buffer at extend time
+- `YOLO_EXTEND_MIN_DETECTIONS=3` — Minimum number of frames with person detected to pass extend check
 - `MOTION_RECENCY_SEC=5` — Time window (in seconds) to consider a motion event as "recent" at timer expiry for dual-signal extension check
 
-**NPU impact**: Negligible per session. YOLOv8n runs gate-only: 1 inference at session start + 1 at each timer expiry check. NOT every frame.
+**NPU impact**: YOLOv8n runs on every frame during the session (continuous) at **6.4% NPU utilization** (measured on Hailo-8 at 10fps). Combined with SCRFD+ArcFace (~35%): **~41.4% per camera**. Two cameras: ~82.8%. Gate adds a 1-second pre-session burst (same 6.4% NPU). Extend check uses the continuous buffer — zero additional NPU cost at timer expiry.
 
 **Key Behaviors**:
 - Applies to both camera-lock patterns (P1-P2) as the first step before SCRFD+ArcFace
 - Gates video recording alongside SCRFD+ArcFace — false ONVIF triggers (no person) produce neither face detection nor video recording, saving storage
-- Session extension requires both recent motion (event within `MOTION_RECENCY_SEC`) AND body detection (YOLOv8n person present) — no explicit cap needed, motion recency is a natural session limiter
+- Runs continuously on every frame during the session — provides real-time person count and `max_simultaneous_persons` accumulator
+- Session extension requires both recent motion (event within `MOTION_RECENCY_SEC`) AND person presence in recent frames (from continuous buffer — no extra inference needed) — no explicit cap needed, motion recency is a natural session limiter
 - Does not replace existing extension rules (ONVIF/clicked extensions still apply)
+- `max_simultaneous_persons` enhances UC4 group size validation — catches people whose faces were never captured (back turned, hooded) by comparing body count vs face count
 
 ---
 
@@ -531,22 +563,26 @@ Example: Common area camera, reception desk, parking lot.
 Person approaches area
        │
 T=0    │  ONVIF camera detects motion
-       │  GStreamer grabs frame
-       │  [UC8 GATE] Run YOLOv8n (person class 0)
-       │    → NO person detected? → SKIP (no session, no recording)
-       │    → YES person detected? → start recording + continue ▼
+       │  GStreamer grabs frames
+       │  [UC8 GATE] Run YOLOv8n on 10 frames (1 sec at 10fps)
+       │    → Person in ≥ 3 of 10 frames?
+       │    → NO  → SKIP (no session, no recording)
+       │    → YES → start recording + continue ▼
        │
-       │  trigger_face_detection(cam_ip, lock_asset_id=None)
+T=1    │  trigger_face_detection(cam_ip, lock_asset_id=None)
        │  Camera has NO locks → still proceed (UC1 always runs)
        │  Session state: unlocked=N/A, block_further_unlocks=N/A
        │  GStreamer starts feeding frames
        │
        ▼
-T=0+   CONTINUOUS DETECTION LOOP (every frame, full timer)
+T=1+   CONTINUOUS DETECTION LOOP (every frame, full timer)
        ┌─────────────────────────────────────────────────────────┐
        │ INFERENCE (every frame):                                 │
        │   SCRFD  → face bboxes + 5-point landmarks              │
        │   ArcFace → 512-d embedding per face                    │
+       │   [UC8] YOLOv8n → person count (continuous)             │
+       │     Update max_simultaneous_persons                      │
+       │     Append to person_detection_buffer                    │
        │                                                          │
        │ PER-FACE IDENTIFICATION (every frame, every face):       │
        │   Compute cosine similarity against ALL categories       │
@@ -584,7 +620,7 @@ T=0+   CONTINUOUS DETECTION LOOP (every frame, full timer)
 T=exp  Timer about to expire
        │  [UC8 EXTEND] Dual-signal check:
        │    1. Motion recent? (motion event within MOTION_RECENCY_SEC)
-       │    2. Run YOLOv8n on current frame → person body present?
+       │    2. Person in ≥ 3 of last 10 frames? (from continuous buffer)
        │    → BOTH YES? → extend timer, recording continues
        │    → EITHER NO? → let session end normally, recording ends
        │
@@ -605,12 +641,13 @@ Example: Front door with any type of smart lock (occupancy sensor lock, kinetic 
 Person approaches door
        │
 T=0    │  ONVIF camera detects motion
-       │  GStreamer grabs frame
-       │  [UC8 GATE] Run YOLOv8n (person class 0)
-       │    → NO person detected? → SKIP (no session, no recording)
-       │    → YES person detected? → start recording + continue ▼
+       │  GStreamer grabs frames
+       │  [UC8 GATE] Run YOLOv8n on 10 frames (1 sec at 10fps)
+       │    → Person in ≥ 3 of 10 frames?
+       │    → NO  → SKIP (no session, no recording)
+       │    → YES → start recording + continue ▼
        │
-       │  START DETECTION IN SURVEILLANCE MODE
+T=1    │  START DETECTION IN SURVEILLANCE MODE
        │  trigger_face_detection(cam_ip, lock_asset_id=None)
        │  Context: started_by_onvif=True, surveillance_mode=True
        │  Session state: unlocked=false, block_further_unlocks=false
@@ -618,11 +655,14 @@ T=0    │  ONVIF camera detects motion
        │  GStreamer starts feeding frames
        │
        ▼
-T=0+   CONTINUOUS DETECTION LOOP (surveillance mode — no unlock possible)
+T=1+   CONTINUOUS DETECTION LOOP (surveillance mode — no unlock possible)
        ┌─────────────────────────────────────────────────────────┐
        │ INFERENCE (every frame):                                 │
        │   SCRFD  → face bboxes + 5-point landmarks              │
        │   ArcFace → 512-d embedding per face                    │
+       │   [UC8] YOLOv8n → person count (continuous)             │
+       │     Update max_simultaneous_persons                      │
+       │     Append to person_detection_buffer                    │
        │                                                          │
        │ PER-FACE IDENTIFICATION (every frame, every face):       │
        │   Compute cosine similarity against ALL categories       │
@@ -686,7 +726,7 @@ T=N    │  CLICKED EVENT arrives for lock "lock_123"
        ▼
 T=N+   DETECTION LOOP CONTINUES (unlock mode active for lock_123)
        ┌─────────────────────────────────────────────────────────┐
-       │ (Same inference + identification as above)               │
+       │ (Same inference + identification as above, incl. YOLOv8n)│
        │                                                          │
        │   ACTIVE → [UC1]                                         │
        │     If lock_123 not in unlocked_locks                    │
@@ -717,7 +757,7 @@ T=N+   DETECTION LOOP CONTINUES (unlock mode active for lock_123)
 T=exp  Timer about to expire
        │  [UC8 EXTEND] Dual-signal check:
        │    1. Motion recent? (motion event within MOTION_RECENCY_SEC)
-       │    2. Run YOLOv8n on current frame → person body present?
+       │    2. Person in ≥ 3 of last 10 frames? (from continuous buffer)
        │    → BOTH YES? → extend timer, recording continues
        │    → EITHER NO? → let session end normally, recording ends
        │
@@ -727,6 +767,9 @@ T=end  Session ends
        │  [UC4] If active_member_matched=true:
        │    distinct_faces = len(known_members) + len(unknown_face_clusters)
        │    If distinct_faces > memberCount → Publish group_size_mismatch
+       │    [UC4+UC8] If max_simultaneous_persons > distinct_faces:
+       │      → Additional signal: persons present but face never captured
+       │      → Include max_simultaneous_persons in payload
        │
        │  [UC6] Cross-session analysis (future):
        │  Same unknown face across sessions → loitering_alert
@@ -765,13 +808,13 @@ T=end  Session ends
 | UC5: Non-Active Member | Alert only | Alert + Block? | New |
 | UC6: Loitering | Alert | Alert | Future |
 | UC7: After-Hours | Alert | Alert + Policy | Future |
-| UC8: Human Body Detection | Gate + Extend | Gate + Extend | New |
+| UC8: Human Body Detection | Gate + Continuous + Extend | Gate + Continuous + Extend | New |
 | UC9: Anti-Spoofing | N/A | Gate unlock (dedicated camera) | Future |
 
 - "Block?" = BLOCKLIST sub-type only, configurable via `BLOCKLIST_PREVENTS_UNLOCK`
 - "Policy" = QUIET_HOURS_UNLOCK config decides whether to still unlock
 - "Gate unlock" = UC9 runs only on dedicated verification cameras (P2 with lock); blocks unlock if spoof detected
-- "Gate + Extend" = YOLOv8n gate runs as first step before SCRFD+ArcFace on all patterns; dual-signal extend-check (recent motion + person present) runs at timer expiry
+- "Gate + Continuous + Extend" = YOLOv8n gate runs as first step before SCRFD+ArcFace; during session YOLOv8n runs continuously on every frame (6.4% NPU) providing person count and max_simultaneous_persons; extend check uses continuous buffer (no extra inference)
 
 ---
 
@@ -783,9 +826,9 @@ T=end  Session ends
 - UC3: Unknown Face Logging
 - UC4: Group Size Validation
 - UC5: Non-Active Member Alert
-- UC8: Human Body Detection (session lifecycle control + recording gate — gate + extend)
+- UC8: Human Body Detection (session lifecycle control + continuous person count + recording gate)
 
-Three models: SCRFD (face detection) + ArcFace (face recognition) + YOLOv8n (human body detection). UC1-UC5 run within the continuous detection loop. UC8 operates at session lifecycle level: YOLOv8n gate runs before the detection loop starts (filters false ONVIF triggers and gates video recording — no person = no session = no recording), and dual-signal extend-check (recent motion + YOLOv8n person present) runs when the timer is about to expire (recording continues with session). Motion recency naturally limits session duration — no explicit cap needed.
+Three models: SCRFD (face detection) + ArcFace (face recognition) + YOLOv8n (human body detection). UC1-UC5 run within the continuous detection loop. UC8 operates at three levels: (1) **Gate** — YOLOv8n runs on 10 frames (1 second at 10fps) before the detection loop starts, person must be detected in at least 3 of 10 frames to pass (filters false ONVIF triggers, gates video recording — no person = no session = no recording). (2) **Continuous** — during the session, YOLOv8n runs on every frame alongside SCRFD+ArcFace at 6.4% NPU, providing real-time person count and `max_simultaneous_persons` for UC4 enhancement. (3) **Extend** — at timer expiry, checks the continuous person detection buffer (person in ≥3 of last 10 frames) plus motion recency — no extra inference needed. Motion recency naturally limits session duration — no explicit cap needed.
 
 Two camera-lock patterns: P1 (no lock — surveillance only) and P2 (camera with lock(s) — clicked event required for unlock). All locks require a "clicked" event (occupancy sensor or LOCK_BUTTON press) to unlock.
 
@@ -804,9 +847,9 @@ The following diagrams show only the initial scope use cases (UC1-UC5, UC8). Fut
 ONVIF motion
     │
     ▼
-[UC8 GATE] YOLOv8n → person? ─NO─→ SKIP (no session, no recording)
+[UC8 GATE] YOLOv8n on 10 frames → person in ≥3? ─NO─→ SKIP (no session, no recording)
     │
-   YES
+   YES (1 sec later)
     ▼
 Start recording + detection session
     │
@@ -816,6 +859,8 @@ Start recording + detection session
 │                                                     │
 │   SCRFD → face bbox                                 │
 │   ArcFace → 512-d embedding                         │
+│   [UC8] YOLOv8n → person count (continuous, 6.4%)  │
+│     Update max_simultaneous_persons                 │
 │                                                     │
 │   Match against ALL categories:                     │
 │                                                     │
@@ -827,7 +872,7 @@ Start recording + detection session
 └─────────────────────────────────────────────────────┘
     │
     ▼
-Timer expiry → [UC8 EXTEND] motion recent + person present?
+Timer expiry → [UC8 EXTEND] motion recent + person in ≥3 of last 10? (buffer)
     │
   BOTH YES → extend timer
   EITHER NO → end session
@@ -842,9 +887,9 @@ Session ends (no UC4 — no door context)
 ONVIF motion
     │
     ▼
-[UC8 GATE] YOLOv8n → person? ─NO─→ SKIP (no session, no recording)
+[UC8 GATE] YOLOv8n on 10 frames → person in ≥3? ─NO─→ SKIP (no session, no recording)
     │
-   YES
+   YES (1 sec later)
     ▼
 Start recording + detection session (SURVEILLANCE MODE)
 Session state: clicked_locks={}, unlocked_locks={}, unlocked=false
@@ -855,6 +900,8 @@ Session state: clicked_locks={}, unlocked_locks={}, unlocked=false
 │                                                     │
 │   SCRFD → face bbox                                 │
 │   ArcFace → 512-d embedding                         │
+│   [UC8] YOLOv8n → person count (continuous, 6.4%)  │
+│     Update max_simultaneous_persons                 │
 │                                                     │
 │   BLOCKLIST → [UC5] Alert (HIGH)                   │
 │               Set block_further_unlocks=true        │
@@ -883,7 +930,7 @@ Session state: clicked_locks={}, unlocked_locks={}, unlocked=false
     │◄─────────────────────────────────┘
     │
     ▼
-Timer expiry → [UC8 EXTEND] motion recent + person present?
+Timer expiry → [UC8 EXTEND] motion recent + person in ≥3 of last 10? (buffer)
     │
   BOTH YES → extend timer
   EITHER NO → end session
@@ -895,6 +942,8 @@ Session ends
 [UC4] If active_member_matched:
       distinct_faces = len(known_members) + len(unknown_face_clusters)
       If distinct_faces > memberCount → group_size_mismatch alert
+      [UC4+UC8] If max_simultaneous_persons > distinct_faces:
+        → Additional signal in payload (persons not face-captured)
 ```
 
 ### UC Applicability (Initial Scope Only)
@@ -906,7 +955,7 @@ Session ends
 | UC3: Unknown Face | Log + S3 | Log + S3 |
 | UC4: Group Size | N/A | Alert at session end |
 | UC5: Non-Active | Alert | Alert + Block |
-| UC8: Body Detection | Gate + Extend | Gate + Extend |
+| UC8: Body Detection | Gate + Continuous + Extend | Gate + Continuous + Extend |
 
 ---
 
@@ -981,8 +1030,12 @@ FACE_IOU_THRESHOLD=0.5                # Bbox IoU threshold for spatial continuit
 INACTIVE_MEMBER_DAYS_BACK=30          # Days to look back for past guests
 BLOCKLIST_PREVENTS_UNLOCK=true        # Block unlock for entire session if blocklist match
 
-# UC8: Human Body Detection (session lifecycle control)
+# UC8: Human Body Detection (gate + continuous + extend)
 YOLO_DETECT_THRESHOLD=0.5             # YOLOv8n confidence threshold for person class 0
+YOLO_GATE_FRAMES=10                   # Number of frames for gate check (at 10fps = 1 second)
+YOLO_GATE_MIN_DETECTIONS=3            # Min frames with person detected to pass gate (any 3 of 10)
+YOLO_EXTEND_LOOKBACK=10              # Number of recent frames from continuous buffer to check at extend
+YOLO_EXTEND_MIN_DETECTIONS=3         # Min frames with person detected to pass extend check
 MOTION_RECENCY_SEC=5                  # Seconds to consider a motion event "recent" for dual-signal extension
 
 # Feature flags
@@ -1099,10 +1152,10 @@ Each `FaceResult` object must have at minimum:
 18. **Two-threshold approach for masked faces**: `FACE_DETECT_THRESHOLD` (SCRFD, lower, e.g. 0.3) and `FACE_RECOG_THRESHOLD` (ArcFace, higher, e.g. 0.45). Masked faces pass detection but fail recognition → classified as unknown → still counted in UC4 via embedding + bbox IoU clustering. Per-camera threshold tuning possible since each camera has fixed angle/lighting/distance
 19. **UC6 requires cloud**: Loitering detection needs unknown face embeddings persisted across sessions over days/weeks — cloud-side data aggregation
 20. **UC7 deferred**: Trivial time check but deferred to reduce initial scope
-21. **UC8 redefined and moved to initial scope**: UC8 changed from "Human Without Face Detection" (alerting) to "Human Body Detection" (session lifecycle control). Two roles: (1) Gate — YOLOv8n filters false ONVIF triggers (wind/shadow/animal) before starting SCRFD+ArcFace, (2) Extend — dual-signal check (recent motion + YOLOv8n person present) at timer expiry. Runs gate-only (1 inference at session start + 1 at each timer expiry check), not every frame — minimal NPU impact
+21. **UC8 redefined and moved to initial scope**: UC8 changed from "Human Without Face Detection" (alerting) to "Human Body Detection" (session lifecycle control + continuous person presence). Three roles: (1) Gate — YOLOv8n runs on `YOLO_GATE_FRAMES` (10) frames before session, person must be detected in ≥ `YOLO_GATE_MIN_DETECTIONS` (3) frames to pass, filters false ONVIF triggers, (2) Continuous — YOLOv8n runs on every frame during session alongside SCRFD+ArcFace at 6.4% NPU (measured on Hailo-8 at 10fps), provides real-time person count and `max_simultaneous_persons` for UC4, (3) Extend — at timer expiry, checks continuous buffer (person in ≥3 of last 10 frames) + motion recency — zero additional NPU cost. Total per camera: ~41.4% (35% face + 6.4% YOLO). Two cameras: ~82.8%
 22. **YOLOv8n gate on both patterns**: Both camera-lock patterns (P1-P2) run YOLOv8n as first step after ONVIF motion, before SCRFD+ArcFace. Filters non-human ONVIF triggers
 23. *(Removed — surveillance mode is now the default P2 behavior, not a separate pattern)*
-24. **Session extension by dual-signal detection**: Session extension at timer expiry requires both recent motion (event within `MOTION_RECENCY_SEC`) AND YOLOv8n person detection — either signal alone is insufficient. No explicit cap needed — motion recency is a natural session limiter (ONVIF is single-fire, so motion signal goes stale unless new events arrive)
+24. **Session extension by dual-signal detection**: Session extension at timer expiry requires both recent motion (event within `MOTION_RECENCY_SEC`) AND person presence in recent frames from the continuous detection buffer (person in ≥ `YOLO_EXTEND_MIN_DETECTIONS` of last `YOLO_EXTEND_LOOKBACK` frames) — either signal alone is insufficient. No separate YOLOv8n burst needed — the continuous buffer already has the data. No explicit cap needed — motion recency is a natural session limiter (ONVIF is single-fire, so motion signal goes stale unless new events arrive)
 25. **UC9 dedicated camera with multi-layer defense**: Face anti-spoofing runs only on dedicated close-range verification cameras near locks. Four defense layers: (1) face recognition, (2) face size validation against expected range at known distance, (3) device detection via YOLOv8n COCO classes 62/63/67 — detects phone/tablet/screen containing the face, (4) blink pattern challenge via tddfa_mobilenet_v1 68-point landmarks + Eye Aspect Ratio. Blink pattern is per-reservation, delivered via booking app/SMS — no on-site instruction device needed. All four models (SCRFD, ArcFace, tddfa_mobilenet_v1, YOLOv8n) have pre-compiled Hailo HEFs. YOLOv8n shared with UC8
 26. *(Removed — watch mode and `BODY_EXTEND_MAX_SEC` cap eliminated. Dual-signal extension (motion recency + person detection) naturally limits sessions without an explicit cap or post-cap state machine)*
 27. **UC8 gates video recording**: YOLOv8n person detection gates the existing GStreamer RTSP recording pipeline alongside SCRFD+ArcFace. No person = no recording = storage savings on false ONVIF triggers. No new config variables — uses existing GStreamer recording parameters (`RECORD_AFTER_MOTION_SECOND`, pre-buffer)
@@ -1110,5 +1163,7 @@ Each `FaceResult` object must have at minimum:
 29. **"Clicked" unifies occupancy and LOCK_BUTTON signals**: Occupancy sensor activation (keypad locks like MTR001DC/MTR001AC) and LOCK_BUTTON press (GreenPower_2 kinetic switch) are treated as the same trigger type — a "clicked" event that makes a specific lock eligible for unlock
 30. **Immediate unlock on clicked if member already matched**: When a clicked event arrives and `active_member_matched=true` already (face was recognized during surveillance mode), unlock happens immediately without requiring the person to re-present their face. This avoids poor UX where the system "forgets" a match
 31. **`member_detected` payload simplification**: `onvifTriggered` field removed (ONVIF never triggers unlock). `occupancyTriggeredLocks` renamed to `clickedLocks` (reflects unified clicked signal from occupancy sensor + LOCK_BUTTON). Payload now uses `clickedLocks` to indicate which locks were unlocked via clicked events
-32. **Session extension dual-signal**: Both recent motion event (within `MOTION_RECENCY_SEC`) AND YOLOv8n person detection required to extend session at timer expiry. Person detection alone may false-positive on static figures; motion alone may be non-human. Together they confirm something is moving AND it's a person. The dual-signal requirement also eliminates the need for `BODY_EXTEND_MAX_SEC` cap and watch mode — motion recency is a natural session limiter (ONVIF is single-fire, so without new motion events the signal goes stale and the session ends). Motion source is event-based and pluggable — currently ONVIF events (single-fire, recency based on last event timestamp), future H265 HW frame-level decoding will emit equivalent timestamped events per camera via the same interface. The motion source's **notification gap** (camera-side, tunable per camera/location) works together with `MOTION_RECENCY_SEC` to govern session duration: the notification gap controls how frequently motion events are emitted, while `MOTION_RECENCY_SEC` defines how recent an event must be. Both ONVIF and future H265 HW motion sources support configurable notification gaps. New config: `MOTION_RECENCY_SEC`
+32. **Session extension dual-signal**: Both recent motion event (within `MOTION_RECENCY_SEC`) AND person presence in recent frames from the continuous YOLOv8n detection buffer (person in ≥ `YOLO_EXTEND_MIN_DETECTIONS` of last `YOLO_EXTEND_LOOKBACK` frames) required to extend session at timer expiry. No separate YOLOv8n burst needed — the continuous buffer already has the data, adding zero NPU cost at extend time. Person detection alone may false-positive on static figures; motion alone may be non-human. Together they confirm something is moving AND it's a person. The dual-signal requirement eliminates the need for `BODY_EXTEND_MAX_SEC` cap and watch mode — motion recency is a natural session limiter (ONVIF is single-fire, so without new motion events the signal goes stale and the session ends). Motion source is event-based and pluggable — currently ONVIF events (single-fire, recency based on last event timestamp), future H265 HW frame-level decoding will emit equivalent timestamped events per camera via the same interface. The motion source's **notification gap** (camera-side, tunable per camera/location) works together with `MOTION_RECENCY_SEC` to govern session duration. New config: `MOTION_RECENCY_SEC`, `YOLO_EXTEND_LOOKBACK`, `YOLO_EXTEND_MIN_DETECTIONS`
+34. **UC8 multi-frame gate (10 frames, any 3 of 10)**: Single-frame YOLOv8n detection is too fragile for the gate decision. The gate is high-stakes — a false negative skips the entire SCRFD+ArcFace session (no face recognition at all). A person may be missed in any single frame due to motion blur, partial occlusion, or awkward body angle. Running YOLOv8n over `YOLO_GATE_FRAMES` (default: 10, = 1 second at 10fps) frames and requiring person detection in ≥ `YOLO_GATE_MIN_DETECTIONS` (default: 3) frames provides robust detection. The "any 3 of 10" threshold balances: single-frame shadows/reflections won't trigger false sessions (requires 3+ frames), while a real person only needs to be visible in 3 of 10 frames (tolerates occlusion/blur in 7 frames). Gate adds 1 second latency before session starts — acceptable since person is still approaching after ONVIF fired. Extend no longer uses a separate burst — it reads from the continuous detection buffer (see Decision 35). New config: `YOLO_GATE_FRAMES=10`, `YOLO_GATE_MIN_DETECTIONS=3`
+35. **UC8 continuous YOLOv8n during session**: Feasibility testing on Hailo-8 measured YOLOv8n at only **6.4% NPU utilization** at 10fps continuous (via `HAILO_MONITOR`). This is low enough to run alongside SCRFD+ArcFace (~35%) with comfortable headroom (~41.4% total per camera, ~82.8% for 2 cameras). At this cost, burst-only gate/extend windows are not justified — YOLOv8n runs on every frame during the detection session. Benefits: (1) extend decisions read from the continuous buffer instead of running a separate inference burst — zero additional NPU cost at extend time, (2) per-frame person count enables `max_simultaneous_persons` accumulator — the peak person count seen in any single frame during the session, (3) `max_simultaneous_persons` enhances UC4 by catching people whose faces were never captured (back turned, masked, outside camera angle) — if max_simultaneous_persons > distinct_face_count, the system knows faces were missed. Note: this is a lower bound on total individuals (not total distinct — that would require Person Re-ID which is not needed for current scope)
 33. **Risk assessment for unbounded session extension**: Six risks were evaluated after removing the explicit session cap (`BODY_EXTEND_MAX_SEC`) and watch mode. Resolutions: (1) **Unbounded sessions on RPi** — mitigated by the ONVIF notification gap, which is tunable per camera/location; busy locations set 20-30s gap to naturally space out sessions, quiet locations set 0s for maximum responsiveness. (2) **ONVIF not truly single-fire** — the ONVIF notification gap is camera-side and reliably throttles ALL motion events, confirming single-fire behavior. (3) **Future H265 HW motion defeats limiter** — H265 HW motion source will also have a notification gap setting, same as ONVIF; the notification gap is a property of the motion source abstraction. (4) **Recording gaps for lingering persons** — acceptable; a person standing still is not a threat, and recording resumes on the next motion event. (5) **Session state reset on re-trigger** — acceptable; each session is independent, and cloud-side can deduplicate across sessions. (6) **`MOTION_RECENCY_SEC` hard to tune** — `MOTION_RECENCY_SEC` is a global default; operators tune the ONVIF notification gap per camera to match their location's activity level. Conclusion: no explicit session cap needed — the combination of motion source notification gap (camera-side, per-location) and `MOTION_RECENCY_SEC` (software-side, global) provides sufficient session duration control
