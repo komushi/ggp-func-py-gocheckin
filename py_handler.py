@@ -1100,7 +1100,7 @@ def fetch_scanner_output_queue():
                     members = message.get('members', [])
 
                     # Context lookup — once per queue entry
-                    occupancy_triggered_locks = []
+                    clicked_locks = []
                     trigger_started_at = 0.0  # T0: when trigger_face_detection was called
                     if cam_ip:
                         snapshot_key = (cam_ip, detecting_txn) if detecting_txn else None
@@ -1113,7 +1113,7 @@ def fetch_scanner_output_queue():
                             context = trigger_lock_context.get(cam_ip, {'specific_locks': set()})
                             logger.warning(f"fetch_scanner_output_queue, no context snapshot found for detecting_txn={detecting_txn}, using current context")
 
-                        occupancy_triggered_locks = list(context.get('specific_locks', set()))
+                        clicked_locks = list(context.get('specific_locks', set()))
 
                         # Clear context — once
                         if snapshot_key and snapshot_key in context_snapshots:
@@ -1162,9 +1162,9 @@ def fetch_scanner_output_queue():
                         keyNotified = member_entry['keyNotified']
 
                         # Add context to each member payload
-                        member_payload['occupancyTriggeredLocks'] = occupancy_triggered_locks
+                        member_payload['clickedLocks'] = clicked_locks
 
-                        logger.debug(f"fetch_scanner_output_queue, member_detected: {member_payload['fullName']} occupancyTriggeredLocks={occupancy_triggered_locks}")
+                        logger.debug(f"fetch_scanner_output_queue, member_detected: {member_payload['fullName']} clickedLocks={clicked_locks}")
 
                         if not keyNotified:
                             update_member(member_payload['reservationCode'], member_payload['memberNo'])
