@@ -38,23 +38,11 @@ import gstreamer_threading as gst
 # FACE_BACKEND is set by detect_face_backend() called from claim_scanner()
 FACE_BACKEND = 'insightface'  # Default, will be updated by detect_face_backend()
 
-# Try importing Hailo backend (may not be available on all systems)
-try:
-    import face_recognition_hailo as fdm_hailo
-    from face_recognition_hailo import HailoFaceApp
-    HAILO_IMPORT_AVAILABLE = True
-except ImportError:
-    fdm_hailo = None
-    HailoFaceApp = None
-    HAILO_IMPORT_AVAILABLE = False
-
-# InsightFace backend (always available as fallback)
-import face_recognition as fdm_insightface
-from insightface.app import FaceAnalysis
-
 from match_handler import DefaultMatchHandler
 
 # Active face detection module - set by detect_face_backend()
+# Backend modules (face_recognition / face_recognition_hailo) are imported
+# lazily in detect_face_backend() to avoid loading unused runtimes.
 fdm = None
 
 # import onvif_process as onvif
@@ -345,6 +333,8 @@ def monitor_detector():
 
 
 def init_insightface_app(model=None):
+    from insightface.app import FaceAnalysis
+
     class FaceAnalysisChild(FaceAnalysis):
         def get(self, img, max_num=0, det_size=(640, 640)):
             if det_size is not None:
@@ -364,6 +354,8 @@ def init_insightface_app(model=None):
 
 def init_hailo_app():
     """Initialize Hailo-8 accelerated face recognition backend."""
+    from face_recognition_hailo import HailoFaceApp
+
     global face_app
 
     if face_app is None:
@@ -997,15 +989,21 @@ def detect_face_backend():
     # If explicitly insightface, skip Hailo entirely
     if requested == 'insightface':
         FACE_BACKEND = 'insightface'
-        fdm = fdm_insightface
+        import face_recognition as fdm
         logger.info("detect_face_backend: forced insightface by INFERENCE_BACKEND")
         return FACE_BACKEND
 
-    # For "hailo" or "auto", try Hailo if import is available
-    if not HAILO_IMPORT_AVAILABLE:
+    # For "hailo" or "auto", try importing Hailo backend
+    try:
+        import face_recognition_hailo
+        hailo_import_available = True
+    except ImportError:
+        hailo_import_available = False
+
+    if not hailo_import_available:
         FACE_BACKEND = 'insightface'
-        fdm = fdm_insightface
-        logger.info("detect_face_backend: hailo_platform not installed, using insightface")
+        import face_recognition as fdm
+        logger.info("detect_face_backend: face_recognition_hailo not available, using insightface")
         return FACE_BACKEND
 
     try:
@@ -1015,11 +1013,11 @@ def detect_face_backend():
         vdevice.release()
 
         FACE_BACKEND = 'hailo'
-        fdm = fdm_hailo
+        fdm = face_recognition_hailo
         logger.info("detect_face_backend: Hailo-8 detected, using hailo backend")
     except Exception as e:
         FACE_BACKEND = 'insightface'
-        fdm = fdm_insightface
+        import face_recognition as fdm
         if requested == 'hailo':
             logger.warning(f"detect_face_backend: INFERENCE_BACKEND=hailo but Hailo not available ({e}), falling back to insightface")
         else:
