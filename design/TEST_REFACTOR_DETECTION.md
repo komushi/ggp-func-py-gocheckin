@@ -49,7 +49,7 @@ These tests are backend-independent — they test TS handler logic, recording pi
 | # | Scenario | Status | Notes |
 |---|---|---|---|
 | 4b | ONVIF → surveillance mode (P2, Hailo) | | Detection starts but cannot unlock until clicked |
-| 7b | Force detect (Hailo) | | P2 gate bypassed, detection starts — verify Hailo inference runs |
+| 7b | Force detect (Hailo) | PASS | P2 gate bypassed, Hailo NPU ran, 100 frames, 9860ms, no match |
 | 9 | Clicked upgrades surveillance → unlock | | Face matched during surveillance, click arrives → immediate unlock (Decision 30) |
 | 10 | Blocklist blocks unlock (UC3) | | Blocklist detected before click → click arrives → unlock denied |
 
@@ -345,14 +345,24 @@ PY: SESSION END - frames: 92, identified: False, duration: 13699ms
 4. Faces detected and matched → logged but no unlock (no clicked locks)
 
 **Verify**:
-- [ ] PY log: `function_handler force_detect` received
-- [ ] PY log: `trigger_face_detection - started` — P2 gate bypassed
-- [ ] Hailo inference runs (SCRFD+ArcFace on NPU)
-- [ ] Faces detected, matches logged but no `member_detected` unlock published
-- [ ] Session ends after TIMER_DETECT with `identified: False` or surveillance-only matches
-- [ ] No lock unlock
+- [x] PY log: `function_handler force_detect` received
+- [x] PY log: `trigger_face_detection - started for camera: 192.168.11.62` — P2 gate bypassed
+- [x] Hailo inference runs: `face_recognition_hailo.py:593` with `pre_norm` values (SCRFD+ArcFace on NPU)
+- [x] 3 faces detected per frame, all below threshold (best_sim ~0.06-0.09)
+- [x] Session ends: `SESSION END - frames: 100, identified: False, duration: 9860ms`
+- [x] No `member_detected` published, no lock unlock
 
-**Result**:
+**Result**: PASS (2026-02-23 12:42:47 JST, Hailo)
+
+**Log trace**:
+```
+PY: function_handler force_detect (handler version 683, Hailo backend)
+PY: trigger_face_detection - started for camera: 192.168.11.62
+PY: face_recognition_hailo.py — detection frame #1, 3 faces, pre_norm: 12.66/11.32/12.19
+PY: all detections below threshold (best_sim ~0.06-0.09, best_match: fujita)
+PY: SESSION END - frames: 100, identified: False, duration: 9860ms
+(no member_detected published, no lock unlock)
+```
 
 ---
 
