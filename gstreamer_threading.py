@@ -146,6 +146,11 @@ class StreamCapture(threading.Thread):
         self.recording_lock = threading.Lock()
         self.detecting_lock = threading.Lock()
 
+        # UC8: Buffer for decoded BGR frames (for gate check)
+        # Stores last N decoded BGR frames for UC8 gate check
+        self.bgr_buffer = deque(maxlen=30)  # Last 30 decoded frames
+        self.bgr_buffer_lock = threading.Lock()
+
         self.last_sampling_time = None
         self.is_playing = False
         self.is_feeding = False
@@ -191,32 +196,28 @@ class StreamCapture(threading.Thread):
             return list(self.recording_buffer)
 
     def get_bgr_frames_for_gate_check(self, num_frames=10):
-        """Capture N BGR frames from recording buffer for UC8 gate check.
+        """Capture N BGR frames from decoded frame buffer for UC8 gate check.
 
         Args:
             num_frames: Number of frames to capture (default: 10)
 
         Returns:
-            List of BGR numpy arrays
+            List of BGR numpy arrays (decoded frames ready for YOLOv8n)
         """
-        with self.recording_lock:
-            frames = []
-            count = 0
-            for timestamp, sample in self.recording_buffer:
-                if count >= num_frames:
-                    break
-                try:
-                    bgr_frame = self.gst_to_opencv(sample)
-                    frames.append(bgr_frame)
-                    count += 1
-                except Exception as e:
-                    logger.warning(f"{self.cam_ip} get_bgr_frames_for_gate_check: failed to convert sample: {e}")
-                    continue
+        with self.bgr_buffer_lock:
+            if not self.bgr_buffer:
+                logger.warning(f"{self.cam_ip} get_bgr_frames_for_gate_check: no decoded frames in buffer")
+                return []
+            # Return the most recent frames (already decoded BGR)
+            frames = list(self.bgr_buffer)[-num_frames:]
+            logger.info(f"{self.cam_ip} get_bgr_frames_for_gate_check: returning {len(frames)} BGR frames")
             return frames
 
     def clear_all_frames(self):
         with self.recording_lock:
             self.recording_buffer.clear()
+        with self.bgr_buffer_lock:
+            self.bgr_buffer.clear()
     
     def push_detecting_buffer(self):
         logger.debug(f"{self.cam_ip} push_detecting_buffer, detecting_buffer length: {len(self.recording_buffer)}")
@@ -369,6 +370,10 @@ class StreamCapture(threading.Thread):
                 return Gst.FlowReturn.OK
 
             arr = self.gst_to_opencv(sample)
+
+            # UC8: Store decoded BGR frame in buffer for gate check
+            with self.bgr_buffer_lock:
+                self.bgr_buffer.append(arr)
 
             if not self.cam_queue.full():
                 if frame_time is not None:
@@ -544,6 +549,8 @@ class StreamCapture(threading.Thread):
                     self.detecting_buffer.clear()
                 with self.recording_lock:
                     self.recording_buffer.clear()
+                with self.bgr_buffer_lock:
+                    self.bgr_buffer.clear()
                 with self.metadata_lock:
                     self.metadata_store.clear()
 
@@ -761,6 +768,9 @@ class StreamCapture(threading.Thread):
             self.is_feeding = False
             self.feeding_count = 0
             self.decoding_count = 0
+
+        with self.bgr_buffer_lock:
+            self.bgr_buffer.clear()
 
         with self.metadata_lock:
             self.metadata_store.clear()
