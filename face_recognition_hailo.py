@@ -1015,10 +1015,13 @@ class FaceRecognition(FaceRecognitionBase):
 
         # UC8 Role 2: Count persons (continuous detection) - only if UC8 is enabled
         person_count, max_simultaneous = 0, 0
-        if self.yolo_app and is_uc8_enabled(cam_ip):
-            person_count, max_simultaneous = self.yolo_app.count_persons(raw_img, cam_ip)
-        elif self.yolo_app and not is_uc8_enabled(cam_ip):
-            logger.debug(f"{cam_ip} UC8 toggle disabled, skipping person detection")
+        if is_uc8_enabled(cam_ip):
+            # Use HailoUC8App if available (returns tuple), otherwise HailoYoloApp (returns int)
+            if self.uc8_app:
+                person_count, max_simultaneous = self.uc8_app.count_persons(raw_img, cam_ip)
+            elif self.yolo_app:
+                person_count = self.yolo_app.count_persons(raw_img)
+                max_simultaneous = person_count  # Fallback: use current count as max
 
         # UC1/3/4/5: Face detection and recognition
         current_time = time.time()

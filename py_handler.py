@@ -1691,7 +1691,11 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
                     logger.warning(f'trigger_face_detection - UC8 gate check FAILED for {cam_ip}: person not detected in {gate_min_detections}+ frames')
                     return  # Reject detection - no person present
 
-            logger.info(f'trigger_face_detection - UC8 gate check PASSED for {cam_ip}')
+                logger.info(f'trigger_face_detection - UC8 gate check PASSED for {cam_ip}')
+            else:
+                # No BGR frames available (recording buffer has encoded H.264)
+                # Skip gate check and proceed with detection
+                logger.info(f'trigger_face_detection - UC8 gate check skipped for {cam_ip}: no BGR frames in buffer (encoded H.264)')
         elif not uc8_enabled:
             logger.info(f'trigger_face_detection - UC8 toggle disabled for {cam_ip}, skipping gate check')
 
