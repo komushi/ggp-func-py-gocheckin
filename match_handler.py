@@ -197,7 +197,18 @@ class SecurityHandlerChain(MatchHandler):
         self.default_match_handler = DefaultMatchHandler(scanner_output_queue)
 
     def _is_uc_enabled(self, cam_ip: str, uc_field: str) -> bool:
-        """Check if a UC is enabled for a camera."""
+        """Check if a UC is enabled for a camera.
+
+        Supports environment variable overrides for testing:
+        - UC1_UC2_ALWAYS_ENABLED
+        - UC5_ALWAYS_ENABLED
+        """
+        # Environment variable overrides for testing
+        if uc_field == 'uc1_uc2_enabled' and os.environ.get('UC1_UC2_ALWAYS_ENABLED', '').lower() == 'true':
+            return True
+        if uc_field == 'uc5_enabled' and os.environ.get('UC5_ALWAYS_ENABLED', '').lower() == 'true':
+            return True
+
         if not self.get_uc_toggles_fn:
             return True  # Default to enabled if no toggle function
         toggles = self.get_uc_toggles_fn(cam_ip)

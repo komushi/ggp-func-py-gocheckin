@@ -801,8 +801,8 @@ T=end  Session ends
 
 | UC | P1 (no lock) | P2 (with lock) | Scope |
 |----|:---:|:---:|:---:|
-| UC1: Member ID | Log only | Unlock specific lock (via clicked) | Current |
-| UC2: Tailgating | N/A (no door) | Alert (after clicked-triggered unlock) | New |
+| UC1: Member ID | N/A | Unlock specific lock (via clicked) | Current |
+| UC2: Tailgating | N/A | Alert (after clicked-triggered unlock) | New |
 | UC3: Unknown Face | Log + S3 | Log + S3 | New |
 | UC4: Group Size | N/A (no door context) | Alert | New |
 | UC5: Non-Active Member | Alert only | Alert + Block? | New |
@@ -815,6 +815,65 @@ T=end  Session ends
 - "Policy" = QUIET_HOURS_UNLOCK config decides whether to still unlock
 - "Gate unlock" = UC9 runs only on dedicated verification cameras (P2 with lock); blocks unlock if spoof detected
 - "Gate + Continuous + Extend" = YOLOv8n gate runs as first step before SCRFD+ArcFace; during session YOLOv8n runs continuously on every frame (6.4% NPU) providing person count and max_simultaneous_persons; extend check uses continuous buffer (no extra inference)
+
+## Per-UC Toggle Groups (Hailo devices)
+
+On Hailo-enabled devices, UC enablement is configurable **per camera** via toggle groups. Each toggle group can be independently enabled or disabled per camera. This allows device owners to choose which security features to activate based on each camera's role and lock pattern.
+
+**Non-Hailo devices (InsightFace CPU):** Only UC1 is available. No toggles — the current "detect once, stop" behavior applies. UC2-UC5, UC8 require the continuous detection loop and NPU models that only Hailo provides.
+
+### Toggle Configuration Flow
+
+1. **Cloud** sets per-camera UC toggles via **IoT device shadow** (desired state)
+2. **Device** receives shadow delta, persists toggle config to **`gocheckin_asset`** local DynamoDB table (keyed by camera)
+3. **Runtime** reads toggle config from `gocheckin_asset` for each camera at session start
+
+This follows the existing pattern where camera configuration (thresholds, recording parameters) flows through IoT shadow → local table → runtime.
+
+### Toggle Groups
+
+| Toggle | UCs | P1 (no lock) | P2 (with lock) | Field in `gocheckin_asset` |
+|--------|-----|:---:|:---:|--------|
+| **UC1+UC2** (Identity + Tailgating) | UC1, UC2 | N/A | Toggleable | `enable_uc1_uc2` |
+| **UC3** (Unknown Face) | UC3 | Toggleable | Toggleable | `enable_uc3` |
+| **UC4+UC8** (Group Size + Body Detection) | UC4, UC8 | N/A | Toggleable | `enable_uc4_uc8` |
+| **UC5** (Non-Active Member) | UC5 | Toggleable | Toggleable | `enable_uc5` |
+| **UC8** (Body Detection standalone) | UC8 | Toggleable | N/A (use UC4+UC8) | `enable_uc8` |
+
+### Rules
+
+1. **UC1+UC2 is a fixed pair on P2.** UC1 provides the `unlocked=true` session state that UC2 depends on. Tailgating detection without door unlock has no meaning. On P1 (no lock), this toggle is N/A — there is no door to unlock or tailgate through.
+
+2. **UC4+UC8 is a fixed pair on P2.** UC4 (Group Size) requires `max_simultaneous_persons` from UC8's continuous YOLOv8n detection as a cross-check signal. UC4 compares `distinct_face_count` vs `memberCount` — this only makes sense at an entry point with a door (P2). On P1 (no lock), UC4 has no meaning.
+
+3. **UC8 is standalone on P1.** On P1 cameras, UC8 provides session lifecycle control (gate, continuous person count, extend) without UC4's group size check. The gate filters false ONVIF triggers; the extend uses dual-signal (motion + person presence). This is useful even without door context.
+
+4. **UC3 and UC5 are independently toggleable** on both P1 and P2. They have no dependencies on other UCs.
+
+5. **Toggle is N/A = silently ignored.** If `enable_uc1_uc2=true` is set on a P1 camera, the system ignores it (no error, no effect). Pattern applicability takes precedence over toggle setting.
+
+6. **Per-camera granularity.** Different cameras on the same device can have different toggle configurations. A P2 entrance camera may have all UCs enabled, while a P1 hallway camera on the same device may only have UC8 enabled.
+
+### Available configurations by pattern
+
+```
+P1 (no lock):     UC3, UC5, UC8           (each independently toggleable per camera)
+P2 (with lock):   UC1+UC2, UC3, UC4+UC8, UC5  (each independently toggleable per camera)
+```
+
+### Behavioral impact when toggles are OFF
+
+| Toggle OFF | Effect |
+|------------|--------|
+| UC1+UC2 off (P2) | No face recognition, no unlock, no tailgating detection. Session still runs if UC4+UC8 is on (YOLOv8n gate + continuous). SCRFD+ArcFace do not run. |
+| UC3 off | Unknown faces not logged or saved to S3. Detection loop still runs for other enabled UCs. |
+| UC4+UC8 off (P2) | No YOLOv8n gate → ONVIF fires straight into SCRFD+ArcFace (more false triggers). No per-frame person count, no `max_simultaneous_persons`. Session extend falls back to motion-only (no dual-signal). |
+| UC5 off | Non-active/blocklist members not flagged. `BLOCKLIST_PREVENTS_UNLOCK` has no effect. |
+| UC8 off (P1) | Same as UC4+UC8 off: no YOLOv8n gate, no continuous person count, motion-only extend. |
+
+### Default configuration
+
+All toggles default to `true` on Hailo devices. Device owners opt out of specific UCs per camera by setting the toggle to `false` via IoT device shadow.
 
 ---
 
@@ -948,14 +1007,14 @@ Session ends
 
 ### UC Applicability (Initial Scope Only)
 
-| UC | P1 (no lock) | P2 (with lock) |
-|----|:---:|:---:|
-| UC1: Member ID | Log only | Unlock via clicked |
-| UC2: Tailgating | N/A | Alert (after unlock) |
-| UC3: Unknown Face | Log + S3 | Log + S3 |
-| UC4: Group Size | N/A | Alert at session end |
-| UC5: Non-Active | Alert | Alert + Block |
-| UC8: Body Detection | Gate + Continuous + Extend | Gate + Continuous + Extend |
+| UC | P1 (no lock) | P2 (with lock) | Toggle |
+|----|:---:|:---:|:---:|
+| UC1: Member ID | N/A | Unlock via clicked | `ENABLE_UC1_UC2` |
+| UC2: Tailgating | N/A | Alert (after unlock) | `ENABLE_UC1_UC2` |
+| UC3: Unknown Face | Log + S3 | Log + S3 | `ENABLE_UC3` |
+| UC4: Group Size | N/A | Alert at session end | `ENABLE_UC4_UC8` |
+| UC5: Non-Active | Alert | Alert + Block | `ENABLE_UC5` |
+| UC8: Body Detection | Gate + Continuous + Extend | Gate + Continuous + Extend | `ENABLE_UC8` (P1) / `ENABLE_UC4_UC8` (P2) |
 
 ---
 
@@ -1144,7 +1203,7 @@ Each `FaceResult` object must have at minimum:
 10. **Alert action**: IoT publish only (cloud handles notifications)
 11. **Focus**: Security use-cases prioritized
 12. **Architecture**: Separate inference backends from business logic (NFR2)
-13. **UC1 always runs**: On all camera-lock patterns including no-lock cameras (P1). On P1, UC1 publishes `member_detected` without unlock action (log only)
+13. *(Revised by Decision 36)* ~~UC1 always runs~~ — UC1+UC2 is now a toggleable fixed pair, only applicable on P2 (with lock). On P1, UC1 is N/A
 14. **Detection sequence is pattern-specific**: Two camera-lock patterns (P1-P2) define when detection starts, what triggers it, and what unlock actions result. Documented in Camera-Lock Patterns section with detailed timelines
 15. **Continuous detection loop**: Detection does NOT stop after UC1 match/unlock. The loop runs every frame for the full timer. Unlock is a one-time side effect; all UCs continue to fire on every subsequent frame. All handlers run on every frame (priority = evaluation order, not mutual exclusion)
 16. **Post-unlock blocklist policy**: If a blocklist person is detected AFTER the door has already been unlocked, the system does NOT re-lock (can't undo). Instead it sets `block_further_unlocks` to prevent any additional locks from being unlocked for the remainder of the session (e.g., a lock whose clicked event arrives later)
@@ -1167,3 +1226,4 @@ Each `FaceResult` object must have at minimum:
 34. **UC8 multi-frame gate (10 frames, any 3 of 10)**: Single-frame YOLOv8n detection is too fragile for the gate decision. The gate is high-stakes — a false negative skips the entire SCRFD+ArcFace session (no face recognition at all). A person may be missed in any single frame due to motion blur, partial occlusion, or awkward body angle. Running YOLOv8n over `YOLO_GATE_FRAMES` (default: 10, = 1 second at 10fps) frames and requiring person detection in ≥ `YOLO_GATE_MIN_DETECTIONS` (default: 3) frames provides robust detection. The "any 3 of 10" threshold balances: single-frame shadows/reflections won't trigger false sessions (requires 3+ frames), while a real person only needs to be visible in 3 of 10 frames (tolerates occlusion/blur in 7 frames). Gate adds 1 second latency before session starts — acceptable since person is still approaching after ONVIF fired. Extend no longer uses a separate burst — it reads from the continuous detection buffer (see Decision 35). New config: `YOLO_GATE_FRAMES=10`, `YOLO_GATE_MIN_DETECTIONS=3`
 35. **UC8 continuous YOLOv8n during session**: Feasibility testing on Hailo-8 measured YOLOv8n at only **6.4% NPU utilization** at 10fps continuous (via `HAILO_MONITOR`). This is low enough to run alongside SCRFD+ArcFace (~35%) with comfortable headroom (~41.4% total per camera, ~82.8% for 2 cameras). At this cost, burst-only gate/extend windows are not justified — YOLOv8n runs on every frame during the detection session. Benefits: (1) extend decisions read from the continuous buffer instead of running a separate inference burst — zero additional NPU cost at extend time, (2) per-frame person count enables `max_simultaneous_persons` accumulator — the peak person count seen in any single frame during the session, (3) `max_simultaneous_persons` enhances UC4 by catching people whose faces were never captured (back turned, masked, outside camera angle) — if max_simultaneous_persons > distinct_face_count, the system knows faces were missed. Note: this is a lower bound on total individuals (not total distinct — that would require Person Re-ID which is not needed for current scope)
 33. **Risk assessment for unbounded session extension**: Six risks were evaluated after removing the explicit session cap (`BODY_EXTEND_MAX_SEC`) and watch mode. Resolutions: (1) **Unbounded sessions on RPi** — mitigated by the ONVIF notification gap, which is tunable per camera/location; busy locations set 20-30s gap to naturally space out sessions, quiet locations set 0s for maximum responsiveness. (2) **ONVIF not truly single-fire** — the ONVIF notification gap is camera-side and reliably throttles ALL motion events, confirming single-fire behavior. (3) **Future H265 HW motion defeats limiter** — H265 HW motion source will also have a notification gap setting, same as ONVIF; the notification gap is a property of the motion source abstraction. (4) **Recording gaps for lingering persons** — acceptable; a person standing still is not a threat, and recording resumes on the next motion event. (5) **Session state reset on re-trigger** — acceptable; each session is independent, and cloud-side can deduplicate across sessions. (6) **`MOTION_RECENCY_SEC` hard to tune** — `MOTION_RECENCY_SEC` is a global default; operators tune the ONVIF notification gap per camera to match their location's activity level. Conclusion: no explicit session cap needed — the combination of motion source notification gap (camera-side, per-location) and `MOTION_RECENCY_SEC` (software-side, global) provides sufficient session duration control
+36. **Per-camera UC toggle groups**: On Hailo-enabled devices, UCs are configurable **per camera** via toggle groups. Toggle config is set through **IoT device shadow** (cloud → device) and persisted in the **`gocheckin_asset`** local DynamoDB table (keyed by camera). At session start, the detection loop reads the camera's toggle config from `gocheckin_asset`. Toggle groups are designed around functional dependencies: (1) **UC1+UC2** (`enable_uc1_uc2`) — fixed pair, P2 only. UC2 tailgating depends on UC1's `unlocked=true` session state. N/A on P1 (no door). (2) **UC3** (`enable_uc3`) — independent, both P1 and P2. (3) **UC4+UC8** (`enable_uc4_uc8`) — fixed pair, P2 only. UC4 group size check requires `max_simultaneous_persons` from UC8's continuous YOLOv8n. UC4 compares face count vs `memberCount` at an entry point — no meaning without a door. (4) **UC5** (`enable_uc5`) — independent, both P1 and P2. (5) **UC8 standalone** (`enable_uc8`) — P1 only. Provides session lifecycle (gate/extend/continuous) without UC4's group size check. On P2, UC8 is controlled by `enable_uc4_uc8` instead. All toggles default to `true`. Toggle set to N/A pattern is silently ignored. Different cameras on the same device can have different toggle configurations. Non-Hailo devices (InsightFace CPU) have no toggles — only the current UC1 "detect once, stop" behavior applies. Revises Decision 13

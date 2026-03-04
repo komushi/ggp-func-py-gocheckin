@@ -53,51 +53,6 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# UC Toggle Cache — updated from py_handler.py per camera
-# ---------------------------------------------------------------------------
-# Structure: { cam_ip: {'uc8_enabled': bool, 'uc1_uc2_enabled': bool, ...} }
-_uc_toggle_cache = {}
-
-
-def set_uc_toggle(cam_ip, uc_toggles):
-    """Set UC toggle configuration for a camera.
-
-    Called from py_handler.py when detection session starts.
-
-    Args:
-        cam_ip: Camera IP address
-        uc_toggles: Dict with toggle states from get_uc_toggles()
-    """
-    _uc_toggle_cache[cam_ip] = uc_toggles
-    logger.debug(f"UC toggle set for {cam_ip}: {uc_toggles}")
-
-
-def clear_uc_toggle(cam_ip):
-    """Clear UC toggle configuration for a camera (called at session end)."""
-    if cam_ip in _uc_toggle_cache:
-        del _uc_toggle_cache[cam_ip]
-        logger.debug(f"UC toggle cleared for {cam_ip}")
-
-
-def is_uc8_enabled(cam_ip):
-    """Check if UC8 is enabled for a camera.
-
-    Args:
-        cam_ip: Camera IP address
-
-    Returns:
-        True if UC8 continuous person detection should run
-    """
-    # Check environment variable override for testing (bypasses toggle system)
-    if os.environ.get('UC8_ALWAYS_ENABLED', '').lower() == 'true':
-        return True
-
-    toggles = _uc_toggle_cache.get(cam_ip, {})
-    # P1: uc8_standalone_enabled, P2: uc4_uc8_enabled
-    return toggles.get('uc8_standalone_enabled', True) or toggles.get('uc4_uc8_enabled', True)
-
-
-# ---------------------------------------------------------------------------
 # HailoYoloApp — YOLOv8n person detection (UC8)
 # ---------------------------------------------------------------------------
 class HailoYoloApp:
@@ -471,6 +426,15 @@ class HailoUC8App:
         """Clean up VDevice."""
         if hasattr(self, 'vdevice'):
             del self.vdevice
+class HailoFace:
+    """Minimal face object compatible with InsightFace Face attributes."""
+    def __init__(self, bbox: np.ndarray, embedding: np.ndarray,
+                 kps: np.ndarray = None, det_score: float = 0.0, pre_norm: float = 0.0):
+        self.bbox = bbox            # np.ndarray shape (4,) — x1,y1,x2,y2
+        self.embedding = embedding  # np.ndarray shape (512,) — L2-normalized
+        self.kps = kps              # np.ndarray shape (5,2) or None
+        self.det_score = det_score
+        self.pre_norm = pre_norm    # Embedding magnitude before L2 norm (proxy for face quality/distance)
 
 
 # ---------------------------------------------------------------------------
@@ -991,50 +955,14 @@ from face_recognition_base import FaceRecognitionBase
 class FaceRecognition(FaceRecognitionBase):
     THREAD_NAME_PREFIX = "Thread-HailoDetector"
 
-    def __init__(self, face_app, active_members, match_handler, cam_queue):
-        """Initialize FaceRecognition with UC8 support.
-
-        Args:
-            face_app: HailoFaceApp or HailoUC8App instance
-            active_members: List of active member dicts
-            match_handler: MatchEvent handler
-            cam_queue: Queue for camera frames
-        """
-        super().__init__(face_app, active_members, match_handler, cam_queue)
-        # UC8 session state is managed by HailoUC8App if available
-        self.yolo_app = getattr(face_app, 'yolo_app', None)
-        self.uc8_app = face_app if isinstance(face_app, HailoUC8App) else None
-
     def process_frame(self, raw_img, cam_info, detected, age):
-        """Run UC8 person detection + UC1/3/4/5 face recognition on a frame.
-
-        UC8 Role 2 (Continuous): Count persons on every frame (if enabled)
-        UC1: Active member identification
-        """
-        cam_ip = cam_info.get('cam_ip')
-
-        # UC8 Role 2: Count persons (continuous detection) - only if UC8 is enabled
-        person_count, max_simultaneous = 0, 0
-        if self.yolo_app and is_uc8_enabled(cam_ip):
-            person_count, max_simultaneous = self.yolo_app.count_persons(raw_img, cam_ip)
-        elif self.yolo_app and not is_uc8_enabled(cam_ip):
-            logger.debug(f"{cam_ip} UC8 toggle disabled, skipping person detection")
-
-        # UC1/3/4/5: Face detection and recognition
         current_time = time.time()
         faces = self.face_app.get(raw_img)
         duration = time.time() - current_time
-
         if detected == 1:
-            logger.info(f"{cam_ip} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} "
-                        f"face(s): {len(faces)}, person(s): {person_count}")
-        else:
-            logger.debug(f"{cam_ip} frame #{detected} - {len(faces)} faces, {person_count} persons, "
-                         f"max_simultaneous: {max_simultaneous}")
+            logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
         matched_faces = []
-        unmatched_faces = []  # UC3: Track unknown faces
-
         # Pre-norm threshold: skip low-quality embeddings (face too far/small)
         # Auto-select based on model: 10.0 for arcface_r50, 6.0 for arcface_mobilefacenet
         rec_hef = os.environ.get('HAILO_REC_HEF', '')
@@ -1042,33 +970,20 @@ class FaceRecognition(FaceRecognitionBase):
             pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_MOBILEFACENET', '6.0'))
         else:
             pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_R50', '10.0'))
-
         for face in faces:
             # Skip faces with low pre_norm (too far from camera)
             if pre_norm_threshold > 0 and face.pre_norm < pre_norm_threshold:
-                logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
-                            f"< {pre_norm_threshold:.1f} (skipped - too far)")
-                unmatched_faces.append((face, 'skipped_low_pre_norm', 0.0))
+                logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} < {pre_norm_threshold:.1f} (skipped - too far)")
                 continue
 
             threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
             active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
             if active_member is None:
-                logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
-                            f"best_match: {best_name} best_sim: {sim:.4f} (no match)")
-                # UC3: Track unmatched faces for unknown face logging
-                unmatched_faces.append((face, best_name, sim))
+                logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
                 continue
 
-            logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
-                        f"fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
+            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
             matched_faces.append((face, active_member, sim))
 
-        # Return extended result with unmatched faces and person data
-        return {
-            'matched': matched_faces,
-            'unmatched': unmatched_faces,
-            'person_count': person_count,
-            'max_simultaneous_persons': max_simultaneous,
-        }
+        return matched_faces
