@@ -63,6 +63,18 @@ class FaceRecognitionBase(threading.Thread):
                             first_frame_at = his.get('first_frame_at', 0.0)
                             session_duration = (time.time() - first_frame_at) * 1000 if first_frame_at > 0 else 0
                             logger.info(f"{session_cam_ip} SESSION END - frames: {detected}, identified: {identified}, duration: {session_duration:.0f}ms")
+
+                            # UC8: Reset session state (clears person detection history)
+                            if hasattr(self, 'uc8_app') and self.uc8_app:
+                                self.uc8_app.reset_session(session_cam_ip)
+
+                            # Clear UC toggle cache
+                            try:
+                                import face_recognition_hailo as fr_hailo
+                                fr_hailo.clear_uc_toggle(session_cam_ip)
+                            except ImportError:
+                                pass  # Not using Hailo backend
+
                             del self.cam_detection_his[session_cam_ip]
                         continue
 

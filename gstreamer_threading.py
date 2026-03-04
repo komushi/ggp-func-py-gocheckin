@@ -190,6 +190,30 @@ class StreamCapture(threading.Thread):
         with self.recording_lock:
             return list(self.recording_buffer)
 
+    def get_bgr_frames_for_gate_check(self, num_frames=10):
+        """Capture N BGR frames from recording buffer for UC8 gate check.
+
+        Args:
+            num_frames: Number of frames to capture (default: 10)
+
+        Returns:
+            List of BGR numpy arrays
+        """
+        with self.recording_lock:
+            frames = []
+            count = 0
+            for timestamp, sample in self.recording_buffer:
+                if count >= num_frames:
+                    break
+                try:
+                    bgr_frame = self.gst_to_opencv(sample)
+                    frames.append(bgr_frame)
+                    count += 1
+                except Exception as e:
+                    logger.warning(f"{self.cam_ip} get_bgr_frames_for_gate_check: failed to convert sample: {e}")
+                    continue
+            return frames
+
     def clear_all_frames(self):
         with self.recording_lock:
             self.recording_buffer.clear()
@@ -709,6 +733,15 @@ class StreamCapture(threading.Thread):
 
     def stop_feeding(self):
         logger.debug(f"{self.cam_ip} stop_feeding in")
+
+        # UC8 Role 3: Check if there's a timer expiry handler
+        # The handler (in py_handler.py) can run extend check and decide whether to extend
+        if hasattr(self, 'timer_expiry_handler') and self.timer_expiry_handler is not None:
+            should_extend = self.timer_expiry_handler(self.cam_ip)
+            if should_extend:
+                # Handler decided to extend - timer was already extended by handler
+                logger.info(f"{self.cam_ip} stop_feeding - timer extended by handler, not stopping")
+                return
 
         # Send session end signal to face_recognition before clearing state
         if self.detecting_txn is not None:

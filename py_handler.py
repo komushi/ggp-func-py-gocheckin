@@ -191,9 +191,11 @@ def has_config_changed(current_item, new_item):
     """Compare camera configurations to determine if update is needed"""
     critical_fields = [
         'username', 'password', 'isRecording', 'isDetecting',
-        'onvif', 'rtsp', 'uuid', 'assetName', 'localIp'
+        'onvif', 'rtsp', 'uuid', 'assetName', 'localIp',
+        # UC toggle fields (synced via IoT device shadow)
+        'enable_uc1_uc2', 'enable_uc3', 'enable_uc4_uc8', 'enable_uc5', 'enable_uc8'
     ]
-    
+
     for field in critical_fields:
         if current_item.get(field) != new_item.get(field):
             logger.info(f"Configuration change detected in {field}")
@@ -353,18 +355,29 @@ def init_insightface_app(model=None):
 
 
 def init_hailo_app():
-    """Initialize Hailo-8 accelerated face recognition backend."""
-    from face_recognition_hailo import HailoFaceApp
+    """Initialize Hailo-8 accelerated face recognition backend with UC8 support."""
+    from face_recognition_hailo import HailoUC8App
 
     global face_app
 
     if face_app is None:
         # HEF model paths from environment or defaults
+        yolo_hef = os.environ.get('HAILO_YOLO_HEF')
         det_hef = os.environ.get('HAILO_DET_HEF')
         rec_hef = os.environ.get('HAILO_REC_HEF')
 
-        logger.info(f"Initializing Hailo face_app with det={det_hef}, rec={rec_hef}")
-        face_app = HailoFaceApp(det_hef_path=det_hef, rec_hef_path=rec_hef)
+        # UC8 configuration
+        yolo_threshold = float(os.environ.get('YOLO_DETECT_THRESHOLD', '0.5'))
+        face_threshold = float(os.environ.get('FACE_RECOG_THRESHOLD', '0.45'))
+
+        logger.info(f"Initializing HailoUC8App with yolo={yolo_hef}, det={det_hef}, rec={rec_hef}")
+        face_app = HailoUC8App(
+            yolo_hef_path=yolo_hef,
+            det_hef_path=det_hef,
+            rec_hef_path=rec_hef,
+            yolo_threshold=yolo_threshold,
+            face_threshold=face_threshold
+        )
 
 def init_cameras():
     logger.info(f"init_cameras in")
@@ -680,7 +693,76 @@ def get_host_item():
         return items[0]
     else:
         return None
-    
+
+
+def get_uc_toggles(camera_item):
+    """Get UC toggle configuration for a camera.
+
+    Reads toggle settings from camera_item (synced via IoT device shadow).
+    Determines camera pattern (P1=no lock, P2=with lock) and returns enabled UCs.
+
+    Args:
+        camera_item: Camera asset dict from gocheckin_asset table
+
+    Returns:
+        dict with toggle states:
+            - uc1_uc2_enabled: UC1 (Member ID) + UC2 (Tailgating) - P2 only
+            - uc3_enabled: UC3 (Unknown Face) - P1 and P2
+            - uc4_uc8_enabled: UC4 (Group Size) + UC8 (Body Detection) - P2 only
+            - uc5_enabled: UC5 (Non-Active Member) - P1 and P2
+            - uc8_standalone_enabled: UC8 standalone - P1 only
+            - is_p2_camera: True if camera has locks (P2 pattern)
+    """
+    if camera_item is None:
+        return {
+            'uc1_uc2_enabled': False,
+            'uc3_enabled': False,
+            'uc4_uc8_enabled': False,
+            'uc5_enabled': False,
+            'uc8_standalone_enabled': False,
+            'is_p2_camera': False,
+        }
+
+    # Determine camera pattern: P2 has locks, P1 has no locks
+    camera_locks = camera_item.get('locks', {})
+    is_p2_camera = len(camera_locks) > 0
+
+    # Read toggle fields (default to True for Hailo devices)
+    # On non-Hailo devices, these fields may not exist - handle gracefully
+    uc1_uc2_enabled = camera_item.get('enable_uc1_uc2', True) if is_p2_camera else False
+    uc3_enabled = camera_item.get('enable_uc3', True)
+    uc4_uc8_enabled = camera_item.get('enable_uc4_uc8', True) if is_p2_camera else False
+    uc5_enabled = camera_item.get('enable_uc5', True)
+    uc8_standalone_enabled = camera_item.get('enable_uc8', True) if not is_p2_camera else False
+
+    # P2 cameras use uc4_uc8_enabled, not uc8_standalone_enabled
+    if is_p2_camera:
+        uc8_standalone_enabled = False
+
+    return {
+        'uc1_uc2_enabled': uc1_uc2_enabled,
+        'uc3_enabled': uc3_enabled,
+        'uc4_uc8_enabled': uc4_uc8_enabled,
+        'uc5_enabled': uc5_enabled,
+        'uc8_standalone_enabled': uc8_standalone_enabled,
+        'is_p2_camera': is_p2_camera,
+    }
+
+
+def is_hailo_device():
+    """Check if device has Hailo-8 accelerator available.
+
+    Returns:
+        True if Hailo platform is available (UC2-UC5, UC8 supported)
+        False if running on CPU with InsightFace only (UC1 only)
+    """
+    try:
+        from hailo_platform import VDevice
+        return True
+    except ImportError:
+        return False
+
+
 def get_property_item(host_id):
     logger.debug('get_property_item in')
 
@@ -1266,6 +1348,9 @@ def start_gstreamer_thread(host_id, cam_ip):
     thread_gstreamers[cam_ip] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
     thread_gstreamers[cam_ip].start()
 
+    # Register UC8 timer expiry handler
+    thread_gstreamers[cam_ip].timer_expiry_handler = handle_timer_expiry
+
     logger.debug(f"{cam_ip} start_gstreamer_thread, starting...")
 
     return thread_gstreamers[cam_ip], True
@@ -1573,6 +1658,35 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
     # Start new face detection
     fetch_members()
     if thread_detector is not None:
+        # Get UC toggle configuration for this camera
+        uc_toggles = get_uc_toggles(camera_item)
+
+        # Set UC toggle in face_recognition_hailo module
+        import face_recognition_hailo as fr_hailo
+        fr_hailo.set_uc_toggle(cam_ip, uc_toggles)
+
+        # UC8 Role 1: Gate check - verify person presence before starting face recognition
+        # Only run if UC8 is enabled (P1: uc8_standalone, P2: uc4_uc8)
+        uc8_enabled = uc_toggles['uc8_standalone_enabled'] or uc_toggles['uc4_uc8_enabled']
+
+        if uc8_enabled and hasattr(face_app, 'gate_check'):
+            gate_frames = int(os.environ.get('YOLO_GATE_FRAMES', '10'))
+            gate_min_detections = int(os.environ.get('YOLO_GATE_MIN_DETECTIONS', '3'))
+
+            # Capture BGR frames from recording buffer
+            bgr_frames = thread_gstreamer.get_bgr_frames_for_gate_check(gate_frames)
+
+            if bgr_frames:
+                gate_passed = face_app.gate_check(bgr_frames, min_detections=gate_min_detections, gate_frames=gate_frames)
+
+                if not gate_passed:
+                    logger.warning(f'trigger_face_detection - UC8 gate check FAILED for {cam_ip}: person not detected in {gate_min_detections}+ frames')
+                    return  # Reject detection - no person present
+
+            logger.info(f'trigger_face_detection - UC8 gate check PASSED for {cam_ip}')
+        elif not uc8_enabled:
+            logger.info(f'trigger_face_detection - UC8 toggle disabled for {cam_ip}, skipping gate check')
+
         thread_gstreamer.feed_detecting(int(os.environ['TIMER_DETECT']))
 
         # Store context snapshot keyed by detecting_txn
@@ -1638,6 +1752,91 @@ def handle_occupancy_false(cam_ip, lock_asset_id):
                 logger.info('handle_occupancy_false - other occupancy triggers active, continuing detection: %s', cam_ip)
 
     logger.info('handle_occupancy_false out')
+
+
+def handle_timer_expiry(cam_ip):
+    """UC8 Role 3: Timer expiry handler - run extend check and decide whether to extend session.
+
+    Called by GStreamer thread when detection timer is about to expire.
+    Runs dual-signal check: motion recency + person detection history.
+
+    Args:
+        cam_ip: Camera IP address
+
+    Returns:
+        True if session should be extended, False to let it end
+    """
+    global face_app, thread_gstreamers, trigger_lock_context, camera_items
+
+    logger.info(f"{cam_ip} handle_timer_expiry in")
+
+    # Get UC toggle configuration for this camera
+    camera_item = camera_items.get(cam_ip)
+    uc_toggles = get_uc_toggles(camera_item) if camera_item else {}
+
+    # Check if UC8 is enabled (P1: uc8_standalone, P2: uc4_uc8)
+    uc8_enabled = uc_toggles.get('uc8_standalone_enabled', False) or uc_toggles.get('uc4_uc8_enabled', False)
+
+    # Configuration
+    extend_lookback = int(os.environ.get('YOLO_EXTEND_LOOKBACK', '10'))
+    extend_min_detections = int(os.environ.get('YOLO_EXTEND_MIN_DETECTIONS', '3'))
+    motion_recency_sec = int(os.environ.get('MOTION_RECENCY_SEC', '5'))
+
+    # Check 1: UC8 person detection history (only if UC8 is enabled)
+    person_check_passed = False
+    if uc8_enabled and hasattr(face_app, 'get_extend_check'):
+        person_check_passed = face_app.get_extend_check(
+            cam_ip,
+            min_detections=extend_min_detections,
+            lookback_frames=extend_lookback
+        )
+        logger.info(f"{cam_ip} handle_timer_expiry - UC8 person check: {'PASSED' if person_check_passed else 'FAILED'}")
+    elif not uc8_enabled:
+        # UC8 toggle disabled - skip person check, use motion-only extend
+        person_check_passed = True  # Pass through - motion-only decision
+        logger.info(f"{cam_ip} handle_timer_expiry - UC8 toggle disabled, person check skipped (motion-only extend)")
+    else:
+        # UC8 enabled but get_extend_check not available - default to passing
+        person_check_passed = True
+        logger.info(f"{cam_ip} handle_timer_expiry - UC8 enabled but extend check not available, defaulted to PASS")
+
+    # Check 2: Motion recency - check if ONVIF motion event was received recently
+    # The motion recency is tracked by whether we've received motion events recently
+    # For now, we'll check if there's an active trigger in the context
+    motion_check_passed = True  # Default to pass if no motion tracking
+
+    if cam_ip in trigger_lock_context:
+        context = trigger_lock_context[cam_ip]
+        # If there are active occupancy triggers, motion is considered recent
+        if len(context.get('active_occupancy', set())) > 0:
+            motion_check_passed = True
+            logger.info(f"{cam_ip} handle_timer_expiry - motion check: PASSED (active occupancy: {context['active_occupancy']})")
+        else:
+            # No active occupancy triggers - check if we should still pass based on person detection only
+            # For dual-signal, both motion AND person must be present
+            motion_check_passed = False
+            logger.info(f"{cam_ip} handle_timer_expiry - motion check: FAILED (no active occupancy)")
+    else:
+        # No context exists - session may have been cleared
+        motion_check_passed = False
+        logger.info(f"{cam_ip} handle_timer_expiry - motion check: FAILED (no context)")
+
+    # Dual-signal decision: both motion recency AND person detection must pass
+    # (If UC8 is disabled, person_check_passed=True, so motion-only decides)
+    should_extend = motion_check_passed and person_check_passed
+
+    if should_extend:
+        # Extend the timer
+        thread_gstreamer = thread_gstreamers.get(cam_ip)
+        if thread_gstreamer:
+            extend_seconds = int(os.environ.get('TIMER_DETECT', '10'))
+            thread_gstreamer.extend_timer(extend_seconds)
+            logger.info(f"{cam_ip} handle_timer_expiry - EXTENDED session by {extend_seconds}s")
+    else:
+        logger.info(f"{cam_ip} handle_timer_expiry - NOT extending (motion={motion_check_passed}, person={person_check_passed}, uc8_enabled={uc8_enabled})")
+
+    logger.info(f"{cam_ip} handle_timer_expiry out - should_extend={should_extend}")
+    return should_extend
 
 
 def subscribe_onvif(cam_ip):

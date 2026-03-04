@@ -10,6 +10,11 @@
 #   - SCRFD postprocessing (anchor decode, NMS)
 #   - ArcFace alignment (5-point SimilarityTransform)
 #   - Embedding dequantization and L2 normalization
+#
+# UC8: Human Body Detection with YOLOv8n
+#   - Gate check: YOLOv8n on 10 frames before SCRFD+ArcFace session
+#   - Continuous: YOLOv8n on every frame during session
+#   - Extend: Dual-signal (motion + person) at timer expiry
 
 import logging
 import time
@@ -18,6 +23,7 @@ import sys
 import os
 import threading
 import traceback
+from collections import deque
 import numpy as np
 import cv2
 
@@ -47,6 +53,197 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# UC Toggle Cache — updated from py_handler.py per camera
+# ---------------------------------------------------------------------------
+# Structure: { cam_ip: {'uc8_enabled': bool, 'uc1_uc2_enabled': bool, ...} }
+_uc_toggle_cache = {}
+
+
+def set_uc_toggle(cam_ip, uc_toggles):
+    """Set UC toggle configuration for a camera.
+
+    Called from py_handler.py when detection session starts.
+
+    Args:
+        cam_ip: Camera IP address
+        uc_toggles: Dict with toggle states from get_uc_toggles()
+    """
+    _uc_toggle_cache[cam_ip] = uc_toggles
+    logger.debug(f"UC toggle set for {cam_ip}: {uc_toggles}")
+
+
+def clear_uc_toggle(cam_ip):
+    """Clear UC toggle configuration for a camera (called at session end)."""
+    if cam_ip in _uc_toggle_cache:
+        del _uc_toggle_cache[cam_ip]
+        logger.debug(f"UC toggle cleared for {cam_ip}")
+
+
+def is_uc8_enabled(cam_ip):
+    """Check if UC8 is enabled for a camera.
+
+    Args:
+        cam_ip: Camera IP address
+
+    Returns:
+        True if UC8 continuous person detection should run
+    """
+    toggles = _uc_toggle_cache.get(cam_ip, {})
+    # P1: uc8_standalone_enabled, P2: uc4_uc8_enabled
+    return toggles.get('uc8_standalone_enabled', True) or toggles.get('uc4_uc8_enabled', True)
+
+
+# ---------------------------------------------------------------------------
+# HailoYoloApp — YOLOv8n person detection (UC8)
+# ---------------------------------------------------------------------------
+class HailoYoloApp:
+    """
+    YOLOv8n person detection using Hailo-8.
+
+    Detects person class (COCO class 0) and returns bounding boxes.
+    Used for UC8: Gate check, continuous person detection, and extend check.
+    """
+
+    PERSON_CLASS_ID = 0
+
+    def __init__(self, vdevice, hef_path, score_threshold=0.5):
+        """
+        Initialize YOLOv8n person detector.
+
+        Args:
+            vdevice: Shared Hailo VDevice
+            hef_path: Path to YOLOv8n HEF model
+            score_threshold: Minimum confidence for person detection
+        """
+        self.hef_path = hef_path
+        self.score_threshold = score_threshold
+        self.num_classes = 80
+
+        self.infer_model = vdevice.create_infer_model(hef_path)
+        for output_info in self.infer_model.hef.get_output_vstream_infos():
+            self.infer_model.output(output_info.name).set_format_type(FormatType.FLOAT32)
+        self.configured = self.infer_model.configure()
+
+        inp = self.infer_model.input()
+        self.input_h = int(inp.shape[0])
+        self.input_w = int(inp.shape[1])
+
+        output_infos = self.infer_model.hef.get_output_vstream_infos()
+        self.output_names = [info.name for info in output_infos]
+
+        logger.info(f"YOLOv8n initialized: {self.input_h}x{self.input_w}, "
+                    f"outputs={len(self.output_names)}")
+
+    def detect_persons(self, img, threshold=None):
+        """
+        Detect persons in BGR image.
+
+        Args:
+            img: BGR numpy array (H, W, 3) uint8
+            threshold: Optional override for score_threshold
+
+        Returns:
+            List of person detections with bbox, confidence
+        """
+        thresh = threshold if threshold is not None else self.score_threshold
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if not rgb.flags['C_CONTIGUOUS']:
+            rgb = np.ascontiguousarray(rgb)
+        preprocessed, scale, pad_left, pad_top = self._preprocess(rgb)
+        outputs = self._run_inference(preprocessed)
+        detections = self._decode_hailo_nms(outputs, scale, pad_left, pad_top, img.shape)
+        return [d for d in detections if d['class_id'] == self.PERSON_CLASS_ID
+                and d['confidence'] >= thresh]
+
+    def count_persons(self, img, threshold=None):
+        """
+        Count persons in image (for UC8 continuous detection).
+
+        Args:
+            img: BGR numpy array
+            threshold: Optional confidence threshold
+
+        Returns:
+            Integer count of persons detected
+        """
+        persons = self.detect_persons(img, threshold)
+        return len(persons)
+
+    def _preprocess(self, image):
+        """Resize with aspect ratio, pad to model input size (letterbox)."""
+        h, w = image.shape[:2]
+        scale = min(self.input_w / w, self.input_h / h)
+        new_w, new_h = int(w * scale), int(h * scale)
+
+        resized = cv2.resize(image, (new_w, new_h))
+        padded = np.full((self.input_h, self.input_w, 3), 114, dtype=np.uint8)
+        top = (self.input_h - new_h) // 2
+        left = (self.input_w - new_w) // 2
+        padded[top:top + new_h, left:left + new_w] = resized
+
+        return padded, scale, left, top
+
+    def _run_inference(self, preprocessed):
+        """Run YOLOv8n inference on Hailo-8."""
+        output_buffers = {
+            info.name: np.empty(info.shape, dtype=np.float32)
+            for info in self.infer_model.outputs
+        }
+        bindings = self.configured.create_bindings(output_buffers=output_buffers)
+        bindings.input().set_buffer(preprocessed)
+        job = self.configured.run_async([bindings], lambda *args, **kwargs: None)
+        job.wait(10000)
+        return output_buffers
+
+    def _decode_hailo_nms(self, outputs, scale, pad_left, pad_top, orig_shape):
+        """
+        Decode YOLOv8n NMS output format.
+
+        YOLOv8n with on-chip NMS outputs:
+        [num_dets, [y1, x1, y2, x2, score] * num_dets] per class
+        """
+        output_name = self.output_names[0]
+        raw = outputs[output_name].flatten().astype(np.float32)
+        detections = []
+        offset = 0
+
+        for class_id in range(self.num_classes):
+            if offset >= len(raw):
+                break
+            num_dets = int(raw[offset])
+            offset += 1
+
+            for _ in range(num_dets):
+                if offset + 5 > len(raw):
+                    break
+                y_min, x_min, y_max, x_max, score = raw[offset:offset + 5]
+                offset += 5
+
+                if score < self.score_threshold:
+                    continue
+
+                # Map back to original image coordinates
+                x1 = (x_min * self.input_w - pad_left) / scale
+                y1 = (y_min * self.input_h - pad_top) / scale
+                x2 = (x_max * self.input_w - pad_left) / scale
+                y2 = (y_max * self.input_h - pad_top) / scale
+
+                h_orig, w_orig = orig_shape[:2]
+                x1 = max(0, min(x1, w_orig - 1))
+                y1 = max(0, min(y1, h_orig - 1))
+                x2 = max(0, min(x2, w_orig - 1))
+                y2 = max(0, min(y2, h_orig - 1))
+
+                detections.append({
+                    'class_id': class_id,
+                    'confidence': float(score),
+                    'bbox': [float(x1), float(y1), float(x2), float(y2)],
+                })
+
+        return detections
+
+
+# ---------------------------------------------------------------------------
 # Lightweight face result object (matches InsightFace Face interface)
 # ---------------------------------------------------------------------------
 class HailoFace:
@@ -58,6 +255,218 @@ class HailoFace:
         self.kps = kps              # np.ndarray shape (5,2) or None
         self.det_score = det_score
         self.pre_norm = pre_norm    # Embedding magnitude before L2 norm (proxy for face quality/distance)
+
+
+# ---------------------------------------------------------------------------
+# HailoUC8App — Combined UC8 (YOLOv8n) + UC1/3/4/5 (SCRFD+ArcFace)
+# ---------------------------------------------------------------------------
+class HailoUC8App:
+    """
+    Combined application for all use cases using shared Hailo VDevice.
+
+    Manages:
+    - YOLOv8n: Person detection (UC8 gate, continuous, extend)
+    - SCRFD: Face detection (UC1/3/4/5)
+    - ArcFace: Face recognition (UC1/3/4/5)
+
+    Provides:
+    - gate_check(): Run YOLOv8n on N frames, return True if person detected
+    - get(): Detect faces and extract embeddings (same as HailoFaceApp)
+    - count_persons(): Count persons in frame (UC8 continuous)
+    - Session state: max_simultaneous_persons tracking
+    """
+
+    def __init__(self,
+                 yolo_hef_path: str = None,
+                 det_hef_path: str = None,
+                 rec_hef_path: str = None,
+                 yolo_threshold: float = 0.5,
+                 face_threshold: float = 0.5,
+                 nms_threshold: float = 0.4):
+        """
+        Initialize combined UC8 + face recognition app.
+
+        Args:
+            yolo_hef_path: Path to YOLOv8n HEF
+            det_hef_path: Path to SCRFD HEF
+            rec_hef_path: Path to ArcFace HEF
+            yolo_threshold: YOLOv8n confidence threshold
+            face_threshold: SCRFD confidence threshold
+            nms_threshold: NMS IoU threshold
+        """
+        if not HAILO_AVAILABLE:
+            raise RuntimeError("hailo_platform not installed")
+
+        # Default HEF paths
+        default_model_dir = '/etc/hailo/models' if sys.platform == 'linux' else os.path.join(os.path.dirname(__file__), 'models')
+        self.yolo_hef_path = yolo_hef_path or os.environ.get('HAILO_YOLO_HEF') or os.path.join(default_model_dir, 'yolov8n.hef')
+        self.det_hef_path = det_hef_path or os.environ.get('HAILO_DET_HEF') or os.path.join(default_model_dir, 'scrfd_2.5g.hef')
+        self.rec_hef_path = rec_hef_path or os.environ.get('HAILO_REC_HEF') or os.path.join(default_model_dir, 'arcface_r50.hef')
+
+        logger.info(f"Loading Hailo models: yolo={self.yolo_hef_path}, det={self.det_hef_path}, rec={self.rec_hef_path}")
+        self._init_device()
+
+        # Initialize YOLOv8n
+        self.yolo_app = HailoYoloApp(self.vdevice, self.yolo_hef_path, score_threshold=yolo_threshold)
+
+        # Initialize SCRFD + ArcFace (sharing VDevice)
+        self.face_app = HailoFaceApp(
+            det_hef_path=det_hef_path,
+            rec_hef_path=rec_hef_path,
+            score_threshold=face_threshold,
+            nms_threshold=nms_threshold,
+            vdevice=self.vdevice
+        )
+
+        # Session state for UC8
+        self.session_state = {}  # cam_ip -> session state
+
+        logger.info(f"HailoUC8App initialized: yolo={os.path.basename(self.yolo_hef_path)}, "
+                    f"det={os.path.basename(self.det_hef_path)}, rec={os.path.basename(self.rec_hef_path)}")
+
+    def _init_device(self):
+        """Create shared Hailo VDevice."""
+        params = VDevice.create_params()
+        params.scheduling_algorithm = HailoSchedulingAlgorithm.ROUND_ROBIN
+        self.vdevice = VDevice(params)
+        logger.info("Created shared VDevice for UC8 + face recognition")
+
+    def _get_session_state(self, cam_ip):
+        """Get or create session state for a camera."""
+        if cam_ip not in self.session_state:
+            self.session_state[cam_ip] = {
+                'max_simultaneous_persons': 0,
+                'person_count_history': deque(maxlen=100),  # Last 100 frames
+                'frame_count': 0,
+            }
+        return self.session_state[cam_ip]
+
+    def gate_check(self, frames, min_detections=3, gate_frames=10):
+        """
+        UC8 Role 1: Gate check - run YOLOv8n on N frames to verify person presence.
+
+        Args:
+            frames: List of BGR numpy arrays (frames to check)
+            min_detections: Minimum number of frames with person detected to pass
+            gate_frames: Number of frames to check (default: 10)
+
+        Returns:
+            True if person detected in >= min_detections frames, False otherwise
+        """
+        # Limit to gate_frames
+        frames_to_check = frames[:gate_frames]
+        person_detections = 0
+
+        for frame in frames_to_check:
+            persons = self.yolo_app.detect_persons(frame)
+            if len(persons) > 0:
+                person_detections += 1
+
+        passed = person_detections >= min_detections
+        logger.info(f"UC8 Gate check: {person_detections}/{len(frames_to_check)} frames with person, "
+                    f"min_detections={min_detections} → {'PASSED' if passed else 'FAILED'}")
+        return passed
+
+    def count_persons(self, img, cam_ip=None):
+        """
+        UC8 Role 2: Count persons in frame and update session state.
+
+        Args:
+            img: BGR numpy array
+            cam_ip: Camera IP for session state tracking
+
+        Returns:
+            Tuple of (person_count, max_simultaneous_persons)
+        """
+        persons = self.yolo_app.detect_persons(img)
+        person_count = len(persons)
+
+        # Update session state
+        if cam_ip:
+            state = self._get_session_state(cam_ip)
+            state['frame_count'] += 1
+            state['person_count_history'].append(person_count)
+            if person_count > state['max_simultaneous_persons']:
+                state['max_simultaneous_persons'] = person_count
+
+        return person_count, state['max_simultaneous_persons'] if cam_ip else person_count
+
+    def get(self, img, cam_ip=None, max_num=0, det_size=(640, 640)):
+        """
+        UC1/3/4/5: Detect faces and extract embeddings.
+
+        Also updates UC8 session state with person count.
+
+        Args:
+            img: BGR numpy array
+            cam_ip: Camera IP for session state tracking
+            max_num: Maximum faces to return (0 = all)
+            det_size: Detection input size (ignored, uses HEF model size)
+
+        Returns:
+            Tuple of (faces, person_count, max_simultaneous_persons)
+        """
+        # Count persons first (UC8 Role 2)
+        person_count, max_simultaneous = self.count_persons(img, cam_ip)
+
+        # Detect faces (UC1/3/4/5)
+        faces = self.face_app.get(img, max_num=max_num, det_size=det_size)
+
+        return faces, person_count, max_simultaneous
+
+    def get_extend_check(self, cam_ip, min_detections=3, lookback_frames=10):
+        """
+        UC8 Role 3: Extend check - query person detection history.
+
+        Args:
+            cam_ip: Camera IP
+            min_detections: Minimum frames with person to pass extend
+            lookback_frames: Number of recent frames to check
+
+        Returns:
+            True if person detected in >= min_detections of last lookback_frames
+        """
+        if cam_ip not in self.session_state:
+            return False
+
+        state = self.session_state[cam_ip]
+        history = list(state['person_count_history'])[-lookback_frames:]
+
+        if len(history) < lookback_frames:
+            # Not enough history yet
+            return True  # Allow extend during early session
+
+        detections_with_person = sum(1 for count in history if count > 0)
+        passed = detections_with_person >= min_detections
+
+        logger.debug(f"UC8 Extend check for {cam_ip}: {detections_with_person}/{len(history)} "
+                     f"frames with person → {'PASSED' if passed else 'FAILED'}")
+        return passed
+
+    def get_session_stats(self, cam_ip):
+        """Get session statistics for a camera."""
+        if cam_ip not in self.session_state:
+            return {'max_simultaneous_persons': 0, 'frame_count': 0}
+
+        state = self.session_state[cam_ip]
+        return {
+            'max_simultaneous_persons': state['max_simultaneous_persons'],
+            'frame_count': state['frame_count'],
+            'avg_person_count': np.mean(state['person_count_history']) if state['person_count_history'] else 0,
+        }
+
+    def reset_session(self, cam_ip):
+        """Reset session state for a camera (called at session end)."""
+        if cam_ip in self.session_state:
+            state = self.session_state[cam_ip]
+            logger.info(f"UC8 Session end for {cam_ip}: max_simultaneous={state['max_simultaneous_persons']}, "
+                        f"frames={state['frame_count']}, avg_persons={np.mean(state['person_count_history']) if state['person_count_history'] else 0:.2f}")
+            del self.session_state[cam_ip]
+
+    def cleanup(self):
+        """Clean up VDevice."""
+        if hasattr(self, 'vdevice'):
+            del self.vdevice
 
 
 # ---------------------------------------------------------------------------
@@ -87,13 +496,15 @@ class HailoFaceApp:
                  det_hef_path: str = None,
                  rec_hef_path: str = None,
                  score_threshold: float = 0.5,
-                 nms_threshold: float = 0.4):
+                 nms_threshold: float = 0.4,
+                 vdevice=None):
         """
         Args:
             det_hef_path: Path to SCRFD HEF (default: env HAILO_DET_HEF or models/scrfd_10g.hef)
             rec_hef_path: Path to ArcFace HEF (default: env HAILO_REC_HEF or models/arcface_mobilefacenet.hef)
             score_threshold: Minimum detection confidence
             nms_threshold: NMS IoU threshold
+            vdevice: Optional shared VDevice (if None, creates new one)
         """
         if not HAILO_AVAILABLE:
             raise RuntimeError("hailo_platform not installed")
@@ -113,13 +524,24 @@ class HailoFaceApp:
         self.num_anchors = 2
 
         logger.info(f"Loading Hailo models: det={self.det_hef_path}, rec={self.rec_hef_path}")
-        self._init_device()
+        self._init_device(vdevice)
 
-    def _init_device(self):
-        """Initialize Hailo VDevice and load both models."""
-        params = VDevice.create_params()
-        params.scheduling_algorithm = HailoSchedulingAlgorithm.ROUND_ROBIN
-        self.vdevice = VDevice(params)
+    def _init_device(self, vdevice=None):
+        """Initialize Hailo VDevice and load both models.
+
+        Args:
+            vdevice: Optional shared VDevice. If None, creates a new one.
+        """
+        if vdevice is not None:
+            # Use shared VDevice
+            self.vdevice = vdevice
+            logger.info("Using shared VDevice")
+        else:
+            # Create new VDevice
+            params = VDevice.create_params()
+            params.scheduling_algorithm = HailoSchedulingAlgorithm.ROUND_ROBIN
+            self.vdevice = VDevice(params)
+            logger.info("Created new VDevice")
 
         # Detection model — FLOAT32 output so HailoRT auto-dequantizes (scrfd HEF uses UINT8 input)
         self.det_infer_model = self.vdevice.create_infer_model(self.det_hef_path)
@@ -565,12 +987,46 @@ from face_recognition_base import FaceRecognitionBase
 class FaceRecognition(FaceRecognitionBase):
     THREAD_NAME_PREFIX = "Thread-HailoDetector"
 
+    def __init__(self, face_app, active_members, match_handler, cam_queue):
+        """Initialize FaceRecognition with UC8 support.
+
+        Args:
+            face_app: HailoFaceApp or HailoUC8App instance
+            active_members: List of active member dicts
+            match_handler: MatchEvent handler
+            cam_queue: Queue for camera frames
+        """
+        super().__init__(face_app, active_members, match_handler, cam_queue)
+        # UC8 session state is managed by HailoUC8App if available
+        self.yolo_app = getattr(face_app, 'yolo_app', None)
+        self.uc8_app = face_app if isinstance(face_app, HailoUC8App) else None
+
     def process_frame(self, raw_img, cam_info, detected, age):
+        """Run UC8 person detection + UC1/3/4/5 face recognition on a frame.
+
+        UC8 Role 2 (Continuous): Count persons on every frame (if enabled)
+        UC1: Active member identification
+        """
+        cam_ip = cam_info.get('cam_ip')
+
+        # UC8 Role 2: Count persons (continuous detection) - only if UC8 is enabled
+        person_count, max_simultaneous = 0, 0
+        if self.yolo_app and is_uc8_enabled(cam_ip):
+            person_count, max_simultaneous = self.yolo_app.count_persons(raw_img, cam_ip)
+        elif self.yolo_app and not is_uc8_enabled(cam_ip):
+            logger.debug(f"{cam_ip} UC8 toggle disabled, skipping person detection")
+
+        # UC1/3/4/5: Face detection and recognition
         current_time = time.time()
         faces = self.face_app.get(raw_img)
         duration = time.time() - current_time
+
         if detected == 1:
-            logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
+            logger.info(f"{cam_ip} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} "
+                        f"face(s): {len(faces)}, person(s): {person_count}")
+        else:
+            logger.debug(f"{cam_ip} frame #{detected} - {len(faces)} faces, {person_count} persons, "
+                         f"max_simultaneous: {max_simultaneous}")
 
         matched_faces = []
         # Pre-norm threshold: skip low-quality embeddings (face too far/small)
@@ -580,20 +1036,24 @@ class FaceRecognition(FaceRecognitionBase):
             pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_MOBILEFACENET', '6.0'))
         else:
             pre_norm_threshold = float(os.environ.get('HAILO_PRE_NORM_THRESHOLD_R50', '10.0'))
+
         for face in faces:
             # Skip faces with low pre_norm (too far from camera)
             if pre_norm_threshold > 0 and face.pre_norm < pre_norm_threshold:
-                logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} < {pre_norm_threshold:.1f} (skipped - too far)")
+                logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
+                            f"< {pre_norm_threshold:.1f} (skipped - too far)")
                 continue
 
             threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
             active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
             if active_member is None:
-                logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} best_match: {best_name} best_sim: {sim:.4f} (no match)")
+                logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
+                            f"best_match: {best_name} best_sim: {sim:.4f} (no match)")
                 continue
 
-            logger.info(f"{cam_info['cam_ip']} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
+            logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
+                        f"fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
             matched_faces.append((face, active_member, sim))
 
         return matched_faces
