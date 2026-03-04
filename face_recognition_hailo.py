@@ -1029,6 +1029,8 @@ class FaceRecognition(FaceRecognitionBase):
                          f"max_simultaneous: {max_simultaneous}")
 
         matched_faces = []
+        unmatched_faces = []  # UC3: Track unknown faces
+
         # Pre-norm threshold: skip low-quality embeddings (face too far/small)
         # Auto-select based on model: 10.0 for arcface_r50, 6.0 for arcface_mobilefacenet
         rec_hef = os.environ.get('HAILO_REC_HEF', '')
@@ -1042,6 +1044,7 @@ class FaceRecognition(FaceRecognitionBase):
             if pre_norm_threshold > 0 and face.pre_norm < pre_norm_threshold:
                 logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
                             f"< {pre_norm_threshold:.1f} (skipped - too far)")
+                unmatched_faces.append((face, 'skipped_low_pre_norm', 0.0))
                 continue
 
             threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
@@ -1050,10 +1053,18 @@ class FaceRecognition(FaceRecognitionBase):
             if active_member is None:
                 logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
                             f"best_match: {best_name} best_sim: {sim:.4f} (no match)")
+                # UC3: Track unmatched faces for unknown face logging
+                unmatched_faces.append((face, best_name, sim))
                 continue
 
             logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
                         f"fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
             matched_faces.append((face, active_member, sim))
 
-        return matched_faces
+        # Return extended result with unmatched faces and person data
+        return {
+            'matched': matched_faces,
+            'unmatched': unmatched_faces,
+            'person_count': person_count,
+            'max_simultaneous_persons': max_simultaneous,
+        }

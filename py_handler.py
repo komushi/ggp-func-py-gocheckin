@@ -38,7 +38,7 @@ import gstreamer_threading as gst
 # FACE_BACKEND is set by detect_face_backend() called from claim_scanner()
 FACE_BACKEND = 'insightface'  # Default, will be updated by detect_face_backend()
 
-from match_handler import DefaultMatchHandler
+from match_handler import SecurityHandlerChain
 
 # Active face detection module - set by detect_face_backend()
 # Backend modules (face_recognition / face_recognition_hailo) are imported
@@ -116,7 +116,15 @@ thread_monitors = {}
 
 # Initialize the scanner_output_queue
 scanner_output_queue = Queue(maxsize=50)
-match_handler = DefaultMatchHandler(scanner_output_queue)
+
+def _get_uc_toggles_for_cam(cam_ip: str) -> dict:
+    """Helper to get UC toggles for a camera (for SecurityHandlerChain)."""
+    camera_item = camera_items.get(cam_ip)
+    if camera_item:
+        return get_uc_toggles(camera_item)
+    return {}
+
+match_handler = SecurityHandlerChain(scanner_output_queue, get_uc_toggles_fn=_get_uc_toggles_for_cam)
 cam_queue = Queue(maxsize=500)
 # motion_detection_queue = Queue(maxsize=500)
 

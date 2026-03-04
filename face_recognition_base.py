@@ -56,6 +56,7 @@ class FaceRecognitionBase(threading.Thread):
                     # Handle session end signal
                     if cmd == gst.StreamCommands.SESSION_END:
                         session_cam_ip = cam_info.get('cam_ip')
+                        detecting_txn = cam_info.get('detecting_txn')
                         if session_cam_ip and session_cam_ip in self.cam_detection_his:
                             his = self.cam_detection_his[session_cam_ip]
                             detected = his.get('detected', 0)
@@ -67,6 +68,13 @@ class FaceRecognitionBase(threading.Thread):
                             # UC8: Reset session state (clears person detection history)
                             if hasattr(self, 'uc8_app') and self.uc8_app:
                                 self.uc8_app.reset_session(session_cam_ip)
+
+                            # UC2/UC4: Call session end handler
+                            try:
+                                from match_handler import on_session_end
+                                on_session_end(session_cam_ip, detecting_txn, self.match_handler)
+                            except Exception as e:
+                                logger.error(f"{session_cam_ip} Error in session end handler: {e}")
 
                             # Clear UC toggle cache
                             try:
@@ -107,20 +115,42 @@ class FaceRecognitionBase(threading.Thread):
                             self.cam_detection_his[cam_info['cam_ip']]['first_frame_at'] = current_time
 
                     # Delegate to subclass for detection + matching
-                    matched_faces = self.process_frame(raw_img, cam_info, detected, age)
+                    result = self.process_frame(raw_img, cam_info, detected, age)
 
-                    if not matched_faces:
-                        continue
+                    # Handle both old format (list) and new format (dict)
+                    if isinstance(result, dict):
+                        matched_faces = result.get('matched', [])
+                        unmatched_faces = result.get('unmatched', [])
+                        person_count = result.get('person_count', 0)
+                        max_simultaneous = result.get('max_simultaneous_persons', 0)
+                    else:
+                        # Backward compatibility with old list return format
+                        matched_faces = result
+                        unmatched_faces = []
+                        person_count = 0
+                        max_simultaneous = 0
 
-                    # Phase 2: delegate to match handler
-                    self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
-                    self.match_handler.on_match(MatchEvent(
-                        cam_info=cam_info,
-                        raw_img=raw_img,
-                        matched_faces=matched_faces,
-                        detected=detected,
-                        first_frame_at=self.cam_detection_his[cam_info['cam_ip']].get('first_frame_at', 0.0),
-                    ))
+                    # Always call handler (even with no matches, for UC3)
+                    if matched_faces or unmatched_faces:
+                        self.cam_detection_his[cam_info['cam_ip']]['identified'] = True
+
+                        # Build MatchEvent with all data
+                        match_event = MatchEvent(
+                            cam_info=cam_info,
+                            raw_img=raw_img,
+                            matched_faces=matched_faces,
+                            unmatched_faces=unmatched_faces,
+                            detected=detected,
+                            first_frame_at=self.cam_detection_his[cam_info['cam_ip']].get('first_frame_at', 0.0),
+                            person_count=person_count,
+                            max_simultaneous_persons=max_simultaneous,
+                        )
+
+                        # Call on_match for matched faces, on_no_match for unmatched only
+                        if matched_faces:
+                            self.match_handler.on_match(match_event)
+                        elif unmatched_faces:
+                            self.match_handler.on_no_match(match_event)
 
                 else:
                     time.sleep(float(os.environ['DETECTING_SLEEP_SEC']))
