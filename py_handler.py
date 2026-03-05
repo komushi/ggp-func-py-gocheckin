@@ -1899,6 +1899,9 @@ signal.signal(signal.SIGINT, signal_handler)
 # init env var
 init_env_var()
 
+# Detect and initialize face recognition backend (Hailo or InsightFace)
+detect_face_backend()
+
 # Init face_app
 init_face_detector()
 
