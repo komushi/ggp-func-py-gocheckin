@@ -22,70 +22,59 @@ Security use-cases prioritized over hospitality/analytics use-cases.
 
 **Status**: Implemented (current behavior)
 
-**Scenario**: A guest with a valid reservation approaches the door. The system recognizes their face and, when a clicked event is received for a specific lock, unlocks that lock.
+**Scenario**: A guest with a valid reservation approaches the door. The system recognizes their face and, when a clicked event is received for a specific lock, unlocks that lock. **STAFF members are treated identically** — they also unlock doors when clicked.
 
 **Trigger**: Motion detected at camera → face detection starts
 
 **Input**:
 - Camera frame with face
-- ACTIVE member database (guests with current reservations)
+- All member databases loaded: ACTIVE, INACTIVE, STAFF, BLOCKLIST
+- Face category assignment (see UC3: Face Category Attribute table)
 
 **Logic**:
-- Detect faces in frame
-- Compare each face against ACTIVE member embeddings
-- If similarity > threshold → MATCH
+- Detect faces in frame (SCRFD)
+- Extract embeddings (ArcFace)
+- Compare against ALL categories: ACTIVE, INACTIVE, STAFF, BLOCKLIST
+- Assign category based on priority matching (highest priority match wins)
+- If category = ACTIVE or STAFF and similarity > threshold → authorized, unlock eligible
 
 **Output**:
 - Unlock door (only when clicked event received for a specific lock — see Camera-Lock Patterns)
 - Publish `member_detected` to IoT
-- Save annotated snapshot to S3
-- Log check-in event
+- Save annotated snapshot to S3 (for both ACTIVE and STAFF)
+- Log check-in event (ACTIVE) or staff entry (STAFF)
 
 **Data Source**:
-- TBL_RESERVATION (active reservations)
+- TBL_RESERVATION (active reservations, staff reservations)
 - TBL_MEMBER (face embeddings)
 
+**STAFF Handling**: STAFF members are treated **identically** to ACTIVE members:
+- Both are authorized and can trigger unlock when clicked event arrives
+- Both save face snapshots to S3
+- Both publish `member_detected` to IoT
+- The `category` attribute distinguishes them ('STAFF' vs 'ACTIVE') for logging purposes
+- Session state uses `authorized_member_matched` flag (covers both ACTIVE and STAFF)
+
 **Key Behaviors**:
-- Unlock is a **one-time side effect**: once an active member is identified and the door unlocks, the unlock action is not repeated, but the detection loop **continues running** for the full timer duration
+- Unlock is a **one-time side effect**: once an authorized member (ACTIVE or STAFF) is identified and the door unlocks, the unlock action is not repeated, but the detection loop **continues running** for the full timer duration
 - All other UCs continue to fire on every subsequent frame after unlock
 - Only one member needs to match for unlock
 - On cameras without locks (Pattern P1), UC1 still runs but publishes `member_detected` without unlock action (log only)
 - On cameras with locks (Pattern P2), ONVIF starts the session in surveillance mode (no unlock possible). A clicked event upgrades the session to unlock mode for the specific lock
-- If `active_member_matched=true` already when clicked arrives, unlock immediately (no need to re-present face — Decision 30)
+- If `authorized_member_matched=true` already when clicked arrives, unlock immediately (no need to re-present face — Decision 30)
+- Face recognition runs even when ACTIVE is empty — ensures UC5 (BLOCKLIST/INACTIVE) and UC3 (UNKNOWN) work at vacant properties
 
 ---
 
-## UC2: Tailgating Detection [NEW]
+## UC2: Tailgating Detection [REMOVED]
 
-**Status**: To be implemented
+**Status**: Removed — functionality covered by UC3 (Unknown Face) and UC5 (Non-Active Member)
 
-**Scenario**: After an authorized guest unlocks the door, an unauthorized person follows them through before the door closes.
+**Rationale**: UC2 overlapped with UC3 and UC5. An "unauthorized person after unlock" is either:
+- A known BLOCKLIST person → UC5 handles with HIGH priority alert
+- An unknown person → UC3 handles with logging
 
-**Trigger**: Part of the continuous detection loop — fires when an unknown face appears in any frame after `unlocked=true` has been set in the current session (only possible after a clicked event triggers unlock)
-
-**Input**:
-- Camera frames (continuous detection loop, same as all other UCs)
-- ACTIVE member database
-- Session state: `unlocked=true`
-
-**Logic**:
-- UC1 matched and clicked event triggered unlock, setting `unlocked=true` at some frame
-- Subsequent frames detect a face that doesn't match ANY active member → TAILGATING
-- This is not a separate detection phase — it is the normal per-frame identification (UC3) combined with the knowledge that the door is already open
-
-**Output**:
-- Publish `tailgating_alert` to IoT
-- Include: cam_ip, authorized_member, timestamp, snapshot of unknown face
-- Do NOT prevent access (door already unlocked)
-
-**Configuration**:
-- `TAILGATE_WINDOW_SEC`: Duration to monitor after unlock (default: 10s)
-
-**Key Behaviors**:
-- Does not prevent access (too late — door already open)
-- Alert is informational for security review
-- Multiple unauthorized faces = multiple alerts
-- UC2 fires in addition to UC3 (the unknown face is both logged AND flagged as tailgating)
+No separate tailgating alert is needed.
 
 ---
 
@@ -111,10 +100,29 @@ Security use-cases prioritized over hospitality/analytics use-cases.
   - BLOCKLIST: reservations with blocklist flag
 - If no match in any category → unknown face
 
+**Key Design: Face Category Attribute**
+Every detected face is assigned a `category` attribute based on match priority:
+
+| Priority | Category | Description | Action |
+|----------|----------|-------------|--------|
+| 1 | BLOCKLIST | Matched banned individual | UC5: Alert (HIGH), block unlock |
+| 2 | ACTIVE | Matched current guest | UC1: Unlock (if clicked), log, snapshot |
+| 3 | INACTIVE | Matched past guest | UC5: Alert, log, snapshot |
+| 4 | STAFF | Matched staff member | UC1: Unlock (if clicked), log, snapshot |
+| 5 | UNKNOWN | No match in any database | UC3: Log, snapshot |
+
+**STAFF = ACTIVE for Unlock**: STAFF category triggers the same unlock behavior as ACTIVE — both save snapshots, both publish `member_detected`, both unlock when clicked. The category distinction is for logging/auditing only.
+
+**Same Threshold for All Categories**: A single `FACE_RECOG_THRESHOLD` (e.g., 0.45) applies to all categories. No category-specific thresholds.
+
+**UNKNOWN Similarity Logging**: For UNKNOWN faces, log the best similarity across all categories (e.g., "best match: John Doe 0.38") for debugging and forensic analysis.
+
+**Face Recognition Runs Regardless of Active Members**: SCRFD + ArcFace inference runs if ANY database has data (ACTIVE, INACTIVE, STAFF, or BLOCKLIST). This ensures UC5 (BLOCKLIST/INACTIVE detection) works even when no active guests exist.
+
 **Output**:
 - Save snapshot to S3 (temporary local → upload → remove, same pattern as `member_detected`)
 - Publish `unknown_face_detected` to IoT (low priority)
-- Include: cam_ip, timestamp, snapshot S3 key
+- Include: cam_ip, timestamp, snapshot S3 key, best_similar_member (for debugging)
 
 **Note**: Unknown face embeddings are clustered within the session (for UC4 distinct counting) but NOT persisted to disk. Cloud-side embedding storage is needed for UC6 (Loitering Detection) to enable same-face matching across sessions over days/weeks.
 
@@ -131,7 +139,7 @@ Security use-cases prioritized over hospitality/analytics use-cases.
 
 **Scenario**: Over the course of a detection session (10-15 seconds, 100-150 frames at 10 fps), the system accumulates distinct faces seen and compares the total against the reservation's expected guest count. This catches "too many people" using face-level deduplication across the entire session — not a single-frame snapshot.
 
-**Trigger**: Session-level check, evaluated after `active_member_matched=true`
+**Trigger**: Session-level check, evaluated after `authorized_member_matched=true` (ACTIVE or STAFF matched)
 
 **Input**:
 - Session-level face accumulators (see Session State):
@@ -204,28 +212,32 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 
 **Input**:
 - Camera frame with face
-- ACTIVE member database (no match)
-- INACTIVE member database (checked-out guests)
-- BLOCKLIST member database (banned individuals)
+- All member databases loaded: ACTIVE, INACTIVE, STAFF, BLOCKLIST
+- Face category assignment (see UC3: Face Category Attribute table)
 
-**Logic**:
-- Face does NOT match any ACTIVE member
-- Face DOES match an INACTIVE member → sub-type INACTIVE
-- Face DOES match a BLOCKLIST member → sub-type BLOCKLIST
-- BLOCKLIST takes priority if face matches both
+**Logic: Priority-Based Category Assignment**
+Each detected face is assigned exactly one category based on priority matching:
 
-**Sub-type: INACTIVE** (normal priority):
+1. **BLOCKLIST** (Priority 1): If face matches any BLOCKLIST member above threshold → category = BLOCKLIST
+2. **ACTIVE** (Priority 2): If face matches any ACTIVE member above threshold → category = ACTIVE
+3. **INACTIVE** (Priority 3): If face matches any INACTIVE member above threshold → category = INACTIVE
+4. **STAFF** (Priority 4): If face matches any STAFF member above threshold → category = STAFF
+5. **UNKNOWN** (Priority 5): If no match in any database → category = UNKNOWN
+
+**Sub-type: INACTIVE** (category = INACTIVE):
 - Former guest trying to access
 - Publish `non_active_member_alert` with `sub_type=INACTIVE`
 - Include: cam_ip, member_info (name, original reservation), checkout_date, similarity
 - Do NOT unlock door
 
-**Sub-type: BLOCKLIST** (HIGH priority):
+**Sub-type: BLOCKLIST** (category = BLOCKLIST):
 - Banned individual attempting access
 - Publish `non_active_member_alert` with `sub_type=BLOCKLIST`
 - Include: cam_ip, member_info, blocklist_reason, snapshot
 - Do NOT unlock door
 - If `BLOCKLIST_PREVENTS_UNLOCK=true`: actively block unlock even if an active member is also detected in the same session
+
+**Face Recognition Runs Regardless of Active Members**: SCRFD + ArcFace inference runs if ANY database has members (ACTIVE, INACTIVE, STAFF, or BLOCKLIST). This ensures UC5 works even when no active guests exist — critical for catching blocklisted individuals attempting access at vacant properties.
 
 **Data Source**:
 - TBL_RESERVATION (checkOut < today, last N days) + TBL_MEMBER — for INACTIVE
@@ -236,8 +248,8 @@ A masked face passes detection (low bar) but fails recognition (high bar) → cl
 - `BLOCKLIST_PREVENTS_UNLOCK`: Whether blocklist detection blocks unlock for the entire session (default: true)
 
 **Key Behaviors**:
-- BLOCKLIST sub-type is highest priority — checked before member identification
-- INACTIVE sub-type does not unlock door
+- BLOCKLIST is checked first (highest priority) — ensures security threats are caught before any other action
+- INACTIVE does not unlock door (access denied)
 - Alert includes original stay information (INACTIVE) or blocklist reason (BLOCKLIST)
 - Useful for property owners to know who is trying to access
 - `block_further_unlocks` prevents unlock of any lock in `clicked_locks` that hasn't been unlocked yet (already-unlocked locks are NOT re-locked)
@@ -401,7 +413,7 @@ Check dual signal:
 - Fixed close-range framing (face fills most of frame)
 - Controlled angle and lighting
 - Purpose: high-quality face capture for liveness verification only
-- Does not participate in UC2 (tailgating), UC3 (unknown logging), UC4 (group counting), etc.
+- Does not participate in UC3 (unknown logging), UC4 (group counting), etc.
 
 **Trigger**: Clicked event on lock → start detection on dedicated camera
 
@@ -528,9 +540,9 @@ Every detection session maintains these (reset per session):
 
 | Flag | Default | Set by | Effect |
 |------|---------|--------|--------|
-| `unlocked` | `false` | UC1 (active member match + clicked event) | Prevents re-triggering unlock for the same lock set; enables UC2 tailgating checks |
+| `unlocked` | `false` | UC1 (authorized member match + clicked event) | Prevents re-triggering unlock for the same lock set; session state for audit |
 | `block_further_unlocks` | `false` | UC5-blocklist (when `BLOCKLIST_PREVENTS_UNLOCK=true`) | Prevents any new unlock actions for remainder of session (already-unlocked locks are NOT re-locked) |
-| `active_member_matched` | `false` | UC1 | Enables UC4 group size comparison against `memberCount` |
+| `authorized_member_matched` | `false` | UC1 (ACTIVE or STAFF match) | Enables UC4 group size comparison against `memberCount` |
 | `unlocked_locks` | `{}` (empty set) | UC1 unlock action | Tracks which specific locks have been unlocked (per-lock granularity) |
 | `clicked_locks` | `{}` (empty set) | Clicked event (occupancy or LOCK_BUTTON) | Set of lock IDs that received a clicked signal during this session. Determines which locks are eligible for unlock |
 
@@ -599,14 +611,18 @@ T=1+   CONTINUOUS DETECTION LOOP (every frame, full timer)
        │    ├─ ACTIVE → [UC1]                                     │
        │    │   Add to known_members[id]={category:ACTIVE}        │
        │    │   Publish member_detected (LOG ONLY, no unlock)     │
-       │    │   Set active_member_matched=true                    │
+       │    │   Set authorized_member_matched=true                │
        │    │   Save snapshot to S3                               │
        │    │                                                     │
        │    ├─ INACTIVE → [UC5-inactive]                          │
        │    │   Add to known_members[id]={category:INACTIVE}      │
        │    │   Publish non_active_member_alert                   │
        │    │                                                     │
-       │    └─ STAFF → Add to known_members, log only             │
+       │    └─ STAFF → [UC1]                                      │
+       │        Add to known_members[id]={category:STAFF}         │
+       │        Publish member_detected (LOG ONLY, no unlock)     │
+       │        Set authorized_member_matched=true                │
+       │        Save snapshot to S3                               │
        │                                                          │
        │   NO (below threshold for all) → [UC3]                   │
        │     Cluster into unknown_face_clusters                   │
@@ -631,7 +647,7 @@ T=end  Session ends
        │  Same unknown face across sessions → loitering_alert
 ```
 
-**P1 notes**: No unlock/lock state. No UC2 tailgating (no door to tailgate through). No UC4 group size validation (no door/reservation context to compare against).
+**P1 notes**: No unlock/lock state. No UC4 group size validation (no door/reservation context to compare against).
 
 ### P2: Camera with lock(s)
 
@@ -678,7 +694,7 @@ T=1+   CONTINUOUS DETECTION LOOP (surveillance mode — no unlock possible)
        │    │                                                     │
        │    ├─ ACTIVE → [UC1]                                     │
        │    │   Add to known_members[id]={category:ACTIVE}        │
-       │    │   Set active_member_matched=true                    │
+       │    │   Set authorized_member_matched=true                │
        │    │   No unlock yet (clicked_locks is empty)            │
        │    │   Publish member_detected (LOG ONLY — surveillance) │
        │    │   Save snapshot to S3                               │
@@ -687,7 +703,12 @@ T=1+   CONTINUOUS DETECTION LOOP (surveillance mode — no unlock possible)
        │    │   Add to known_members[id]={category:INACTIVE}      │
        │    │   Publish non_active_member_alert                   │
        │    │                                                     │
-       │    └─ STAFF → Add to known_members, log only             │
+       │    └─ STAFF → [UC1]                                      │
+       │        Add to known_members[id]={category:STAFF}         │
+       │        Set authorized_member_matched=true                │
+       │        No unlock yet (clicked_locks is empty)            │
+       │        Publish member_detected (LOG ONLY — surveillance) │
+       │        Save snapshot to S3                               │
        │                                                          │
        │   NO (below threshold for all) → [UC3]                   │
        │     Cluster into unknown_face_clusters                   │
@@ -695,7 +716,7 @@ T=1+   CONTINUOUS DETECTION LOOP (surveillance mode — no unlock possible)
        │     Publish unknown_face_detected                        │
        │     Save snapshot to S3                                  │
        │                                                          │
-       │ No UC2 tailgating (no unlock has occurred)               │
+       │ No unlock possible (clicked_locks is empty)              │
        └─────────────────────────────────────────────────────────┘
        │
        │  Loop continues...
@@ -711,7 +732,7 @@ T=N    │  CLICKED EVENT arrives for lock "lock_123"
        │
        │  ┌─────────────────────────────────────────────────────┐
        │  │ IMMEDIATE UNLOCK CHECK (Decision 30):                │
-       │  │   If active_member_matched=true                      │
+       │  │   If authorized_member_matched=true                  │
        │  │   AND block_further_unlocks=false                    │
        │  │   AND "lock_123" not in unlocked_locks:              │
        │  │     → UNLOCK lock_123 IMMEDIATELY                    │
@@ -746,7 +767,8 @@ T=N+   DETECTION LOOP CONTINUES (unlock mode active for lock_123)
        │     (If lock_123 already unlocked: no re-lock.           │
        │      If not yet unlocked: prevents future unlock.)       │
        │                                                          │
-       │   Unknown face + unlocked=true → [UC2] tailgating_alert │
+       │   Unknown face → [UC3]                                   │
+       │     (Logged even after unlock — no separate alert)       │
        │                                                          │
        │ (All other UCs — UC3, UC4, UC5-inactive — same as above) │
        └─────────────────────────────────────────────────────────┘
@@ -764,7 +786,7 @@ T=exp  Timer about to expire
 T=end  Session ends
        │
        │  SESSION-LEVEL CHECKS:
-       │  [UC4] If active_member_matched=true:
+       │  [UC4] If authorized_member_matched=true:
        │    distinct_faces = len(known_members) + len(unknown_face_clusters)
        │    If distinct_faces > memberCount → Publish group_size_mismatch
        │    [UC4+UC8] If max_simultaneous_persons > distinct_faces:
@@ -777,24 +799,24 @@ T=end  Session ends
 
 **P2 example scenario 1** — blocklist detected BEFORE clicked:
 1. T=0: ONVIF triggers, detection starts in surveillance mode
-2. Frame 3: Active member detected → `active_member_matched=true`, but no clicked yet → log only
+2. Frame 3: Authorized member (ACTIVE/STAFF) detected → `authorized_member_matched=true`, but no clicked yet → log only
 3. Frame 7: Blocklist person detected → `block_further_unlocks=true`, alert fires
 4. T=N: Clicked event for lock_123 → `clicked_locks={"lock_123"}`
-5. Immediate unlock check: `active_member_matched=true` BUT `block_further_unlocks=true` → NO unlock
-6. Result: Blocklist prevented unlock despite active member being present
+5. Immediate unlock check: `authorized_member_matched=true` BUT `block_further_unlocks=true` → NO unlock
+6. Result: Blocklist prevented unlock despite authorized member being present
 
 **P2 example scenario 2** — clicked before face match:
 1. T=0: ONVIF triggers, detection starts in surveillance mode
 2. T=N: Clicked event for lock_123 → `clicked_locks={"lock_123"}`, no member matched yet
-3. Frame at T=N+: Active member detected → `active_member_matched=true`, lock_123 in clicked_locks, `block_further_unlocks=false` → UNLOCK lock_123
+3. Frame at T=N+: Authorized member (ACTIVE/STAFF) detected → `authorized_member_matched=true`, lock_123 in clicked_locks, `block_further_unlocks=false` → UNLOCK lock_123
 4. Result: Normal unlock flow, clicked arrived before face match
 
 **P2 example scenario 3** — multiple locks:
 1. T=0: ONVIF triggers, surveillance mode
 2. T=N: Clicked event for lock_123 → `clicked_locks={"lock_123"}`
-3. Frame: Active member → unlock lock_123, `unlocked_locks={"lock_123"}`
+3. Frame: Authorized member (ACTIVE/STAFF) → unlock lock_123, `unlocked_locks={"lock_123"}`
 4. T=M: Clicked event for lock_456 → `clicked_locks={"lock_123", "lock_456"}`
-5. Immediate unlock check: `active_member_matched=true`, lock_456 not in unlocked_locks → UNLOCK lock_456 immediately
+5. Immediate unlock check: `authorized_member_matched=true`, lock_456 not in unlocked_locks → UNLOCK lock_456 immediately
 6. Result: Each lock unlocked independently as its clicked event arrived
 
 ## UC Applicability Matrix
@@ -802,7 +824,6 @@ T=end  Session ends
 | UC | P1 (no lock) | P2 (with lock) | Scope |
 |----|:---:|:---:|:---:|
 | UC1: Member ID | N/A | Unlock specific lock (via clicked) | Current |
-| UC2: Tailgating | N/A | Alert (after clicked-triggered unlock) | New |
 | UC3: Unknown Face | Log + S3 | Log + S3 | New |
 | UC4: Group Size | N/A (no door context) | Alert | New |
 | UC5: Non-Active Member | Alert only | Alert + Block? | New |
@@ -820,7 +841,7 @@ T=end  Session ends
 
 On Hailo-enabled devices, UC enablement is configurable **per camera** via toggle groups. Each toggle group can be independently enabled or disabled per camera. This allows device owners to choose which security features to activate based on each camera's role and lock pattern.
 
-**Non-Hailo devices (InsightFace CPU):** Only UC1 is available. No toggles — the current "detect once, stop" behavior applies. UC2-UC5, UC8 require the continuous detection loop and NPU models that only Hailo provides.
+**Non-Hailo devices (InsightFace CPU):** Only UC1 is available. No toggles — the current "detect once, stop" behavior applies. UC3-UC5, UC8 require the continuous detection loop and NPU models that only Hailo provides.
 
 ### Toggle Configuration Flow
 
@@ -834,7 +855,7 @@ This follows the existing pattern where camera configuration (thresholds, record
 
 | Toggle | UCs | P1 (no lock) | P2 (with lock) | Field in `gocheckin_asset` |
 |--------|-----|:---:|:---:|--------|
-| **UC1+UC2** (Identity + Tailgating) | UC1, UC2 | N/A | Toggleable | `enable_uc1_uc2` |
+| **UC1** (Member Identification) | UC1 | N/A | Toggleable | `enable_uc1` |
 | **UC3** (Unknown Face) | UC3 | Toggleable | Toggleable | `enable_uc3` |
 | **UC4+UC8** (Group Size + Body Detection) | UC4, UC8 | N/A | Toggleable | `enable_uc4_uc8` |
 | **UC5** (Non-Active Member) | UC5 | Toggleable | Toggleable | `enable_uc5` |
@@ -842,7 +863,7 @@ This follows the existing pattern where camera configuration (thresholds, record
 
 ### Rules
 
-1. **UC1+UC2 is a fixed pair on P2.** UC1 provides the `unlocked=true` session state that UC2 depends on. Tailgating detection without door unlock has no meaning. On P1 (no lock), this toggle is N/A — there is no door to unlock or tailgate through.
+1. **UC1 on P2 only.** UC1 (Member Identification) triggers unlock via clicked event. On P1 (no lock), this toggle is N/A — there is no door to unlock.
 
 2. **UC4+UC8 is a fixed pair on P2.** UC4 (Group Size) requires `max_simultaneous_persons` from UC8's continuous YOLOv8n detection as a cross-check signal. UC4 compares `distinct_face_count` vs `memberCount` — this only makes sense at an entry point with a door (P2). On P1 (no lock), UC4 has no meaning.
 
@@ -850,7 +871,7 @@ This follows the existing pattern where camera configuration (thresholds, record
 
 4. **UC3 and UC5 are independently toggleable** on both P1 and P2. They have no dependencies on other UCs.
 
-5. **Toggle is N/A = silently ignored.** If `enable_uc1_uc2=true` is set on a P1 camera, the system ignores it (no error, no effect). Pattern applicability takes precedence over toggle setting.
+5. **Toggle is N/A = silently ignored.** If `enable_uc1=true` is set on a P1 camera, the system ignores it (no error, no effect). Pattern applicability takes precedence over toggle setting.
 
 6. **Per-camera granularity.** Different cameras on the same device can have different toggle configurations. A P2 entrance camera may have all UCs enabled, while a P1 hallway camera on the same device may only have UC8 enabled.
 
@@ -858,14 +879,14 @@ This follows the existing pattern where camera configuration (thresholds, record
 
 ```
 P1 (no lock):     UC3, UC5, UC8           (each independently toggleable per camera)
-P2 (with lock):   UC1+UC2, UC3, UC4+UC8, UC5  (each independently toggleable per camera)
+P2 (with lock):   UC1, UC3, UC4+UC8, UC5  (each independently toggleable per camera)
 ```
 
 ### Behavioral impact when toggles are OFF
 
 | Toggle OFF | Effect |
 |------------|--------|
-| UC1+UC2 off (P2) | No face recognition, no unlock, no tailgating detection. Session still runs if UC4+UC8 is on (YOLOv8n gate + continuous). SCRFD+ArcFace do not run. |
+| UC1 off (P2) | No face recognition, no unlock. Session still runs if UC4+UC8 is on (YOLOv8n gate + continuous). SCRFD+ArcFace do not run. |
 | UC3 off | Unknown faces not logged or saved to S3. Detection loop still runs for other enabled UCs. |
 | UC4+UC8 off (P2) | No YOLOv8n gate → ONVIF fires straight into SCRFD+ArcFace (more false triggers). No per-frame person count, no `max_simultaneous_persons`. Session extend falls back to motion-only (no dual-signal). |
 | UC5 off | Non-active/blocklist members not flagged. `BLOCKLIST_PREVENTS_UNLOCK` has no effect. |
@@ -881,7 +902,6 @@ All toggles default to `true` on Hailo devices. Device owners opt out of specifi
 
 ## Initial Version (SCRFD + ArcFace + YOLOv8n)
 - UC1: Authorized Member Identification (refactor existing)
-- UC2: Tailgating Detection
 - UC3: Unknown Face Logging
 - UC4: Group Size Validation
 - UC5: Non-Active Member Alert
@@ -966,7 +986,14 @@ Session state: clicked_locks={}, unlocked_locks={}, unlocked=false
 │               Set block_further_unlocks=true        │
 │                                                     │
 │   ACTIVE → [UC1]                                    │
-│     Set active_member_matched=true                  │
+│     Set authorized_member_matched=true              │
+│     If lock in clicked_locks                        │
+│        AND not in unlocked_locks                    │
+│        AND block_further_unlocks=false:             │
+│          → UNLOCK, set unlocked=true                │
+│                                                     │
+│   STAFF → [UC1]                                     │
+│     Set authorized_member_matched=true              │
 │     If lock in clicked_locks                        │
 │        AND not in unlocked_locks                    │
 │        AND block_further_unlocks=false:             │
@@ -975,14 +1002,13 @@ Session state: clicked_locks={}, unlocked_locks={}, unlocked=false
 │   INACTIVE → [UC5] Alert                           │
 │                                                     │
 │   NO MATCH → [UC3] Log unknown                      │
-│              If unlocked=true → [UC2] Tailgating   │
 │                                                     │
 │   Accumulate: known_members, unknown_face_clusters  │
 └─────────────────────────────────────────────────────┘
     │
     ├──── CLICKED EVENT for lock_X ────┐
     │     clicked_locks += {lock_X}    │
-    │     If active_member_matched     │
+    │     If authorized_member_matched │
     │        AND !block_further_unlocks│
     │        → UNLOCK IMMEDIATELY      │
     │     (Decision 30)                │
@@ -998,7 +1024,7 @@ Timer expiry → [UC8 EXTEND] motion recent + person in ≥3 of last 10? (buffer
 Session ends
     │
     ▼
-[UC4] If active_member_matched:
+[UC4] If authorized_member_matched:
       distinct_faces = len(known_members) + len(unknown_face_clusters)
       If distinct_faces > memberCount → group_size_mismatch alert
       [UC4+UC8] If max_simultaneous_persons > distinct_faces:
@@ -1009,8 +1035,7 @@ Session ends
 
 | UC | P1 (no lock) | P2 (with lock) | Toggle |
 |----|:---:|:---:|:---:|
-| UC1: Member ID | N/A | Unlock via clicked | `ENABLE_UC1_UC2` |
-| UC2: Tailgating | N/A | Alert (after unlock) | `ENABLE_UC1_UC2` |
+| UC1: Member ID | N/A | Unlock via clicked | `ENABLE_UC1` |
 | UC3: Unknown Face | Log + S3 | Log + S3 | `ENABLE_UC3` |
 | UC4: Group Size | N/A | Alert at session end | `ENABLE_UC4_UC8` |
 | UC5: Non-Active | Alert | Alert + Block | `ENABLE_UC5` |
@@ -1022,7 +1047,7 @@ Session ends
 
 | Category | Source | Use-Cases |
 |----------|--------|-----------|
-| ACTIVE | TBL_RESERVATION (active dates) + TBL_MEMBER | UC1 (unlock), UC2, UC3, UC4 |
+| ACTIVE | TBL_RESERVATION (active dates) + TBL_MEMBER | UC1 (unlock), UC3, UC4 |
 | INACTIVE | TBL_RESERVATION (past N days) + TBL_MEMBER | UC3, UC5-inactive (alert) |
 | STAFF | TBL_RESERVATION (staff flag) + TBL_MEMBER | UC3 |
 | BLOCKLIST | TBL_RESERVATION (blocklist flag) + TBL_MEMBER | UC3, UC5-blocklist (block) |
@@ -1035,7 +1060,6 @@ Session ends
 | Topic | Use-Case | Priority | Scope |
 |-------|----------|----------|-------|
 | `gocheckin/{thing}/member_detected` | UC1 | Normal | Current |
-| `gocheckin/{thing}/tailgating_alert` | UC2 | Normal | New |
 | `gocheckin/{thing}/unknown_face_detected` | UC3 | Low | New |
 | `gocheckin/{thing}/group_size_mismatch` | UC4 | Normal | New |
 | `gocheckin/{thing}/non_active_member_alert` | UC5 | Normal / HIGH | New |
@@ -1056,8 +1080,7 @@ Session ends
 | 5 | Non-Active Member (BLOCKLIST) | Alert (HIGH), set `block_further_unlocks` | New (UC5) |
 | 10 | Member Identification | Unlock (once, via clicked), log, set `unlocked` | Current (UC1) |
 | 20 | Non-Active Member (INACTIVE) | Alert | New (UC5) |
-| 30 | Tailgating | Alert (requires `unlocked=true`) | New (UC2) |
-| 38 | Group Size | Alert at session end (requires `active_member_matched`) | New (UC4) |
+| 38 | Group Size | Alert at session end (requires `authorized_member_matched`) | New (UC4) |
 | 40 | Unknown Face | Log | New (UC3) |
 | 45 | Loitering | Alert (cross-session) | Future (UC6) |
 | 8 | Anti-Spoofing (dedicated camera) | Multi-layer gate: face size + device detection + blink pattern → block if any fail | Future (UC9) |
@@ -1078,9 +1101,6 @@ FACE_DETECT_THRESHOLD=0.3             # SCRFD detection confidence (lower to cat
 FACE_RECOG_THRESHOLD=0.45             # ArcFace cosine similarity for known member match
 TIMER_DETECT=10                       # Detection session duration in seconds (existing, function.conf)
 
-# UC2: Tailgating
-TAILGATE_WINDOW_SEC=10                # Seconds to monitor after unlock
-
 # UC4: Group Size — unknown face clustering
 UNKNOWN_FACE_CLUSTER_THRESHOLD=0.45   # Cosine similarity threshold for same-person clustering
 FACE_IOU_THRESHOLD=0.5                # Bbox IoU threshold for spatial continuity (consecutive frames)
@@ -1098,7 +1118,6 @@ YOLO_EXTEND_MIN_DETECTIONS=3         # Min frames with person detected to pass e
 MOTION_RECENCY_SEC=5                  # Seconds to consider a motion event "recent" for dual-signal extension
 
 # Feature flags
-ENABLE_TAILGATING_DETECTION=true      # UC2
 ENABLE_UNKNOWN_FACE_LOGGING=true      # UC3
 ENABLE_GROUP_VALIDATION=true          # UC4
 ENABLE_NON_ACTIVE_MEMBER_ALERT=true   # UC5
@@ -1113,7 +1132,7 @@ ENABLE_NON_ACTIVE_MEMBER_ALERT=true   # UC5
 ## NFR1: Backend Compatibility
 
 Only UC1 (Authorized Member Identification) is required to work with all inference backends.
-UC2-UC5, UC8 only need to work with the primary backend in use at runtime.
+UC3-UC5, UC8 only need to work with the primary backend in use at runtime.
 UC6, UC7, UC9 are future scope.
 
 **Supported Backends**:
@@ -1191,7 +1210,7 @@ Each `FaceResult` object must have at minimum:
 
 # Decisions Made
 
-1. **Scope**: Initial version implements UC1-UC5 + UC8 with three models (SCRFD + ArcFace + YOLOv8n). UC6, UC7, UC9 are future
+1. **Scope**: Initial version implements UC1, UC3-UC5, UC8 with three models (SCRFD + ArcFace + YOLOv8n). UC6, UC7, UC9 are future
 2. **Facility types**: All (vacation rentals, hotels, offices)
 3. **UC3 databases**: All categories (ACTIVE, INACTIVE, STAFF, BLOCKLIST) loaded from TBL_RESERVATION with different filters
 4. **UC3 storage**: Snapshot to S3 only (no embedding storage in initial version)
@@ -1203,11 +1222,11 @@ Each `FaceResult` object must have at minimum:
 10. **Alert action**: IoT publish only (cloud handles notifications)
 11. **Focus**: Security use-cases prioritized
 12. **Architecture**: Separate inference backends from business logic (NFR2)
-13. *(Revised by Decision 36)* ~~UC1 always runs~~ — UC1+UC2 is now a toggleable fixed pair, only applicable on P2 (with lock). On P1, UC1 is N/A
+13. *(Revised by Decision 36)* ~~UC1 always runs~~ — UC1 is toggleable, only applicable on P2 (with lock). On P1, UC1 is N/A
 14. **Detection sequence is pattern-specific**: Two camera-lock patterns (P1-P2) define when detection starts, what triggers it, and what unlock actions result. Documented in Camera-Lock Patterns section with detailed timelines
 15. **Continuous detection loop**: Detection does NOT stop after UC1 match/unlock. The loop runs every frame for the full timer. Unlock is a one-time side effect; all UCs continue to fire on every subsequent frame. All handlers run on every frame (priority = evaluation order, not mutual exclusion)
 16. **Post-unlock blocklist policy**: If a blocklist person is detected AFTER the door has already been unlocked, the system does NOT re-lock (can't undo). Instead it sets `block_further_unlocks` to prevent any additional locks from being unlocked for the remainder of the session (e.g., a lock whose clicked event arrives later)
-17. **Behavioral change from current code**: Current code stops detection immediately on UC1 match (`stop_feeding()`). New design continues the detection loop for the full `TIMER_DETECT` duration after match — unlock is a one-time side effect, not a session terminator. This is required for UC2-UC5 to function
+17. **Behavioral change from current code**: Current code stops detection immediately on UC1 match (`stop_feeding()`). New design continues the detection loop for the full `TIMER_DETECT` duration after match — unlock is a one-time side effect, not a session terminator. This is required for UC3-UC5 to function
 18. **Two-threshold approach for masked faces**: `FACE_DETECT_THRESHOLD` (SCRFD, lower, e.g. 0.3) and `FACE_RECOG_THRESHOLD` (ArcFace, higher, e.g. 0.45). Masked faces pass detection but fail recognition → classified as unknown → still counted in UC4 via embedding + bbox IoU clustering. Per-camera threshold tuning possible since each camera has fixed angle/lighting/distance
 19. **UC6 requires cloud**: Loitering detection needs unknown face embeddings persisted across sessions over days/weeks — cloud-side data aggregation
 20. **UC7 deferred**: Trivial time check but deferred to reduce initial scope
@@ -1220,10 +1239,10 @@ Each `FaceResult` object must have at minimum:
 27. **UC8 gates video recording**: YOLOv8n person detection gates the existing GStreamer RTSP recording pipeline alongside SCRFD+ArcFace. No person = no recording = storage savings on false ONVIF triggers. No new config variables — uses existing GStreamer recording parameters (`RECORD_AFTER_MOTION_SECOND`, pre-buffer)
 28. **Lock simplification**: All locks require a "clicked" signal to unlock. The `withKeypad` flag is no longer used for unlock decisions. The `onvifTriggered` field is removed from `member_detected` payload — ONVIF never triggers unlock directly. Four camera-lock patterns (P1-P4) consolidated to two (P1-P2)
 29. **"Clicked" unifies occupancy and LOCK_BUTTON signals**: Occupancy sensor activation (keypad locks like MTR001DC/MTR001AC) and LOCK_BUTTON press (GreenPower_2 kinetic switch) are treated as the same trigger type — a "clicked" event that makes a specific lock eligible for unlock
-30. **Immediate unlock on clicked if member already matched**: When a clicked event arrives and `active_member_matched=true` already (face was recognized during surveillance mode), unlock happens immediately without requiring the person to re-present their face. This avoids poor UX where the system "forgets" a match
+30. **Immediate unlock on clicked if member already matched**: When a clicked event arrives and `authorized_member_matched=true` already (ACTIVE or STAFF face was recognized during surveillance mode), unlock happens immediately without requiring the person to re-present their face. This avoids poor UX where the system "forgets" a match
 31. **`member_detected` payload simplification**: `onvifTriggered` field removed (ONVIF never triggers unlock). `occupancyTriggeredLocks` renamed to `clickedLocks` (reflects unified clicked signal from occupancy sensor + LOCK_BUTTON). Payload now uses `clickedLocks` to indicate which locks were unlocked via clicked events
 32. **Session extension dual-signal**: Both recent motion event (within `MOTION_RECENCY_SEC`) AND person presence in recent frames from the continuous YOLOv8n detection buffer (person in ≥ `YOLO_EXTEND_MIN_DETECTIONS` of last `YOLO_EXTEND_LOOKBACK` frames) required to extend session at timer expiry. No separate YOLOv8n burst needed — the continuous buffer already has the data, adding zero NPU cost at extend time. Person detection alone may false-positive on static figures; motion alone may be non-human. Together they confirm something is moving AND it's a person. The dual-signal requirement eliminates the need for `BODY_EXTEND_MAX_SEC` cap and watch mode — motion recency is a natural session limiter (ONVIF is single-fire, so without new motion events the signal goes stale and the session ends). Motion source is event-based and pluggable — currently ONVIF events (single-fire, recency based on last event timestamp), future H265 HW frame-level decoding will emit equivalent timestamped events per camera via the same interface. The motion source's **notification gap** (camera-side, tunable per camera/location) works together with `MOTION_RECENCY_SEC` to govern session duration. New config: `MOTION_RECENCY_SEC`, `YOLO_EXTEND_LOOKBACK`, `YOLO_EXTEND_MIN_DETECTIONS`
 34. **UC8 multi-frame gate (10 frames, any 3 of 10)**: Single-frame YOLOv8n detection is too fragile for the gate decision. The gate is high-stakes — a false negative skips the entire SCRFD+ArcFace session (no face recognition at all). A person may be missed in any single frame due to motion blur, partial occlusion, or awkward body angle. Running YOLOv8n over `YOLO_GATE_FRAMES` (default: 10, = 1 second at 10fps) frames and requiring person detection in ≥ `YOLO_GATE_MIN_DETECTIONS` (default: 3) frames provides robust detection. The "any 3 of 10" threshold balances: single-frame shadows/reflections won't trigger false sessions (requires 3+ frames), while a real person only needs to be visible in 3 of 10 frames (tolerates occlusion/blur in 7 frames). Gate adds 1 second latency before session starts — acceptable since person is still approaching after ONVIF fired. Extend no longer uses a separate burst — it reads from the continuous detection buffer (see Decision 35). New config: `YOLO_GATE_FRAMES=10`, `YOLO_GATE_MIN_DETECTIONS=3`
 35. **UC8 continuous YOLOv8n during session**: Feasibility testing on Hailo-8 measured YOLOv8n at only **6.4% NPU utilization** at 10fps continuous (via `HAILO_MONITOR`). This is low enough to run alongside SCRFD+ArcFace (~35%) with comfortable headroom (~41.4% total per camera, ~82.8% for 2 cameras). At this cost, burst-only gate/extend windows are not justified — YOLOv8n runs on every frame during the detection session. Benefits: (1) extend decisions read from the continuous buffer instead of running a separate inference burst — zero additional NPU cost at extend time, (2) per-frame person count enables `max_simultaneous_persons` accumulator — the peak person count seen in any single frame during the session, (3) `max_simultaneous_persons` enhances UC4 by catching people whose faces were never captured (back turned, masked, outside camera angle) — if max_simultaneous_persons > distinct_face_count, the system knows faces were missed. Note: this is a lower bound on total individuals (not total distinct — that would require Person Re-ID which is not needed for current scope)
 33. **Risk assessment for unbounded session extension**: Six risks were evaluated after removing the explicit session cap (`BODY_EXTEND_MAX_SEC`) and watch mode. Resolutions: (1) **Unbounded sessions on RPi** — mitigated by the ONVIF notification gap, which is tunable per camera/location; busy locations set 20-30s gap to naturally space out sessions, quiet locations set 0s for maximum responsiveness. (2) **ONVIF not truly single-fire** — the ONVIF notification gap is camera-side and reliably throttles ALL motion events, confirming single-fire behavior. (3) **Future H265 HW motion defeats limiter** — H265 HW motion source will also have a notification gap setting, same as ONVIF; the notification gap is a property of the motion source abstraction. (4) **Recording gaps for lingering persons** — acceptable; a person standing still is not a threat, and recording resumes on the next motion event. (5) **Session state reset on re-trigger** — acceptable; each session is independent, and cloud-side can deduplicate across sessions. (6) **`MOTION_RECENCY_SEC` hard to tune** — `MOTION_RECENCY_SEC` is a global default; operators tune the ONVIF notification gap per camera to match their location's activity level. Conclusion: no explicit session cap needed — the combination of motion source notification gap (camera-side, per-location) and `MOTION_RECENCY_SEC` (software-side, global) provides sufficient session duration control
-36. **Per-camera UC toggle groups**: On Hailo-enabled devices, UCs are configurable **per camera** via toggle groups. Toggle config is set through **IoT device shadow** (cloud → device) and persisted in the **`gocheckin_asset`** local DynamoDB table (keyed by camera). At session start, the detection loop reads the camera's toggle config from `gocheckin_asset`. Toggle groups are designed around functional dependencies: (1) **UC1+UC2** (`enable_uc1_uc2`) — fixed pair, P2 only. UC2 tailgating depends on UC1's `unlocked=true` session state. N/A on P1 (no door). (2) **UC3** (`enable_uc3`) — independent, both P1 and P2. (3) **UC4+UC8** (`enable_uc4_uc8`) — fixed pair, P2 only. UC4 group size check requires `max_simultaneous_persons` from UC8's continuous YOLOv8n. UC4 compares face count vs `memberCount` at an entry point — no meaning without a door. (4) **UC5** (`enable_uc5`) — independent, both P1 and P2. (5) **UC8 standalone** (`enable_uc8`) — P1 only. Provides session lifecycle (gate/extend/continuous) without UC4's group size check. On P2, UC8 is controlled by `enable_uc4_uc8` instead. All toggles default to `true`. Toggle set to N/A pattern is silently ignored. Different cameras on the same device can have different toggle configurations. Non-Hailo devices (InsightFace CPU) have no toggles — only the current UC1 "detect once, stop" behavior applies. Revises Decision 13
+36. **Per-camera UC toggle groups**: On Hailo-enabled devices, UCs are configurable **per camera** via toggle groups. Toggle config is set through **IoT device shadow** (cloud → device) and persisted in the **`gocheckin_asset`** local DynamoDB table (keyed by camera). At session start, the detection loop reads the camera's toggle config from `gocheckin_asset`. Toggle groups are designed around functional dependencies: (1) **UC1** (`enable_uc1`) — P2 only. UC1 triggers unlock via clicked event. N/A on P1 (no door). (2) **UC3** (`enable_uc3`) — independent, both P1 and P2. (3) **UC4+UC8** (`enable_uc4_uc8`) — fixed pair, P2 only. UC4 group size check requires `max_simultaneous_persons` from UC8's continuous YOLOv8n. UC4 compares face count vs `memberCount` at an entry point — no meaning without a door. (4) **UC5** (`enable_uc5`) — independent, both P1 and P2. (5) **UC8 standalone** (`enable_uc8`) — P1 only. Provides session lifecycle (gate/extend/continuous) without UC4's group size check. On P2, UC8 is controlled by `enable_uc4_uc8` instead. All toggles default to `true`. Toggle set to N/A pattern is silently ignored. Different cameras on the same device can have different toggle configurations. Non-Hailo devices (InsightFace CPU) have no toggles — only the current UC1 "detect once, stop" behavior applies. Revises Decision 13
