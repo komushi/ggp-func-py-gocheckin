@@ -201,7 +201,7 @@ def has_config_changed(current_item, new_item):
         'username', 'password', 'isRecording', 'isDetecting',
         'onvif', 'rtsp', 'uuid', 'assetName', 'localIp',
         # UC toggle fields (synced via IoT device shadow)
-        'enable_uc1_uc2', 'enable_uc3', 'enable_uc4_uc8', 'enable_uc5', 'enable_uc8'
+        'enable_uc1', 'enable_uc3', 'enable_uc4_uc8', 'enable_uc5', 'enable_uc8'
     ]
 
     for field in critical_fields:
@@ -660,10 +660,12 @@ def start_http_server():
                 return []
 
             # NOTE: try detect faces, if no faces detected, lower det_size until it does
+            # HailoUC8App.get() returns (faces, person_count, max_simultaneous) — unpack if tuple
             detection_sizes = [None] + [(size, size) for size in range(640, 256, -64)] + [(256, 256)]
 
             for size in detection_sizes:
-                faces = face_app.get(img_data, det_size=size)
+                result = face_app.get(img_data, det_size=size)
+                faces = result[0] if isinstance(result, tuple) else result
                 if len(faces) > 0:
                     logger.info(f'analyze_faces out with {len(faces)} faces')
                     return faces
@@ -714,7 +716,7 @@ def get_uc_toggles(camera_item):
 
     Returns:
         dict with toggle states:
-            - uc1_uc2_enabled: UC1 (Member ID) + UC2 (Tailgating) - P2 only
+            - uc1_enabled: UC1 (Member ID) - P2 only
             - uc3_enabled: UC3 (Unknown Face) - P1 and P2
             - uc4_uc8_enabled: UC4 (Group Size) + UC8 (Body Detection) - P2 only
             - uc5_enabled: UC5 (Non-Active Member) - P1 and P2
@@ -723,7 +725,7 @@ def get_uc_toggles(camera_item):
     """
     if camera_item is None:
         return {
-            'uc1_uc2_enabled': False,
+            'uc1_enabled': False,
             'uc3_enabled': False,
             'uc4_uc8_enabled': False,
             'uc5_enabled': False,
@@ -737,7 +739,7 @@ def get_uc_toggles(camera_item):
 
     # Read toggle fields (default to True for Hailo devices)
     # On non-Hailo devices, these fields may not exist - handle gracefully
-    uc1_uc2_enabled = camera_item.get('enable_uc1_uc2', True) if is_p2_camera else False
+    uc1_enabled = camera_item.get('enable_uc1', True) if is_p2_camera else False
     uc3_enabled = camera_item.get('enable_uc3', True)
     uc4_uc8_enabled = camera_item.get('enable_uc4_uc8', True) if is_p2_camera else False
     uc5_enabled = camera_item.get('enable_uc5', True)
@@ -748,7 +750,7 @@ def get_uc_toggles(camera_item):
         uc8_standalone_enabled = False
 
     return {
-        'uc1_uc2_enabled': uc1_uc2_enabled,
+        'uc1_enabled': uc1_enabled,
         'uc3_enabled': uc3_enabled,
         'uc4_uc8_enabled': uc4_uc8_enabled,
         'uc5_enabled': uc5_enabled,
@@ -761,7 +763,7 @@ def is_hailo_device():
     """Check if device has Hailo-8 accelerator available.
 
     Returns:
-        True if Hailo platform is available (UC2-UC5, UC8 supported)
+        True if Hailo platform is available (UC3-UC5, UC8 supported)
         False if running on CPU with InsightFace only (UC1 only)
     """
     try:
@@ -862,7 +864,7 @@ def get_active_reservations():
 
     # Scan the table with the filter expression
     response = table.scan(
-        # FilterExpression=filter_expression,
+        FilterExpression=filter_expression,
         ProjectionExpression=', '.join(attributes_to_get)
     )
 
@@ -875,6 +877,126 @@ def get_active_reservations():
     logger.debug('get_active_reservations out')
 
     return items
+
+
+def get_inactive_reservations(days_back=30):
+    """Past guests: checked out within the last days_back days."""
+    logger.debug('get_inactive_reservations in')
+
+    tbl_reservation = os.environ['TBL_RESERVATION']
+    table = dynamodb.Table(tbl_reservation)
+
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    cutoff_date = (datetime.now() - __import__('datetime').timedelta(days=days_back)).strftime('%Y-%m-%d')
+
+    filter_expression = Attr('checkOutDate').lt(current_date) \
+        & Attr('checkOutDate').gte(cutoff_date) \
+        & Attr('isStaff').ne(True) \
+        & Attr('isBlocklisted').ne(True)
+
+    attributes_to_get = ['reservationCode', 'listingId', 'checkOutDate']
+
+    response = table.scan(
+        FilterExpression=filter_expression,
+        ProjectionExpression=', '.join(attributes_to_get)
+    )
+
+    items = response.get('Items', [])
+    logger.debug(f'get_inactive_reservations out: {len(items)} reservations')
+    return items
+
+
+def get_staff_reservations():
+    """Staff members: reservations flagged as staff."""
+    logger.debug('get_staff_reservations in')
+
+    tbl_reservation = os.environ['TBL_RESERVATION']
+    table = dynamodb.Table(tbl_reservation)
+
+    filter_expression = Attr('isStaff').eq(True)
+    attributes_to_get = ['reservationCode', 'listingId']
+
+    response = table.scan(
+        FilterExpression=filter_expression,
+        ProjectionExpression=', '.join(attributes_to_get)
+    )
+
+    items = response.get('Items', [])
+    logger.debug(f'get_staff_reservations out: {len(items)} reservations')
+    return items
+
+
+def get_blocklist_reservations():
+    """Blocklisted individuals: reservations flagged as blocklisted."""
+    logger.debug('get_blocklist_reservations in')
+
+    tbl_reservation = os.environ['TBL_RESERVATION']
+    table = dynamodb.Table(tbl_reservation)
+
+    filter_expression = Attr('isBlocklisted').eq(True)
+    attributes_to_get = ['reservationCode', 'listingId']
+
+    response = table.scan(
+        FilterExpression=filter_expression,
+        ProjectionExpression=', '.join(attributes_to_get)
+    )
+
+    items = response.get('Items', [])
+    logger.debug(f'get_blocklist_reservations out: {len(items)} reservations')
+    return items
+
+
+def get_members_for_reservations(reservations, category):
+    """Fetch TBL_MEMBER records for a list of reservations, stamped with category."""
+    if not reservations:
+        return []
+
+    tbl_member = os.environ['TBL_MEMBER']
+    attributes_to_get = ['reservationCode', 'memberNo', 'faceEmbedding', 'fullName', 'keyNotified']
+
+    results = []
+    for reservation in reservations:
+        table = dynamodb.Table(tbl_member)
+        response = table.query(
+            KeyConditionExpression='reservationCode = :code',
+            ProjectionExpression=', '.join(attributes_to_get),
+            ExpressionAttributeValues={':code': reservation['reservationCode']}
+        )
+        for member in response['Items']:
+            member['listingId'] = reservation['listingId']
+        results.extend(response['Items'])
+
+    filtered = []
+    for item in results:
+        if 'faceEmbedding' in item:
+            item['faceEmbedding'] = np.array([float(v) for v in item['faceEmbedding']])
+            item['category'] = category
+            filtered.append(item)
+        else:
+            logger.debug(f"get_members_for_reservations [{category}]: {item['reservationCode']}-{item['memberNo']} skipped (no faceEmbedding)")
+
+    logger.debug(f"get_members_for_reservations [{category}]: {len(filtered)} members")
+    return filtered
+
+
+def get_all_category_members():
+    """Fetch all member categories for Hailo multi-category face recognition.
+
+    Returns:
+        dict: {'ACTIVE': [...], 'INACTIVE': [...], 'STAFF': [...], 'BLOCKLIST': [...]}
+        Each member dict includes a 'category' field.
+    """
+    logger.debug('get_all_category_members in')
+
+    active = get_members_for_reservations(get_active_reservations(), 'ACTIVE')
+    inactive = get_members_for_reservations(get_inactive_reservations(), 'INACTIVE')
+    staff = get_members_for_reservations(get_staff_reservations(), 'STAFF')
+    blocklist = get_members_for_reservations(get_blocklist_reservations(), 'BLOCKLIST')
+
+    logger.info(f"get_all_category_members: ACTIVE={len(active)}, INACTIVE={len(inactive)}, "
+                f"STAFF={len(staff)}, BLOCKLIST={len(blocklist)}")
+    return {'ACTIVE': active, 'INACTIVE': inactive, 'STAFF': staff, 'BLOCKLIST': blocklist}
+
 
 def update_member(reservationCode, memberNo, keyNotified=True):
     logger.debug('update_member in')
@@ -964,28 +1086,23 @@ def fetch_members(forced=False):
 
     current_date = datetime.now().date()
 
-    if forced is True:
-        # logger.info('fetch_members init')
-        active_members = get_active_members()
-        last_fetch_time = current_date
-        # logger.info('fetch_members done')
-    else:
-        if not active_members:
-            # logger.info('fetch_members init')
+    needs_fetch = forced or not active_members or last_fetch_time is None or last_fetch_time < current_date
+
+    if needs_fetch:
+        if FACE_BACKEND == 'hailo':
+            all_members = get_all_category_members()
+            active_members = all_members.get('ACTIVE', [])
+            last_fetch_time = current_date
+            if thread_detector is not None:
+                logger.debug("fetch_members: setting active_members + all_members_by_category on detector")
+                thread_detector.active_members = active_members
+                thread_detector.all_members_by_category = all_members
+        else:
             active_members = get_active_members()
             last_fetch_time = current_date
-            # logger.info('fetch_members done')
-        else:
-            if last_fetch_time is None or last_fetch_time < current_date:
-                # logger.info('fetch_members update')
-                active_members = get_active_members()
-                last_fetch_time = current_date
-            # else:
-            #     logger.info(f"fetch_members skip as last_fetch_time:{str(last_fetch_time)} >= current_date:{str(current_date)}")
-
-    if thread_detector != None:
-        logger.debug(f"fetch_members, Set active_members to thread_detector")
-        thread_detector.active_members = active_members
+            if thread_detector is not None:
+                logger.debug("fetch_members: setting active_members on detector")
+                thread_detector.active_members = active_members
 
 
 def init_env_var():

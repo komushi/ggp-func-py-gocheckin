@@ -45,6 +45,11 @@ class FaceRecognitionBase(threading.Thread):
         # (triggered automatically by the property setter)
         self.active_members = active_members
 
+        # Multi-category member support (Hailo path: ACTIVE, INACTIVE, STAFF, BLOCKLIST)
+        self._members_by_category = {}   # category -> list of member dicts
+        self.category_embeddings = {}    # category -> np.ndarray (N, 512)
+        self.category_norms = {}         # category -> np.ndarray (N,)
+
         self.cam_detection_his = {}
 
     def run(self):
@@ -72,7 +77,7 @@ class FaceRecognitionBase(threading.Thread):
                             if hasattr(self, 'uc8_app') and self.uc8_app:
                                 self.uc8_app.reset_session(session_cam_ip)
 
-                            # UC2/UC4: Call session end handler
+                            # UC4: Call session end handler
                             try:
                                 from match_handler import on_session_end
                                 on_session_end(session_cam_ip, detecting_txn, self.match_handler)
@@ -271,3 +276,91 @@ class FaceRecognitionBase(threading.Thread):
         feat2 = feat2.ravel()
         sim = np.dot(feat1, feat2) / (np.linalg.norm(feat1) * np.linalg.norm(feat2))
         return sim
+
+    # ------------------------------------------------------------------
+    # Multi-category member support (Hailo path)
+    # ------------------------------------------------------------------
+
+    @property
+    def all_members_by_category(self):
+        return self._members_by_category
+
+    @all_members_by_category.setter
+    def all_members_by_category(self, value):
+        """Set all category member lists and rebuild per-category embedding matrices.
+
+        Args:
+            value: dict {category: list_of_member_dicts}
+                   Expected categories: 'ACTIVE', 'INACTIVE', 'STAFF', 'BLOCKLIST'
+        """
+        self._members_by_category = value or {}
+        self._build_category_embeddings()
+
+    def _build_category_embeddings(self):
+        """Pre-compute per-category embedding matrices and norms."""
+        self.category_embeddings = {}
+        self.category_norms = {}
+
+        for category, members in self._members_by_category.items():
+            if not members:
+                self.category_embeddings[category] = np.empty((0, 512), dtype=np.float32)
+                self.category_norms[category] = np.empty(0, dtype=np.float32)
+                continue
+
+            embeddings_list = [
+                np.array(m['faceEmbedding'], dtype=np.float32).ravel()
+                for m in members
+            ]
+            emb_matrix = np.array(embeddings_list, dtype=np.float32)
+            self.category_embeddings[category] = emb_matrix
+            self.category_norms[category] = np.linalg.norm(emb_matrix, axis=1)
+            logger.info(f"Built category embeddings [{category}]: {emb_matrix.shape[0]} members")
+
+    def has_any_members(self):
+        """Return True if any category has at least one member."""
+        return any(len(members) > 0 for members in self._members_by_category.values())
+
+    def find_match_with_category(self, face_embedding, threshold):
+        """Priority-based face matching across all loaded categories.
+
+        Search order (highest to lowest priority):
+            BLOCKLIST → ACTIVE → INACTIVE → STAFF
+
+        Returns:
+            Tuple of (member_dict_with_category, similarity, best_name, category)
+            or (None, best_sim_overall, best_name_overall, None) if no match above threshold.
+        """
+        PRIORITY_ORDER = ['BLOCKLIST', 'ACTIVE', 'INACTIVE', 'STAFF']
+
+        face_emb = np.array(face_embedding, dtype=np.float32).ravel()
+        face_norm = np.linalg.norm(face_emb)
+
+        if face_norm == 0:
+            return None, 0.0, None, None
+
+        best_sim_overall = 0.0
+        best_name_overall = None
+
+        for category in PRIORITY_ORDER:
+            members = self._members_by_category.get(category, [])
+            emb_matrix = self.category_embeddings.get(category)
+            norms = self.category_norms.get(category)
+
+            if emb_matrix is None or emb_matrix.shape[0] == 0:
+                continue
+
+            similarities = np.dot(emb_matrix, face_emb) / (norms * face_norm)
+            max_idx = int(np.argmax(similarities))
+            max_sim = float(similarities[max_idx])
+            name = members[max_idx].get('fullName', '?')
+
+            if max_sim > best_sim_overall:
+                best_sim_overall = max_sim
+                best_name_overall = name
+
+            if max_sim >= threshold:
+                member = dict(members[max_idx])
+                member['category'] = category
+                return member, max_sim, name, category
+
+        return None, best_sim_overall, best_name_overall, None

@@ -32,12 +32,11 @@ class MatchEvent:
 
 @dataclass
 class SessionState:
-    """Per-camera session state for UC2 (tailgating) and UC4 (group size)."""
+    """Per-camera session state for UC4 (group size) and UC5 (blocklist/non-active)."""
     cam_ip: str
     detecting_txn: str
-    unlocked: bool = False  # UC2: True after first UC1 unlock
-    unlock_count: int = 0  # UC2: Number of unlock events
-    first_unlock_at: float = 0.0  # UC2: Timestamp of first unlock
+    unlocked: bool = False  # UC1: True after first unlock (session audit)
+    authorized_member_matched: bool = False  # UC1: True when ACTIVE or STAFF matched
     distinct_members: Set[str] = field(default_factory=set)  # UC4: Unique member keys seen
     person_count_history: List[int] = field(default_factory=list)  # UC8: Person counts per frame
     max_simultaneous_persons: int = 0  # UC4/UC8: Peak person count in any single frame
@@ -173,17 +172,16 @@ class DefaultMatchHandler(MatchHandler):
 
 
 class SecurityHandlerChain(MatchHandler):
-    """UC1-UC5 handler chain with priority-based execution.
+    """UC1/UC3-UC5 handler chain with priority-based execution.
 
-    Priority order (lower = higher priority):
-    1. UC1: Member identification + unlock (priority 10)
-    2. UC5: Blocklist check (priority 5) - checked before UC1
-    3. UC2: Tailgating detection (priority 30)
-    4. UC5: Non-active member alert (priority 20)
-    5. UC3: Unknown face logging (priority 40)
+    Per-face priority order (lower number = higher priority):
+    1. UC5: Blocklist check (priority 5) - BLOCKLIST category, blocks unlock
+    2. UC1: Member identification + unlock (priority 10) - ACTIVE or STAFF category
+    3. UC5: Non-active member alert (priority 20) - INACTIVE category only
+    4. UC3: Unknown face logging (priority 40) - unmatched faces
 
     Session-level handlers (on_session_end):
-    - UC4: Group size validation
+    - UC4: Group size validation (requires authorized_member_matched=True)
     """
 
     def __init__(self, scanner_output_queue, get_uc_toggles_fn=None):
@@ -200,11 +198,11 @@ class SecurityHandlerChain(MatchHandler):
         """Check if a UC is enabled for a camera.
 
         Supports environment variable overrides for testing:
-        - UC1_UC2_ALWAYS_ENABLED
+        - UC1_ALWAYS_ENABLED
         - UC5_ALWAYS_ENABLED
         """
         # Environment variable overrides for testing
-        if uc_field == 'uc1_uc2_enabled' and os.environ.get('UC1_UC2_ALWAYS_ENABLED', '').lower() == 'true':
+        if uc_field == 'uc1_enabled' and os.environ.get('UC1_ALWAYS_ENABLED', '').lower() == 'true':
             return True
         if uc_field == 'uc5_enabled' and os.environ.get('UC5_ALWAYS_ENABLED', '').lower() == 'true':
             return True
@@ -215,15 +213,15 @@ class SecurityHandlerChain(MatchHandler):
         return toggles.get(uc_field, True)
 
     def on_match(self, event: MatchEvent):
-        """Process matched faces through UC1-UC5 handler chain."""
+        """Process matched faces through UC1/UC3-UC5 handler chain."""
         cam_ip = event.cam_info.get('cam_ip')
         detecting_txn = event.cam_info.get('detecting_txn')
 
-        # Get session state for UC2/UC4/UC5
+        # Get session state for UC4/UC5
         session = get_session_state(cam_ip, detecting_txn)
 
         # Get UC toggles
-        uc1_uc2_enabled = self._is_uc_enabled(cam_ip, 'uc1_uc2_enabled')
+        uc1_enabled = self._is_uc_enabled(cam_ip, 'uc1_enabled')
         uc3_enabled = self._is_uc_enabled(cam_ip, 'uc3_enabled')
         uc5_enabled = self._is_uc_enabled(cam_ip, 'uc5_enabled')
 
@@ -233,44 +231,50 @@ class SecurityHandlerChain(MatchHandler):
             if event.max_simultaneous_persons > session.max_simultaneous_persons:
                 session.max_simultaneous_persons = event.max_simultaneous_persons
 
-        # Process each matched face through handlers
-        for face, active_member, sim in event.matched_faces:
-            member_key = f"{active_member['reservationCode']}-{active_member['memberNo']}"
+        # Collect ACTIVE/STAFF faces for DefaultMatchHandler (snapshot + member_detected)
+        authorized_faces = []
 
-            # UC5: Check blocklist first (highest priority)
-            if uc5_enabled:
-                member_type = active_member.get('memberType', 'active')
-                if member_type == 'blocklist':
-                    self._handle_uc5_blocklist(event, active_member, session)
-                    continue  # Skip further processing for blocklist
+        # Process each matched face through priority-based category routing
+        for face, member, sim in event.matched_faces:
+            category = member.get('category', 'ACTIVE')
+            member_key = f"{member['reservationCode']}-{member['memberNo']}"
 
-            # UC1: Member identification + unlock
-            if uc1_uc2_enabled:
-                self._handle_uc1_member(event, active_member, sim, session)
+            # Priority 1: BLOCKLIST → UC5 (highest priority, blocks unlock)
+            if category == 'BLOCKLIST':
+                if uc5_enabled:
+                    self._handle_uc5_blocklist(event, member, session)
+                continue
 
-            # UC2: Tailgating detection (after unlock)
-            if uc1_uc2_enabled and session.unlocked:
-                self._handle_uc2_tailgating(event, active_member, session)
+            # Priority 2 & 4: ACTIVE or STAFF → UC1 (unlock, snapshot, member_detected)
+            if category in ('ACTIVE', 'STAFF'):
+                if uc1_enabled:
+                    self._handle_uc1_member(event, member, sim, session)
+                authorized_faces.append((face, member, sim))
 
-            # UC5: Non-active member alert
-            if uc5_enabled:
-                self._handle_uc5_non_active(event, active_member, session)
+            # Priority 3: INACTIVE → UC5 non-active alert only (no unlock)
+            elif category == 'INACTIVE':
+                if uc5_enabled:
+                    self._handle_uc5_non_active(event, member, session)
 
-            # Track distinct members for UC4
             session.distinct_members.add(member_key)
 
         # UC3: Handle unmatched faces (unknown faces)
         if uc3_enabled and event.unmatched_faces:
             self._handle_uc3_unknown(event)
 
-        # Default handler: snapshot and queue
-        if event.matched_faces:
-            self.default_match_handler.on_match(event)
+        # Default handler: snapshot + member_detected queue — ACTIVE and STAFF only
+        if authorized_faces:
+            import copy
+            authorized_event = copy.copy(event)
+            authorized_event.matched_faces = authorized_faces
+            self.default_match_handler.on_match(authorized_event)
 
-    def _handle_uc1_member(self, event: MatchEvent, active_member: dict, sim: float, session: SessionState):
-        """UC1: Member identification - trigger unlock on P2 cameras."""
+    def _handle_uc1_member(self, event: MatchEvent, member: dict, sim: float, session: SessionState):
+        """UC1: Member identification - trigger unlock on P2 cameras (ACTIVE and STAFF)."""
         cam_ip = event.cam_info.get('cam_ip')
-        member_key = f"{active_member['reservationCode']}-{active_member['memberNo']}"
+        category = member.get('category', 'ACTIVE')
+
+        session.authorized_member_matched = True
 
         # Check if this is a P2 camera (has locks)
         camera_locks = event.cam_info.get('locks', {})
@@ -278,60 +282,18 @@ class SecurityHandlerChain(MatchHandler):
 
         if not is_p2_camera:
             # P1 camera: log only, no unlock
-            logger.info(f"{cam_ip} UC1: Member {active_member['fullName']} detected (P1 - log only)")
+            logger.info(f"{cam_ip} UC1: {category} member {member['fullName']} detected (P1 - log only)")
             return
 
         # P2 camera: trigger unlock if clicked lock exists
         # The unlock logic is handled by the TypeScript side via member_detected event
         if not session.unlocked:
             session.unlocked = True
-            session.unlock_count = 1
-            session.first_unlock_at = event.first_frame_at
-            logger.info(f"{cam_ip} UC1: First unlock triggered by {active_member['fullName']} (sim: {sim:.4f})")
+            logger.info(f"{cam_ip} UC1: First unlock triggered by {category} {member['fullName']} (sim: {sim:.4f})")
         else:
-            logger.debug(f"{cam_ip} UC1: Additional match for {active_member['fullName']} (already unlocked)")
+            logger.debug(f"{cam_ip} UC1: Additional match for {category} {member['fullName']} (already unlocked)")
 
         # Publish member_detected event (handled by DefaultMatchHandler)
-
-    def _handle_uc2_tailgating(self, event: MatchEvent, active_member: dict, session: SessionState):
-        """UC2: Tailgating detection - alert if multiple members after unlock."""
-        cam_ip = event.cam_info.get('cam_ip')
-
-        # Tailgating: multiple distinct members detected after unlock
-        # This is a simple version - can be enhanced with person count from UC8
-        if session.unlock_count >= 1 and len(session.distinct_members) > 1:
-            # Check if this is a new member (not the one who unlocked)
-            member_key = f"{active_member['reservationCode']}-{active_member['memberNo']}"
-
-            # Alert if different member detected after unlock
-            self._publish_tailgating_alert(cam_ip, active_member, session)
-
-    def _publish_tailgating_alert(self, cam_ip: str, active_member: dict, session: SessionState):
-        """Publish tailgating alert to IoT."""
-        alert_payload = {
-            "hostId": os.environ['HOST_ID'],
-            "propertyCode": os.environ['PROPERTY_CODE'],
-            "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
-            "coreName": os.environ['AWS_IOT_THING_NAME'],
-            "assetId": session.cam_ip,
-            "cameraIp": cam_ip,
-            "alertType": "tailgating",
-            "memberName": active_member.get('fullName', 'Unknown'),
-            "reservationCode": active_member.get('reservationCode', ''),
-            "unlockCount": session.unlock_count,
-            "distinctMembers": len(session.distinct_members),
-            "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-        }
-
-        logger.warning(f"{cam_ip} UC2: TAILGATING ALERT - {alert_payload['memberName']} detected after unlock")
-
-        # Publish to IoT queue
-        if not self.scanner_output_queue.full():
-            self.scanner_output_queue.put({
-                "type": "tailgating_alert",
-                "cam_ip": cam_ip,
-                "payload": alert_payload,
-            }, block=False)
 
     def _handle_uc5_blocklist(self, event: MatchEvent, active_member: dict, session: SessionState):
         """UC5: Blocklist member detected - prevent further unlocks."""
@@ -362,37 +324,33 @@ class SecurityHandlerChain(MatchHandler):
                 "payload": alert_payload,
             }, block=False)
 
-    def _handle_uc5_non_active(self, event: MatchEvent, active_member: dict, session: SessionState):
-        """UC5: Non-active member (expired reservation) alert."""
+    def _handle_uc5_non_active(self, event: MatchEvent, member: dict, session: SessionState):
+        """UC5: INACTIVE member (past guest) alert — no unlock."""
         cam_ip = event.cam_info.get('cam_ip')
 
-        # Check if member is non-active (expired)
-        # This would be set by the fetch_members logic
-        is_active = active_member.get('isActive', True)
+        alert_payload = {
+            "hostId": os.environ['HOST_ID'],
+            "propertyCode": os.environ['PROPERTY_CODE'],
+            "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
+            "coreName": os.environ['AWS_IOT_THING_NAME'],
+            "assetId": session.cam_ip,
+            "cameraIp": cam_ip,
+            "alertType": "non_active_member",
+            "subType": "INACTIVE",
+            "memberName": member.get('fullName', 'Unknown'),
+            "reservationCode": member.get('reservationCode', ''),
+            "memberNo": member.get('memberNo', ''),
+            "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
+        }
 
-        if not is_active:
-            alert_payload = {
-                "hostId": os.environ['HOST_ID'],
-                "propertyCode": os.environ['PROPERTY_CODE'],
-                "hostPropertyCode": f"{os.environ['HOST_ID']}-{os.environ['PROPERTY_CODE']}",
-                "coreName": os.environ['AWS_IOT_THING_NAME'],
-                "assetId": session.cam_ip,
-                "cameraIp": cam_ip,
-                "alertType": "non_active_member",
-                "memberName": active_member.get('fullName', 'Unknown'),
-                "reservationCode": active_member.get('reservationCode', ''),
-                "memberNo": active_member.get('memberNo', ''),
-                "recordTime": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z',
-            }
+        logger.warning(f"{cam_ip} UC5: INACTIVE member {member['fullName']} detected")
 
-            logger.warning(f"{cam_ip} UC5: NON-ACTIVE member {active_member['fullName']} detected")
-
-            if not self.scanner_output_queue.full():
-                self.scanner_output_queue.put({
-                    "type": "non_active_alert",
-                    "cam_ip": cam_ip,
-                    "payload": alert_payload,
-                }, block=False)
+        if not self.scanner_output_queue.full():
+            self.scanner_output_queue.put({
+                "type": "non_active_alert",
+                "cam_ip": cam_ip,
+                "payload": alert_payload,
+            }, block=False)
 
     def _handle_uc3_unknown(self, event: MatchEvent):
         """UC3: Unknown face logging - save to S3 and publish alert."""
@@ -465,7 +423,7 @@ class SecurityHandlerChain(MatchHandler):
 
         logger.info(f"{cam_ip} UC4 Session End - distinct_members: {len(final_state.distinct_members)}, "
                     f"max_simultaneous_persons: {final_state.max_simultaneous_persons}, "
-                    f"unlock_count: {final_state.unlock_count}, duration: {session_duration:.0f}ms")
+                    f"authorized_member_matched: {final_state.authorized_member_matched}, duration: {session_duration:.0f}ms")
 
         # UC4: Check group size mismatch (would compare against memberCount from reservation)
         # This requires access to reservation data - implement when needed

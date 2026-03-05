@@ -55,7 +55,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # UC Toggle Cache — updated from py_handler.py per camera
 # ---------------------------------------------------------------------------
-# Structure: { cam_ip: {'uc8_enabled': bool, 'uc1_uc2_enabled': bool, ...} }
+# Structure: { cam_ip: {'uc8_enabled': bool, 'uc1_enabled': bool, ...} }
 _uc_toggle_cache = {}
 
 
@@ -1033,10 +1033,10 @@ class FaceRecognition(FaceRecognitionBase):
             logger.debug(f"{cam_ip} frame #{detected} - {len(faces)} faces, {person_count} persons, "
                          f"max_simultaneous: {max_simultaneous}")
 
-        # Skip UC1/3/4/5 face recognition if no active members (UC8 continues running)
-        if not self.active_members:
+        # Skip face recognition only if ALL category databases are empty (UC8 continues running)
+        if not self.active_members and not self.has_any_members():
             if detected == 1:
-                logger.debug(f"{cam_ip} No active members - skipping face recognition (UC1/3/4/5)")
+                logger.debug(f"{cam_ip} No members in any category - skipping face recognition (UC1/3/4/5)")
             return {
                 'matched': [],
                 'unmatched': [],
@@ -1064,18 +1064,29 @@ class FaceRecognition(FaceRecognitionBase):
                 continue
 
             threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
-            active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
-            if active_member is None:
+            if self.has_any_members():
+                # Multi-category priority matching (BLOCKLIST > ACTIVE > INACTIVE > STAFF)
+                member, sim, best_name, category = self.find_match_with_category(face.embedding, threshold)
+            else:
+                # Fallback: ACTIVE-only matching via base find_match
+                member, sim, best_name = self.find_match(face.embedding, threshold)
+                category = 'ACTIVE' if member is not None else None
+
+            if member is None:
                 logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
                             f"best_match: {best_name} best_sim: {sim:.4f} (no match)")
                 # UC3: Track unmatched faces for unknown face logging
                 unmatched_faces.append((face, best_name, sim))
                 continue
 
+            if 'category' not in member:
+                member = dict(member)
+                member['category'] = category or 'ACTIVE'
+
             logger.info(f"{cam_ip} detected: {detected} age: {age:.3f} pre_norm: {face.pre_norm:.2f} "
-                        f"fullName: {active_member['fullName']} sim: {sim:.4f} (MATCH)")
-            matched_faces.append((face, active_member, sim))
+                        f"fullName: {member['fullName']} category: {member['category']} sim: {sim:.4f} (MATCH)")
+            matched_faces.append((face, member, sim))
 
         # Return extended result with unmatched faces and person data
         return {
