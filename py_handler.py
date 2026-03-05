@@ -35,7 +35,7 @@ import s3_uploader as uploader
 import gstreamer_threading as gst
 
 # Face recognition backend selection
-# FACE_BACKEND is set by detect_face_backend() called from claim_scanner()
+# FACE_BACKEND is set by detect_face_backend() at module load
 FACE_BACKEND = 'insightface'  # Default, will be updated by detect_face_backend()
 
 from match_handler import SecurityHandlerChain
@@ -1064,7 +1064,7 @@ def detect_face_backend():
     """
     Detect if Hailo-8 hardware is available, otherwise fallback to InsightFace.
     Sets the global FACE_BACKEND and fdm variables.
-    Called from claim_scanner() at startup.
+    Called at module load during face detector initialization.
 
     Respects INFERENCE_BACKEND env var:
       - "auto" (default): try Hailo, fall back to insightface
@@ -1115,24 +1115,6 @@ def detect_face_backend():
 
     return FACE_BACKEND
 
-
-def claim_scanner():
-    # Detect face recognition backend (Hailo or InsightFace)
-    backend = detect_face_backend()
-
-    data = {
-        "assetId": os.environ['AWS_IOT_THING_NAME'],
-        "assetName": os.environ['AWS_IOT_THING_NAME'],
-        "localIp": scanner_local_ip,
-        "inferenceBackend": backend
-    }
-
-    iotClient.publish(
-        topic="gocheckin/scanner_detected",
-        payload=json.dumps(data)
-    )
-
-    logger.info(f"claim_scanner: published with inferenceBackend={backend}")
 
 def fetch_scanner_output_queue():
     def upload_video_clip(message):
@@ -1913,9 +1895,6 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Start the scheduler threads
 # start_init_processes()
-
-# Claim scanner
-claim_scanner()
 
 # init env var
 init_env_var()
