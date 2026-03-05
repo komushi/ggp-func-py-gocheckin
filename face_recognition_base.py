@@ -37,6 +37,9 @@ class FaceRecognitionBase(threading.Thread):
 
         self.face_app = face_app
         self._active_members = None
+        # Initialize embeddings to empty array - will be populated by property setter
+        self.member_embeddings = np.empty((0, 512), dtype=np.float32)
+        self.member_norms = np.empty(0, dtype=np.float32)
 
         # Pre-compute embeddings matrix for vectorized comparison
         # (triggered automatically by the property setter)

@@ -25,6 +25,12 @@ class FaceRecognition(FaceRecognitionBase):
         duration = time.time() - current_time
         logger.debug(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
+        # Skip face recognition if no active members
+        if not self.active_members:
+            if detected == 1:
+                logger.debug(f"{cam_info['cam_ip']} No active members - skipping face recognition")
+            return []
+
         matched_faces = []
         for face in faces:
             # Log embedding stats for comparison with Hailo

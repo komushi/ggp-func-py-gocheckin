@@ -1033,6 +1033,17 @@ class FaceRecognition(FaceRecognitionBase):
             logger.debug(f"{cam_ip} frame #{detected} - {len(faces)} faces, {person_count} persons, "
                          f"max_simultaneous: {max_simultaneous}")
 
+        # Skip UC1/3/4/5 face recognition if no active members (UC8 continues running)
+        if not self.active_members:
+            if detected == 1:
+                logger.debug(f"{cam_ip} No active members - skipping face recognition (UC1/3/4/5)")
+            return {
+                'matched': [],
+                'unmatched': [],
+                'person_count': person_count,
+                'max_simultaneous_persons': max_simultaneous,
+            }
+
         matched_faces = []
         unmatched_faces = []  # UC3: Track unknown faces
 
