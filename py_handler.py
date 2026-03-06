@@ -1687,14 +1687,9 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
 
     camera_item = camera_items[cam_ip]
 
-    # P1/P2 gate
-    if lock_asset_id is None:
-        camera_locks = camera_item.get('locks', {})
-        if len(camera_locks) > 0:
-            # P2 camera: ONVIF should NOT trigger detection (locks handle it)
-            logger.warning('trigger_face_detection - P2 camera, ONVIF trigger rejected: %s', cam_ip)
-            return
-        # P1 camera: no locks, ONVIF-triggered detection proceeds
+    # ONVIF trigger (lock_asset_id is None): valid for both P1 and P2.
+    # On P2 the session starts in surveillance mode (clicked_locks empty, no unlock possible yet).
+    # A subsequent clicked event merges into the running session and upgrades to unlock mode.
 
     # Check if detection is enabled for this camera
     if not camera_item.get('isDetecting', False):
@@ -1756,8 +1751,8 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
                 }
                 logger.debug(f'trigger_face_detection - updated context snapshot for {snapshot_key}')
         else:
-            # P1 (ONVIF) or force - do NOT extend timer
-            logger.debug('trigger_face_detection - P1/force trigger, timer NOT extended')
+            # ONVIF (P1 or P2) or force - do NOT extend timer
+            logger.debug('trigger_face_detection - ONVIF/force trigger, timer NOT extended')
 
         logger.debug('trigger_face_detection out - context merged, detection continues')
         return
