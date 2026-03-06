@@ -69,6 +69,7 @@ class StreamCapture(threading.Thread):
         self.cam_ip = params['cam_ip']
         self.cam_uuid = params['cam_uuid']
         self.cam_name = params['cam_name']
+        self.locks = params.get('locks', {})
         self.codec = params['codec']
 
         pipeline_str = ''
@@ -384,6 +385,7 @@ class StreamCapture(threading.Thread):
                         "cam_name": self.cam_name,
                         "frame_time": frame_time,
                         "detecting_txn": self.detecting_txn,
+                        "locks": self.locks,
                     }), block=False)
 
                 logger.debug(f"{self.cam_ip} on_new_sample_decode decoding_count: {self.decoding_count}")

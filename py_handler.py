@@ -1451,6 +1451,7 @@ def start_gstreamer_thread(host_id, cam_ip):
     params['cam_ip'] = cam_ip
     params['cam_uuid'] = camera_item['uuid']
     params['cam_name'] = camera_item['assetName']
+    params['locks'] = camera_item.get('locks', {})
 
     thread_gstreamers[cam_ip] = gst.StreamCapture(params, scanner_output_queue, cam_queue)
     thread_gstreamers[cam_ip].start()
