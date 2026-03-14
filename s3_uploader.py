@@ -255,20 +255,25 @@ class S3Uploader():
     def put_object(self, object_key, local_file_path):
         try:
             logger.debug(f"put_object, in local_file_path: {local_file_path}, object_key: {object_key}")
-            
+
             self.get_temporary_credentials()
+
+            file_size = os.path.getsize(local_file_path)
 
             presigned_url = self.generate_presigned_url(object_key)
 
             with open(local_file_path, 'rb') as file:
                 response = requests.put(presigned_url, data=file)
-            
+
             if response.status_code == 200:
                 os.remove(local_file_path)
-                logger.info(f"put_object, File uploaded as {object_key}.")
+                logger.info(f"put_object, File uploaded as {object_key}, fileSize: {file_size}.")
+                return file_size
             else:
                 logger.error(f"put_object, Failed to upload object_key: {object_key}, {local_file_path}, status: {response.status_code}")
+                return None
         except Exception as e:
             logger.error(f"put_object, Exception: {e}")
             traceback.print_exc()
+            return None
     

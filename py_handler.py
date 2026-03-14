@@ -1243,7 +1243,7 @@ def fetch_scanner_output_queue():
 
             logger.debug(f"fetch_scanner_output_queue, video_clipped received: {local_file_path}")
 
-            uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
+            file_size = uploader_app.put_object(object_key=object_key, local_file_path=local_file_path)
 
             # Keep milliseconds for unique DynamoDB keys (avoids collision when multiple cameras record at same second)
             record_start = message['payload']['start_datetime']
@@ -1264,7 +1264,8 @@ def fetch_scanner_output_queue():
                 "identityId": os.environ['IDENTITY_ID'],
                 "s3level": 'private',
                 "videoKey": video_key,
-                "snapshotKey": ''
+                "snapshotKey": '',
+                "fileSize": file_size
             }
 
             logger.debug(f"fetch_scanner_output_queue, video_clipped with IoT Publish payload: {payload}")
@@ -1334,7 +1335,11 @@ def fetch_scanner_output_queue():
                         property_object_key = message['property_object_key']
                         snapshot_payload = message['snapshot_payload']
 
-                        uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
+                        file_size = uploader_app.put_object(object_key=property_object_key, local_file_path=local_file_path)
+
+                        # Add fileSize to snapshot_payload
+                        if file_size is not None:
+                            snapshot_payload['fileSize'] = file_size
 
                         logger.debug(f"fetch_scanner_output_queue, member_detected with IoT Publish snapshot_payload: {snapshot_payload}")
 
