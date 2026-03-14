@@ -104,6 +104,10 @@ thread_gstreamers = {}
 # Initialize the camera_items
 camera_items = {}
 
+# Initialize the lock_items for space-based authorization
+# Structure: { lock_asset_id: lock_record } — populated by fetch_lock_items()
+lock_items = {}
+
 # Initialize the trigger_lock_context for tracking lock triggers per camera
 # Structure: { cam_ip: { 'specific_locks': set(), 'active_occupancy': set() } }
 trigger_lock_context = {}
@@ -398,6 +402,7 @@ def init_cameras():
             thread.cancel()
 
     cameras_to_update, cameras_to_remove = fetch_camera_items()
+    fetch_lock_items()
 
     for cam_ip in cameras_to_update:
         try:
@@ -843,6 +848,22 @@ def query_camera_items(host_id):
     return camera_item_list
 
 
+def fetch_lock_items():
+    """Load all LOCK and KEYPAD_LOCK records into lock_items dict keyed by assetId."""
+    global lock_items
+
+    tbl_asset = os.environ['TBL_ASSET']
+    table = dynamodb.Table(tbl_asset)
+
+    response = table.query(
+        KeyConditionExpression=Key('hostId').eq(os.environ['HOST_ID']),
+        FilterExpression=Attr('category').is_in(['LOCK', 'KEYPAD_LOCK'])
+    )
+
+    lock_items = {item['assetId']: item for item in response.get('Items', [])}
+    logger.info(f'fetch_lock_items: loaded {len(lock_items)} locks: {list(lock_items.keys())}')
+
+
 def get_active_reservations():
     logger.debug('get_active_reservations in')
 
@@ -860,7 +881,7 @@ def get_active_reservations():
         & Attr('checkOutDate').gte(current_date)
 
     # Define the list of attributes to retrieve
-    attributes_to_get = ['reservationCode', 'listingId']
+    attributes_to_get = ['reservationCode', 'listingId', 'spaces']
 
     # Scan the table with the filter expression
     response = table.scan(
@@ -914,7 +935,7 @@ def get_staff_reservations():
     table = dynamodb.Table(tbl_reservation)
 
     filter_expression = Attr('isStaff').eq(True)
-    attributes_to_get = ['reservationCode', 'listingId']
+    attributes_to_get = ['reservationCode', 'listingId', 'spaces']
 
     response = table.scan(
         FilterExpression=filter_expression,
@@ -962,8 +983,10 @@ def get_members_for_reservations(reservations, category):
             ProjectionExpression=', '.join(attributes_to_get),
             ExpressionAttributeValues={':code': reservation['reservationCode']}
         )
+        authorized_spaces = {s['assetId'] for s in reservation.get('spaces', [])}
         for member in response['Items']:
             member['listingId'] = reservation['listingId']
+            member['authorizedSpaces'] = authorized_spaces
         results.extend(response['Items'])
 
     filtered = []
@@ -1353,10 +1376,23 @@ def fetch_scanner_output_queue():
                         member_payload = member_entry['payload']
                         keyNotified = member_entry['keyNotified']
 
-                        # Add context to each member payload
-                        member_payload['clickedLocks'] = clicked_locks
+                        # Filter clicked_locks to only those the member's reservation authorizes.
+                        # authorized_spaces is a set of space assetIds from reservation.spaces.
+                        # None means no spaces field on reservation → no lock access.
+                        # Empty set means spaces field exists but is empty → no lock access.
+                        # STAFF with spaces listed → restricted to those spaces like any guest.
+                        authorized_spaces = member_entry.get('authorizedSpaces')
+                        if authorized_spaces:
+                            member_clicked_locks = [
+                                lock_id for lock_id in clicked_locks
+                                if lock_items.get(lock_id, {}).get('roomCode') in authorized_spaces
+                            ]
+                        else:
+                            member_clicked_locks = []
 
-                        logger.debug(f"fetch_scanner_output_queue, member_detected: {member_payload['fullName']} clickedLocks={clicked_locks}")
+                        member_payload['clickedLocks'] = member_clicked_locks
+
+                        logger.debug(f"fetch_scanner_output_queue, member_detected: {member_payload['fullName']} authorizedSpaces={authorized_spaces} clicked_locks={clicked_locks} member_clicked_locks={member_clicked_locks}")
 
                         if not keyNotified:
                             update_member(member_payload['reservationCode'], member_payload['memberNo'])
