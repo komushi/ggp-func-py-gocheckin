@@ -983,7 +983,7 @@ def get_members_for_reservations(reservations, category):
             ProjectionExpression=', '.join(attributes_to_get),
             ExpressionAttributeValues={':code': reservation['reservationCode']}
         )
-        authorized_spaces = {s['assetId'] for s in reservation.get('spaces', [])}
+        authorized_spaces = {s['uuid'] for s in reservation.get('spaces', [])}
         for member in response['Items']:
             member['listingId'] = reservation['listingId']
             member['authorizedSpaces'] = authorized_spaces
