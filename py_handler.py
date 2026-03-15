@@ -880,13 +880,11 @@ def get_active_reservations():
     filter_expression = Attr('checkInDate').lte(current_date) \
         & Attr('checkOutDate').gte(current_date)
 
-    # Define the list of attributes to retrieve
-    attributes_to_get = ['reservationCode', 'listingId', 'spaces']
-
     # Scan the table with the filter expression
     response = table.scan(
         FilterExpression=filter_expression,
-        ProjectionExpression=', '.join(attributes_to_get)
+        ProjectionExpression='reservationCode, listingId, #spaces',
+        ExpressionAttributeNames={'#spaces': 'spaces'}
     )
 
     # Get the items from the response
@@ -935,11 +933,11 @@ def get_staff_reservations():
     table = dynamodb.Table(tbl_reservation)
 
     filter_expression = Attr('isStaff').eq(True)
-    attributes_to_get = ['reservationCode', 'listingId', 'spaces']
 
     response = table.scan(
         FilterExpression=filter_expression,
-        ProjectionExpression=', '.join(attributes_to_get)
+        ProjectionExpression='reservationCode, listingId, #spaces',
+        ExpressionAttributeNames={'#spaces': 'spaces'}
     )
 
     items = response.get('Items', [])
