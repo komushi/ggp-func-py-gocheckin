@@ -138,7 +138,7 @@ class DefaultMatchHandler(MatchHandler):
             }
 
             self.captured_members[memberKey] = member_payload
-            members_data.append({"memberKey": memberKey, "payload": member_payload, "keyNotified": keyNotified})
+            members_data.append({"memberKey": memberKey, "payload": member_payload, "keyNotified": keyNotified, "authorizedSpaces": active_member.get('authorizedSpaces')})
 
         # Single queue entry with all members
         snapshot_key = f"""{os.environ['HOST_ID']}/properties/{os.environ['PROPERTY_CODE']}/{os.environ['AWS_IOT_THING_NAME']}/{cam_info['cam_ip']}/{date_folder}/{time_filename}{ext}"""

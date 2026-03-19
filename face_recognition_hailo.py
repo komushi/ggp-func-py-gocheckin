@@ -1063,7 +1063,7 @@ class FaceRecognition(FaceRecognitionBase):
                 unmatched_faces.append((face, 'skipped_low_pre_norm', 0.0))
                 continue
 
-            threshold = float(os.environ['FACE_THRESHOLD_HAILO'])
+            threshold = float(os.environ['FACE_THRESHOLD_HAILO'], 0.25)
 
             if self.has_any_members():
                 # Multi-category priority matching (BLOCKLIST > ACTIVE > INACTIVE > STAFF)

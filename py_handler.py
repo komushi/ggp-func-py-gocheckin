@@ -743,17 +743,24 @@ def get_uc_toggles(camera_item):
     camera_locks = camera_item.get('locks', {})
     is_p2_camera = len(camera_locks) > 0
 
+    # InsightFace supports UC1 only — UC3/UC4/UC5/UC8 require Hailo
+    if FACE_BACKEND == 'insightface':
+        return {
+            'uc1_enabled': camera_item.get('enable_uc1', True) if is_p2_camera else False,
+            'uc3_enabled': False,
+            'uc4_uc8_enabled': False,
+            'uc5_enabled': False,
+            'uc8_standalone_enabled': False,
+            'is_p2_camera': is_p2_camera,
+        }
+
     # Read toggle fields (default to True for Hailo devices)
-    # On non-Hailo devices, these fields may not exist - handle gracefully
     uc1_enabled = camera_item.get('enable_uc1', True) if is_p2_camera else False
     uc3_enabled = camera_item.get('enable_uc3', True)
     uc4_uc8_enabled = camera_item.get('enable_uc4_uc8', True) if is_p2_camera else False
     uc5_enabled = camera_item.get('enable_uc5', True)
-    uc8_standalone_enabled = camera_item.get('enable_uc8', True) if not is_p2_camera else False
-
     # P2 cameras use uc4_uc8_enabled, not uc8_standalone_enabled
-    if is_p2_camera:
-        uc8_standalone_enabled = False
+    uc8_standalone_enabled = camera_item.get('enable_uc8', True) if not is_p2_camera else False
 
     return {
         'uc1_enabled': uc1_enabled,
@@ -1078,9 +1085,11 @@ def get_active_members():
             }
         )
 
+        authorized_spaces = {s['uuid'] for s in active_reservation.get('spaces', [])}
         for active_member in response['Items']:
             active_member['listingId'] = active_reservation['listingId']
-        
+            active_member['authorizedSpaces'] = authorized_spaces
+
         # Add the query results to the results list
         results.extend(response['Items'])
 

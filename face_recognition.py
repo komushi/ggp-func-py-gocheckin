@@ -38,7 +38,7 @@ class FaceRecognition(FaceRecognitionBase):
             emb_norm = np.linalg.norm(emb)
             logger.debug(f"InsightFace embedding: pre_norm={emb_norm:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}")
 
-            threshold = float(os.environ['FACE_THRESHOLD_INSIGHTFACE'])
+            threshold = float(os.environ.get('FACE_RECOG_THRESHOLD', '0.35'))
             active_member, sim, best_name = self.find_match(face.embedding, threshold)
 
             if active_member is None:
