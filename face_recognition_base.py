@@ -84,12 +84,14 @@ class FaceRecognitionBase(threading.Thread):
                             except Exception as e:
                                 logger.error(f"{session_cam_ip} Error in session end handler: {e}")
 
-                            # Clear UC toggle cache
-                            try:
-                                import face_recognition_hailo as fr_hailo
-                                fr_hailo.clear_uc_toggle(session_cam_ip)
-                            except ImportError:
-                                pass  # Not using Hailo backend
+                            # Clear UC toggle cache (Hailo-only)
+                            inference_backend = os.environ.get('INFERENCE_BACKEND', 'auto').lower()
+                            if inference_backend == 'hailo':
+                                try:
+                                    import face_recognition_hailo as fr_hailo
+                                    fr_hailo.clear_uc_toggle(session_cam_ip)
+                                except ImportError:
+                                    pass
 
                             del self.cam_detection_his[session_cam_ip]
                         continue
