@@ -1926,6 +1926,11 @@ def handle_timer_expiry(cam_ip):
 
     logger.info(f"{cam_ip} handle_timer_expiry in")
 
+    # InsightFace: no presence sensor and no UC8 — run fixed-duration session, never extend
+    if FACE_BACKEND == 'insightface':
+        logger.info(f"{cam_ip} handle_timer_expiry - InsightFace backend, no extension (fixed-duration session)")
+        return False
+
     # Get UC toggle configuration for this camera
     camera_item = camera_items.get(cam_ip)
     uc_toggles = get_uc_toggles(camera_item) if camera_item else {}
