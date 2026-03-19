@@ -302,7 +302,7 @@ def init_face_detector():
 
     fetch_members()
 
-    thread_detector = fdm.FaceRecognition(face_app, active_members, match_handler, cam_queue)
+    thread_detector = fdm.FaceRecognition(face_app, active_members, match_handler, cam_queue, fdm_backend=fdm)
     thread_detector.start()
 
     if thread_detector is not None:
@@ -336,7 +336,7 @@ def monitor_detector():
     thread_detector = None
     thread_monitor_detector = None
 
-    thread_detector = fdm.FaceRecognition(face_app, active_members, match_handler, cam_queue)
+    thread_detector = fdm.FaceRecognition(face_app, active_members, match_handler, cam_queue, fdm_backend=fdm)
     thread_detector.start()
 
     if thread_detector is not None:
@@ -368,11 +368,11 @@ def init_insightface_app(model=None):
 
 def init_hailo_app():
     """Initialize Hailo-8 accelerated face recognition backend with UC8 support."""
-    from face_recognition_hailo import HailoUC8App
+    global face_app, fdm
+    if face_app is None and FACE_BACKEND == 'hailo':
+        from face_recognition_hailo import HailoUC8App
+        import face_recognition_hailo
 
-    global face_app
-
-    if face_app is None:
         # HEF model paths from environment or defaults
         yolo_hef = os.environ.get('HAILO_YOLO_HEF')
         det_hef = os.environ.get('HAILO_DET_HEF')
@@ -390,6 +390,7 @@ def init_hailo_app():
             yolo_threshold=yolo_threshold,
             face_threshold=face_threshold
         )
+        fdm = face_recognition_hailo
 
 def init_cameras():
     logger.info(f"init_cameras in")
@@ -1200,21 +1201,21 @@ def claim_camera(cam_ip):
 
 def detect_face_backend():
     """
-    Detect if Hailo-8 hardware is available, otherwise fallback to InsightFace.
+    Select face recognition backend based on INFERENCE_BACKEND env var.
     Sets the global FACE_BACKEND and fdm variables.
     Called at module load during face detector initialization.
 
     Respects INFERENCE_BACKEND env var:
       - "auto" (default): try Hailo, fall back to insightface
       - "hailo": force Hailo, warn and fall back to insightface on failure
-      - "insightface": skip Hailo probe entirely
+      - "insightface": use insightface, skip Hailo entirely
     """
     global FACE_BACKEND, fdm
 
     requested = os.environ.get('INFERENCE_BACKEND', 'auto').lower()
     logger.info(f"detect_face_backend: INFERENCE_BACKEND={requested}")
 
-    # If explicitly insightface, skip Hailo entirely
+    # If explicitly insightface, use insightface without importing hailo
     if requested == 'insightface':
         FACE_BACKEND = 'insightface'
         import face_recognition as fdm
@@ -1222,13 +1223,13 @@ def detect_face_backend():
         return FACE_BACKEND
 
     # For "hailo" or "auto", try importing Hailo backend
+    hailo_backend = None
     try:
-        import face_recognition_hailo
-        hailo_import_available = True
+        import face_recognition_hailo as hailo_backend
     except ImportError:
-        hailo_import_available = False
+        pass
 
-    if not hailo_import_available:
+    if hailo_backend is None:
         FACE_BACKEND = 'insightface'
         import face_recognition as fdm
         logger.info("detect_face_backend: face_recognition_hailo not available, using insightface")
@@ -1241,7 +1242,7 @@ def detect_face_backend():
         vdevice.release()
 
         FACE_BACKEND = 'hailo'
-        fdm = face_recognition_hailo
+        fdm = hailo_backend
         logger.info("detect_face_backend: Hailo-8 detected, using hailo backend")
     except Exception as e:
         FACE_BACKEND = 'insightface'
@@ -1803,9 +1804,9 @@ def trigger_face_detection(cam_ip, lock_asset_id=None):
         # Get UC toggle configuration for this camera
         uc_toggles = get_uc_toggles(camera_item)
 
-        # Set UC toggle in face_recognition_hailo module
-        import face_recognition_hailo as fr_hailo
-        fr_hailo.set_uc_toggle(cam_ip, uc_toggles)
+        # Set UC toggle (Hailo-only, no-op for insightface)
+        if FACE_BACKEND == 'hailo':
+            fdm.set_uc_toggle(cam_ip, uc_toggles)
 
         # UC8 Role 1: Gate check - verify person presence before starting face recognition
         # Only run if UC8 is enabled (P1: uc8_standalone, P2: uc4_uc8)

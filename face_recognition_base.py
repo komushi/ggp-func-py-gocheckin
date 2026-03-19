@@ -28,7 +28,7 @@ class FaceRecognitionBase(threading.Thread):
 
     THREAD_NAME_PREFIX = "Thread-Detector"
 
-    def __init__(self, face_app, active_members, match_handler, cam_queue):
+    def __init__(self, face_app, active_members, match_handler, cam_queue, fdm_backend=None):
         super().__init__(name=f"{self.THREAD_NAME_PREFIX}-{datetime.now(timezone(timedelta(hours=9))).strftime('%H:%M:%S.%f')}")
 
         self.cam_queue = cam_queue
@@ -36,6 +36,7 @@ class FaceRecognitionBase(threading.Thread):
         self.stop_event = threading.Event()
 
         self.face_app = face_app
+        self.fdm = fdm_backend
         self._active_members = None
         # Initialize embeddings to empty array - will be populated by property setter
         self.member_embeddings = np.empty((0, 512), dtype=np.float32)
@@ -84,14 +85,9 @@ class FaceRecognitionBase(threading.Thread):
                             except Exception as e:
                                 logger.error(f"{session_cam_ip} Error in session end handler: {e}")
 
-                            # Clear UC toggle cache (Hailo-only)
-                            inference_backend = os.environ.get('INFERENCE_BACKEND', 'auto').lower()
-                            if inference_backend == 'hailo':
-                                try:
-                                    import face_recognition_hailo as fr_hailo
-                                    fr_hailo.clear_uc_toggle(session_cam_ip)
-                                except ImportError:
-                                    pass
+                            # Clear UC toggle cache (Hailo-only, no-op for insightface)
+                            if hasattr(self.fdm, 'clear_uc_toggle'):
+                                self.fdm.clear_uc_toggle(session_cam_ip)
 
                             del self.cam_detection_his[session_cam_ip]
                         continue
