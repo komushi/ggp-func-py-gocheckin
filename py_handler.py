@@ -884,19 +884,27 @@ def get_active_reservations():
     # Get the current date in 'YYYY-MM-DD' format
     current_date = datetime.now().strftime('%Y-%m-%d')
 
-    # Create the filter expression
-    filter_expression = Attr('checkInDate').lte(current_date) \
-        & Attr('checkOutDate').gte(current_date)
-
-    # Scan the table with the filter expression
-    response = table.scan(
-        FilterExpression=filter_expression,
+    # Query 1: Staff reservations (isStaff=True) - always active, no date filter
+    staff_response = table.scan(
+        FilterExpression=Attr('isStaff').eq(True),
         ProjectionExpression='reservationCode, listingId, #spaces',
         ExpressionAttributeNames={'#spaces': 'spaces'}
     )
+    staff_items = staff_response.get('Items', [])
 
-    # Get the items from the response
-    items = response.get('Items', [])
+    # Query 2: Non-staff reservations with active date range
+    date_response = table.scan(
+        FilterExpression=Attr('isStaff').ne(True) & Attr('isBlocklisted').ne(True),
+        ProjectionExpression='reservationCode, listingId, #spaces, checkInDate, checkOutDate',
+        ExpressionAttributeNames={'#spaces': 'spaces'}
+    )
+    date_items = [
+        item for item in date_response.get('Items', [])
+        if item.get('checkInDate', '') <= current_date <= item.get('checkOutDate', '')
+    ]
+
+    # Union: staff + active non-staff
+    items = staff_items + date_items
 
     for item in items:
         logger.debug(item)
