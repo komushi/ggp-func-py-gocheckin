@@ -20,16 +20,15 @@ class FaceRecognition(FaceRecognitionBase):
     THREAD_NAME_PREFIX = "Thread-Detector"
 
     def process_frame(self, raw_img, cam_info, detected, age):
+        # Skip face recognition if no active members
+        if not self.active_members:
+            logger.info(f"{cam_info['cam_ip']} No active members - skipping face recognition")
+            return []
+
         current_time = time.time()
         faces = self.face_app.get(raw_img)
         duration = time.time() - current_time
         logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
-
-        # Skip face recognition if no active members
-        if not self.active_members:
-            if detected == 1:
-                logger.info(f"{cam_info['cam_ip']} No active members - skipping face recognition")
-            return []
 
         matched_faces = []
         for face in faces:
