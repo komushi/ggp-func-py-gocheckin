@@ -680,7 +680,7 @@ class StreamCapture(threading.Thread):
             logger.error(f"{self.cam_ip} Error during pipeline stop: {e}")
 
     def feed_detecting(self, running_seconds):
-        logger.debug(f"{self.cam_ip} feed_detecting in")
+        logger.info(f"{self.cam_ip} feed_detecting in")
 
         if self.is_feeding:
             logger.info(f"{self.cam_ip} feed_detecting out, already feeding")
@@ -703,8 +703,8 @@ class StreamCapture(threading.Thread):
         self.feeding_timer.name = f"Thread-SamplingStopper-{self.cam_ip}"
         self.feeding_timer.start()
 
-        logger.debug(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
-        logger.debug(f"{self.cam_ip} feed_detecting out")
+        logger.info(f'Available threads after feed_detecting: {", ".join(thread.name for thread in threading.enumerate())}')
+        logger.info(f"{self.cam_ip} feed_detecting out")
 
 
     def extend_timer(self, running_seconds):
