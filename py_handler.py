@@ -1058,7 +1058,7 @@ def update_member(reservationCode, memberNo, keyNotified=True):
     return
 
 def get_active_members():
-    logger.debug('get_active_members in')
+    logger.info('get_active_members in')
 
     # Specify the table name
     tbl_member = os.environ['TBL_MEMBER']
@@ -1100,12 +1100,12 @@ def get_active_members():
             item['faceEmbedding'] = np.array([float(value) for value in item['faceEmbedding']])
             filtered_results.append(item)
         else:
-            logger.debug(f"get_active_members, member {item['reservationCode']}-{item['memberNo']} filtered out with no faceEmbedding")
+            logger.info(f"get_active_members, member {item['reservationCode']}-{item['memberNo']} filtered out with no faceEmbedding")
     
     results = filtered_results
 
     for item in results:
-        logger.debug(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}")
+        logger.info(f"get_active_members out, reservationCode: {item['reservationCode']}, memberNo: {item['memberNo']}, fullName: {item['fullName']}")
 
     return results
 
