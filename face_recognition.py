@@ -23,12 +23,12 @@ class FaceRecognition(FaceRecognitionBase):
         current_time = time.time()
         faces = self.face_app.get(raw_img)
         duration = time.time() - current_time
-        logger.debug(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
+        logger.info(f"{cam_info['cam_ip']} detection frame #{detected} - age: {age:.3f} duration: {duration:.3f} face(s): {len(faces)}")
 
         # Skip face recognition if no active members
         if not self.active_members:
             if detected == 1:
-                logger.debug(f"{cam_info['cam_ip']} No active members - skipping face recognition")
+                logger.info(f"{cam_info['cam_ip']} No active members - skipping face recognition")
             return []
 
         matched_faces = []
@@ -36,7 +36,7 @@ class FaceRecognition(FaceRecognitionBase):
             # Log embedding stats for comparison with Hailo
             emb = face.embedding
             emb_norm = np.linalg.norm(emb)
-            logger.debug(f"InsightFace embedding: pre_norm={emb_norm:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}")
+            logger.info(f"InsightFace embedding: pre_norm={emb_norm:.4f}, mean={emb.mean():.4f}, std={emb.std():.4f}")
 
             threshold = float(os.environ.get('FACE_RECOG_THRESHOLD', '0.35'))
             active_member, sim, best_name = self.find_match(face.embedding, threshold)
