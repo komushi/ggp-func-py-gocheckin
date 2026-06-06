@@ -1,8 +1,13 @@
-# Edge-Side Considerations: Spaces Through Listing Shadow
+# Edge-Side Considerations: Spaces Through Listing Shadow (Cloud Reference)
+
+> **Note**: This document describes **cloud-side requirements** for the listing shadow pattern. For **edge implementation**, see:
+> - **TS Edge**: `../../LISTING_SPACES_SYNC.md` - How listing shadows sync to local DDB
+> - **TS Edge**: `../../RESERVATION_REFRESH.md` - How reservation refresh works at edge
+> - **Python Edge**: `LISTING_SPACES_EDGE_SYNC.md` - How Python fetches spaces from local DDB
 
 ## Overview
 
-This document describes the edge-side implementation for receiving `spaces` via a **new Listing named shadow**. The cloud team should use this as a reference when implementing the shadow payload.
+This document describes the edge-side implementation for receiving `spaces` via a **Listing named shadow**. The cloud team should use this as a reference when implementing the shadow payload.
 
 ## Design Decision
 

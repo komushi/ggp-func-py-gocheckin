@@ -1,4 +1,9 @@
-# Remove `spaces` from ReservationItem
+# Remove `spaces` from ReservationItem (Cloud Design Reference)
+
+> **Note**: This document describes **cloud-side** design. For **edge implementation** (TS/Python), see:
+> - **TS Edge**: `../../LISTING_SPACES_SYNC.md` - How listing shadows sync to local DDB
+> - **TS Edge**: `../../RESERVATION_REFRESH.md` - How reservation refresh works at edge
+> - **Python Edge**: `LISTING_SPACES_EDGE_SYNC.md` - How Python fetches spaces from local DDB
 
 ## Problem
 
@@ -9,6 +14,8 @@ Additionally, when an asset is removed from a listing's `spaces`, orphaned calen
 ## Solution (Option B — Read-through)
 
 Never store `spaces` on a reservation. Always fetch it live from the listing when needed. Clean up orphaned calendar entries whenever a listing's `spaces` changes.
+
+**Edge Sync Pattern**: The cloud generates listing shadow deltas (`listing:<listingId>`), which the edge component syncs to local DDB (`TBL_LISTING`). The Python face recognition module reads `spaces` from `TBL_LISTING`, not from `TBL_RESERVATION`.
 
 **No changes needed to:**
 - `schema.graphql` — `Reservation` type never had a `spaces` field
