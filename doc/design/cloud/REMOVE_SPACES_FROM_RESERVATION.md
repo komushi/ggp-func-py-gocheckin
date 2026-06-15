@@ -17,6 +17,8 @@ Never store `spaces` on a reservation. Always fetch it live from the listing whe
 
 **Edge Sync Pattern**: The cloud generates listing shadow deltas (`listing:<listingId>`), which the edge component syncs to local DDB (`TBL_LISTING`). The Python face recognition module reads `spaces` from `TBL_LISTING`, not from `TBL_RESERVATION`.
 
+**Important**: The TS edge component (`reservations.service.ts`) does NOT use `spaces` at all. It only syncs members to local DDB. The `spaces` lookup happens entirely on the **Python side** in `py_handler.py:fetch_members()`.
+
 **No changes needed to:**
 - `schema.graphql` — `Reservation` type never had a `spaces` field
 - `serverless.ts` — no references to `spaces`
@@ -133,6 +135,8 @@ Never store `spaces` on a reservation. Always fetch it live from the listing whe
 
 ## Data flow after change
 
+### Cloud Side (unchanged)
+
 ```
 generateReservation / renewReservation
   └─ addListingInfo()        → fetches spaces from Listing (transient, not stored)
@@ -149,6 +153,26 @@ listings.updateListing()
        dao.getReservationsByListingId()          → find affected reservations
        dao.deleteCalendarEntriesForSpaces()      → clean up orphaned calendar entries
 ```
+
+### Edge Side (Python fix)
+
+```
+Cloud: Update listing → IoT Shadow Delta (listing:<listingId>)
+  │
+  ▼
+TS Edge: listings.service → TBL_LISTING.spaces (current)
+  │
+  ▼
+Python: fetch_members() → get_listing_spaces(listingId) → TBL_LISTING
+  │
+  ▼
+Python: authorized_spaces = {s['uuid'] for s in listing_spaces}
+  │
+  ▼
+Lock authorization uses current spaces ✅
+```
+
+**Key Change**: Python reads `spaces` from `TBL_LISTING` (current) instead of `TBL_RESERVATION` (stale).
 
 ## Edge cases
 

@@ -71,166 +71,62 @@ Example: `listing:1225414147364900825`
 
 ### TypeScript Edge Handler (`ggp-func-ts-gocheckin`)
 
-**New Service Method** (`assets.service.ts`):
+**Status**: ✅ Already implemented
 
-```typescript
-/**
- * Process listing shadow delta - syncs spaces for a listing
- */
-private async processListingShadowDelta(listingId: string): Promise<any> {
-  console.log('assets.service processListingShadowDelta in: ' + listingId);
+The TS edge component (`listings.service.ts` + `listings.dao.ts`) already syncs listing shadows to local DDB (`TBL_LISTING`).
 
-  const getShadowResult = await this.iotService.getShadow({
-    thingName: process.env.AWS_IOT_THING_NAME,
-    shadowName: `listing:${listingId}`  // ← New shadow name format
-  });
-
-  const delta = getShadowResult.state.desired;
-
-  if (delta && delta.spaces) {
-    // Store listing spaces in local DDB for Python handler
-    await this.assetsDao.upsertListingSpaces({
-      listingId: delta.listingId,
-      spaces: delta.spaces,
-      lastUpdateOn: delta.lastRequestOn
-    });
-  }
-
-  console.log('assets.service processListingShadowDelta out');
-}
-```
-
-**New DAO Method** (`assets.dao.ts`):
-
-```typescript
-/**
- * Store listing spaces in local DDB
- */
-public async upsertListingSpaces(data: {
-  listingId: string;
-  spaces: Space[];
-  lastUpdateOn: string;
-}): Promise<any> {
-  // Upsert into TBL_ASSET or separate TBL_LISTING_SPACES
-  console.log('assets.dao upsertListingSpaces in:', data);
-  // Implementation: store { listingId, spaces: [...], lastUpdateOn }
-}
-
-/**
- * Fetch spaces for a listing
- */
-public async getListingSpaces(listingId: string): Promise<Space[]> {
-  console.log('assets.dao getListingSpaces in:', listingId);
-  // Query local DDB for listing's spaces
-}
-```
-
-**Handler Integration** (`handler.ts`):
-
-```typescript
-// Add listing shadow handling alongside reservations
-if (event.state.listings) {
-  if (getShadowResult.state.desired.listings) {
-    await assetsService.processListingsShadow(
-      event.state.listings,
-      getShadowResult.state.desired.listings
-    ).catch(err => {
-      console.error('processListingsShadow error:' + err.message);
-      throw err;
-    });
-  }
-}
-```
+**No changes needed to `reservations.service.ts`**: The reservation refresh flow does NOT use `spaces` at all. It only syncs members to local DDB.
 
 ### Python Handler (`ggp-func-py-gocheckin`)
 
-**Updated Data Fetching** (`py_handler.py`):
+**Required Fix** (`py_handler.py`):
+
+Change `get_members_for_reservations()` to fetch `spaces` from `TBL_LISTING` instead of `TBL_RESERVATION`:
 
 ```python
-def get_active_reservations():
-    """Fetch active reservations WITHOUT spaces."""
-    tbl_reservation = os.environ['TBL_RESERVATION']
-    table = dynamodb.Table(tbl_reservation)
+# NEW: Fetch spaces from TBL_LISTING (current)
+def get_listing_spaces(host_id: str, listing_id: str) -> List[dict]:
+    """Fetch current spaces for a listing from TBL_LISTING."""
+    table = dynamodb.Table(os.environ['TBL_LISTING'])
+    response = table.get_item(Key={'hostId': host_id, 'listingId': listing_id})
+    return response.get('Item', {}).get('spaces', [])
 
-    # Only fetch reservation basics
-    attributes_to_get = ['reservationCode', 'listingId', 'checkInDate', 'checkOutDate']
-
-    response = table.scan(
-        FilterExpression=filter_expression,
-        ProjectionExpression=', '.join(attributes_to_get)
-    )
-
-    return response.get('Items', [])
-
-def get_spaces_for_listing(listing_id: str) -> set:
-    """Fetch spaces for a listing from local DDB."""
-    # Query the listing spaces cache populated by TS handler
-    tbl_listing_spaces = os.environ['TBL_LISTING_SPACES']  # New table or use TBL_ASSET
-    table = dynamodb.Table(tbl_listing_spaces)
-
-    response = table.get_item(
-        Key={'listingId': listing_id}
-    )
-
-    spaces = response.get('Item', {}).get('spaces', [])
-    return {s['uuid'] for s in spaces}
-
-def get_members_for_reservations(reservations, category):
-    """Fetch members with spaces resolved from listing."""
-    results = []
-    for reservation in reservations:
-        # Get spaces from LISTING, not reservation
-        authorized_spaces = get_spaces_for_listing(reservation['listingId'])
-
-        # Fetch members for this reservation
-        members = fetch_members_for_reservation(reservation['reservationCode'])
-        for member in members:
-            member['listingId'] = reservation['listingId']
-            member['authorizedSpaces'] = authorized_spaces
-        results.extend(members)
-
-    return results
+# In get_members_for_reservations():
+for reservation in reservations:
+    listing_id = reservation['listingId']
+    # Fetch current spaces from TBL_LISTING (not TBL_RESERVATION)
+    listing_spaces = get_listing_spaces(os.environ['AWS_IOT_HOST_ID'], listing_id)
+    authorized_spaces = {s['uuid'] for s in listing_spaces}
+    # ... stamp members with authorized_spaces ...
 ```
+
+**What to remove**:
+- Remove `#spaces` from `ProjectionExpression` in `get_active_reservations()`, `get_staff_reservations()` etc.
+- Remove `reservation.get('spaces', [])` - this is stale data
 
 ---
 
 ## Data Flow (Updated)
 
 ```
-Cloud (reservations.service.ts / listings.service.ts)
-    │
-    ├─ createReservation() / renewReservation()
-    │   └─ NO LONGER includes spaces in reservation
-    │
-    ├─ updateListing() or listing spaces change
-    │   └─ Update listing named shadow: listing:<listingId>
-    │       └─ { listingId, spaces: [{ uuid, ... }], lastRequestOn }
+Cloud: Update listing → IoT Shadow Delta (listing:<listingId>)
     │
     ▼
-AWS IoT Shadow
-    │
-    ├─ Classic shadow delta: { listings: { "listing:xyz": { action: 'UPDATE' } } }
-    └─ Named shadow: listing:<listingId> → { spaces: [...] }
+TS Edge: listings.service → TBL_LISTING.spaces (current)
     │
     ▼
-TypeScript Edge Handler (handler.ts → assets.service.ts)
-    │
-    ├─ processListingsShadow() detects delta
-    ├─ getShadow() fetches listing named shadow
-    ├─ upsertListingSpaces() stores in local DDB
-    └─ Publishes listing_spaces_updated
+Python: fetch_members() → get_listing_spaces(listingId) → TBL_LISTING
     │
     ▼
-Python Handler (py_handler.py)
-    │
-    ├─ get_active_reservations() → [ { listingId, ... } ]  (no spaces!)
-    ├─ get_spaces_for_listing(listingId) → { "adwJwZ", "xYz123" }
-    ├─ get_members_for_reservations() → stamp with authorizedSpaces
-    └─ fetch_scanner_output_queue() → filter locks by authorization
+Python: authorized_spaces = {s['uuid'] for s in listing_spaces}
     │
     ▼
-Result: Member only sees locks for spaces in their listing's shadow
+Lock authorization uses current spaces ✅
 ```
+
+**Key Change**: Python reads `spaces` from `TBL_LISTING` (current) instead of `TBL_RESERVATION` (stale).
+
+**TS does NOT need changes**: `reservations.service.ts` only syncs members, does NOT use `spaces`.
 
 ---
 
@@ -325,24 +221,29 @@ The cloud team must:
    await iotService.updateThingShadow(thingName, undefined, classicPayload);
    ```
 
-3. **Reservations no longer need spaces** — remove any code that includes `spaces` in reservation shadow payloads
+3. **Optional**: Remove `spaces` from reservation shadow payloads (not used by edge anymore)
 
 ---
 
 ## Testing Checklist
 
-- [ ] Listing named shadow `listing:<listingId>` exists and contains `spaces`
-- [ ] Classic shadow triggers edge sync for listing changes
-- [ ] TS handler stores listing spaces in local DDB
-- [ ] Python handler fetches spaces from listing (not reservation)
-- [ ] Python handler correctly filters locks by `roomCode in authorized_spaces`
-- [ ] Members with listings that have no spaces get no lock access
-- [ ] Locks in non-authorized spaces are filtered out
+- [ ] **TS**: Listing shadow sync → `TBL_LISTING` updated within 1 second
+- [ ] **Python**: `get_listing_spaces()` reads from `TBL_LISTING` (not `TBL_RESERVATION`)
+- [ ] **Python**: Update listing spaces → verify Python sees current spaces within 1 second
+- [ ] **Python**: Face recognition with member → verify lock authorization uses current spaces
+- [ ] **TS**: No changes needed to `reservations.service.ts` - it doesn't use `spaces`
 
 ---
 
 ## Related Documents
 
+### Edge Implementation
+- **TS Edge**: `../../LISTING_SPACES_SYNC.md` — How TS syncs listing shadows
+- **TS Edge**: `../../RESERVATION_REFRESH.md` — How reservation refresh works (no changes needed)
+- **Python Edge**: `LISTING_SPACES_EDGE_SYNC.md` — Python fix details
+- **Python Overview**: `LISTING_SPACES_OVERVIEW.md` — Cross-component overview
+
+### Cloud Reference
 - `REMOVE_SPACES_FROM_RESERVATION.md` — Cloud-side implementation plan
 - `SECURITY_USE_CASES.md` — UC1-UC5 security use-case definitions
 - `LOCK_BUTTON_ASSOCIATION.md` — Lock space assignment via `roomCode`
