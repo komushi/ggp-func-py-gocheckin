@@ -885,18 +885,17 @@ def get_active_reservations():
     current_date = datetime.now().strftime('%Y-%m-%d')
 
     # Query 1: Staff reservations (isStaff=True) - always active, no date filter
+    # NOTE: spaces are no longer fetched here - fetched from TBL_LISTING at runtime
     staff_response = table.scan(
         FilterExpression=Attr('isStaff').eq(True),
-        ProjectionExpression='reservationCode, listingId, #spaces',
-        ExpressionAttributeNames={'#spaces': 'spaces'}
+        ProjectionExpression='reservationCode, listingId'
     )
     staff_items = staff_response.get('Items', [])
 
     # Query 2: Non-staff reservations with active date range
     date_response = table.scan(
         FilterExpression=Attr('isStaff').ne(True) & Attr('isBlocklisted').ne(True),
-        ProjectionExpression='reservationCode, listingId, #spaces, checkInDate, checkOutDate',
-        ExpressionAttributeNames={'#spaces': 'spaces'}
+        ProjectionExpression='reservationCode, listingId, checkInDate, checkOutDate'
     )
     date_items = [
         item for item in date_response.get('Items', [])
@@ -950,10 +949,10 @@ def get_staff_reservations():
 
     filter_expression = Attr('isStaff').eq(True)
 
+    # NOTE: spaces are no longer fetched here - fetched from TBL_LISTING at runtime
     response = table.scan(
         FilterExpression=filter_expression,
-        ProjectionExpression='reservationCode, listingId, #spaces',
-        ExpressionAttributeNames={'#spaces': 'spaces'}
+        ProjectionExpression='reservationCode, listingId'
     )
 
     items = response.get('Items', [])
@@ -981,8 +980,32 @@ def get_blocklist_reservations():
     return items
 
 
+def get_listing_spaces(listing_id):
+    """Fetch current spaces for a listing from TBL_LISTING.
+
+    Args:
+        listing_id: The listing ID to look up.
+
+    Returns:
+        List of space dicts from TBL_LISTING, or empty list if not found.
+    """
+    tbl_listing = os.environ['TBL_LISTING']
+    table = dynamodb.Table(tbl_listing)
+
+    response = table.get_item(
+        Key={'hostId': os.environ.get('HOST_ID', ''), 'listingId': listing_id}
+    )
+    spaces = response.get('Item', {}).get('spaces', [])
+    logger.debug(f'get_listing_spaces [{listing_id}]: {len(spaces)} spaces')
+    return spaces
+
+
 def get_members_for_reservations(reservations, category):
-    """Fetch TBL_MEMBER records for a list of reservations, stamped with category."""
+    """Fetch TBL_MEMBER records for a list of reservations, stamped with category.
+
+    Spaces are fetched from TBL_LISTING (not TBL_RESERVATION) to ensure current data.
+    See: doc/design/LISTING_SPACES_EDGE_SYNC.md
+    """
     if not reservations:
         return []
 
@@ -997,9 +1020,12 @@ def get_members_for_reservations(reservations, category):
             ProjectionExpression=', '.join(attributes_to_get),
             ExpressionAttributeValues={':code': reservation['reservationCode']}
         )
-        authorized_spaces = {s['uuid'] for s in reservation.get('spaces', [])}
+        # Fetch spaces from TBL_LISTING (current) instead of TBL_RESERVATION (stale)
+        listing_id = reservation['listingId']
+        listing_spaces = get_listing_spaces(listing_id)
+        authorized_spaces = {s['uuid'] for s in listing_spaces}
         for member in response['Items']:
-            member['listingId'] = reservation['listingId']
+            member['listingId'] = listing_id
             member['authorizedSpaces'] = authorized_spaces
         results.extend(response['Items'])
 
